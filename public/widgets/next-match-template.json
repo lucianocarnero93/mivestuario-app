@@ -1,0 +1,39 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "body": [
+    {
+      "type": "TextBlock",
+      "size": "Small",
+      "weight": "Bolder",
+      "color": "Good",
+      "text": "CANCHA FIJA"
+    },
+    {
+      "type": "TextBlock",
+      "size": "Medium",
+      "weight": "Bolder",
+      "wrap": true,
+      "text": "${title}"
+    },
+    {
+      "type": "TextBlock",
+      "wrap": true,
+      "text": "${when} · ${place}",
+      "spacing": "Small"
+    },
+    {
+      "type": "TextBlock",
+      "text": "${confirmed} confirmados · ${modality}",
+      "spacing": "Small"
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Execute",
+      "title": "Abrir llamado",
+      "verb": "open-home"
+    }
+  ]
+}

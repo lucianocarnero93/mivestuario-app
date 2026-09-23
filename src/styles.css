@@ -1,0 +1,174 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-void: #061109;
+  --color-bg: #0b1c12;
+  --color-surface: #132a1c;
+  --color-surface-2: #1a3826;
+  --color-fg: #eef6ef;
+  --color-muted: #9bb5a4;
+  --color-subtle: #6e8a78;
+  --color-accent: #b8f25a;
+  --color-accent-fg: #0c1a10;
+  --color-border: #234833;
+  --color-wood: #1a2e20;
+  --color-wood-deep: #0e1c13;
+  --color-metal: #1e3326;
+  --color-board: #0d1a12;
+  --color-chalk: #e8ead8;
+  --color-pitch: #147a3a;
+  --color-pitch-top: #1a9a4a;
+  --color-pitch-deep: #0c5a2a;
+  --color-line: #e8f3ea;
+  --color-danger: #f07167;
+  --color-danger-fg: #2a0c0a;
+  --color-warning: #f0b429;
+  --color-success: #b8f25a;
+  --color-card: #132a1c;
+  --color-background: #0b1c12;
+  --color-foreground: #eef6ef;
+  --color-primary: #b8f25a;
+  --color-primary-foreground: #0c1a10;
+  --color-secondary: #1a3826;
+  --color-secondary-foreground: #eef6ef;
+  --color-muted-foreground: #9bb5a4;
+  --color-destructive: #f07167;
+  --color-input: #234833;
+  --color-ring: #b8f25a;
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Barlow Condensed", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --radius: 14px;
+  --max-width-phone: 430px;
+  --shadow-card: 0 1px 0 rgba(184, 242, 90, 0.06), 0 12px 28px rgba(0, 0, 0, 0.28);
+  --shadow-pitch: inset 0 0 40px rgba(0, 0, 0, 0.22);
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea,
+  label {
+    touch-action: manipulation;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--color-void);
+    color: var(--color-fg);
+    color-scheme: dark;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--color-void);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+  }
+
+  .app-titlebar {
+    position: fixed;
+    left: env(titlebar-area-x, 0);
+    top: env(titlebar-area-y, 0);
+    width: env(titlebar-area-width, 100%);
+    height: env(titlebar-area-height, 0px);
+    z-index: 80;
+    -webkit-app-region: drag;
+    pointer-events: none;
+  }
+
+  @media (display-mode: window-controls-overlay) {
+    .app-titlebar {
+      pointer-events: auto;
+    }
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@layer components {
+  .pitch-shell {
+    background-color: var(--color-bg);
+    background-image:
+      radial-gradient(
+        circle at 50% 38%,
+        transparent 86px,
+        color-mix(in oklab, var(--color-line) 10%, transparent) 87px,
+        color-mix(in oklab, var(--color-line) 10%, transparent) 88px,
+        transparent 89px
+      ),
+      linear-gradient(
+        90deg,
+        transparent calc(50% - 0.5px),
+        color-mix(in oklab, var(--color-line) 10%, transparent) calc(50% - 0.5px),
+        color-mix(in oklab, var(--color-line) 10%, transparent) calc(50% + 0.5px),
+        transparent calc(50% + 0.5px)
+      ),
+      repeating-linear-gradient(
+        90deg,
+        color-mix(in oklab, var(--color-pitch-deep) 42%, transparent) 0 22px,
+        color-mix(in oklab, var(--color-pitch-top) 16%, transparent) 22px 44px
+      );
+  }
+
+  .grass-strip {
+    height: 8px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--color-pitch-deep) 0 18px,
+      var(--color-pitch) 18px 28px,
+      var(--color-pitch-top) 28px 40px
+    );
+  }
+
+  .metal-card {
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--color-border);
+  }
+
+  .chalkboard {
+    background:
+      radial-gradient(900px 280px at 18% 0%, rgba(255, 255, 255, 0.05), transparent 55%),
+      var(--color-board);
+    color: var(--color-chalk);
+    box-shadow:
+      inset 0 0 0 7px #1c241e,
+      0 12px 28px color-mix(in oklab, var(--color-fg) 14%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
