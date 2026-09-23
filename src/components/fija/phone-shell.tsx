@@ -68,7 +68,7 @@ function AuthFrame({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   // Rutas públicas: se muestran aunque no haya sesión.
-  const publicPaths = ["/olvide", "/reset", "/login", "/privacidad", "/tiendas"];
+  const publicPaths = ["/olvide", "/reset", "/login", "/privacidad", "/tiendas", "/contacto", "/terminos"];
   if (publicPaths.includes(pathname)) {
     return children;
   }

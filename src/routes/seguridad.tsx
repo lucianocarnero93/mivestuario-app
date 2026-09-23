@@ -155,11 +155,17 @@ function SeguridadPage() {
           de código extraño. Solo DT y ayudante cargan planilla y pizarra.
         </p>
         <Link to="/privacidad" className="mt-3 flex h-12 items-center font-semibold text-accent">
-          Política de privacidad
-        </Link>
-        <Link to="/tiendas" className="flex h-12 items-center font-semibold text-accent">
-          Pasos para la App Store
-        </Link>
+  Política de privacidad
+</Link>
+<Link to="/terminos" className="flex h-12 items-center font-semibold text-accent">
+  Términos y condiciones
+</Link>
+<Link to="/contacto" className="flex h-12 items-center font-semibold text-accent">
+  Contacto
+</Link>
+<Link to="/tiendas" className="flex h-12 items-center font-semibold text-accent">
+  Pasos para la App Store
+</Link>
       </section>
 
       {/* ─── Cuenta ─── */}

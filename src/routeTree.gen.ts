@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as CanchaRouteImport } from './routes/cancha'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as ContactoRouteImport } from './routes/contacto'
 import { Route as EquipoRouteImport } from './routes/equipo'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OlvideRouteImport } from './routes/olvide'
@@ -20,6 +21,7 @@ import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as ResetRouteImport } from './routes/reset'
 import { Route as SeguridadRouteImport } from './routes/seguridad'
 import { Route as StatsRouteImport } from './routes/stats'
+import { Route as TerminosRouteImport } from './routes/terminos'
 import { Route as TiendasRouteImport } from './routes/tiendas'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -41,6 +43,11 @@ const CanchaRoute = CanchaRouteImport.update({
 const ChatRoute = ChatRouteImport.update({
   id: '/chat',
   path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactoRoute = ContactoRouteImport.update({
+  id: '/contacto',
+  path: '/contacto',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EquipoRoute = EquipoRouteImport.update({
@@ -78,6 +85,11 @@ const StatsRoute = StatsRouteImport.update({
   path: '/stats',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TerminosRoute = TerminosRouteImport.update({
+  id: '/terminos',
+  path: '/terminos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TiendasRoute = TiendasRouteImport.update({
   id: '/tiendas',
   path: '/tiendas',
@@ -94,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AgendaRoute
   '/cancha': typeof CanchaRoute
   '/chat': typeof ChatRoute
+  '/contacto': typeof ContactoRoute
   '/equipo': typeof EquipoRoute
   '/login': typeof LoginRoute
   '/olvide': typeof OlvideRoute
@@ -101,6 +114,7 @@ export interface FileRoutesByFullPath {
   '/reset': typeof ResetRoute
   '/seguridad': typeof SeguridadRoute
   '/stats': typeof StatsRoute
+  '/terminos': typeof TerminosRoute
   '/tiendas': typeof TiendasRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -109,6 +123,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AgendaRoute
   '/cancha': typeof CanchaRoute
   '/chat': typeof ChatRoute
+  '/contacto': typeof ContactoRoute
   '/equipo': typeof EquipoRoute
   '/login': typeof LoginRoute
   '/olvide': typeof OlvideRoute
@@ -116,6 +131,7 @@ export interface FileRoutesByTo {
   '/reset': typeof ResetRoute
   '/seguridad': typeof SeguridadRoute
   '/stats': typeof StatsRoute
+  '/terminos': typeof TerminosRoute
   '/tiendas': typeof TiendasRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -125,6 +141,7 @@ export interface FileRoutesById {
   '/agenda': typeof AgendaRoute
   '/cancha': typeof CanchaRoute
   '/chat': typeof ChatRoute
+  '/contacto': typeof ContactoRoute
   '/equipo': typeof EquipoRoute
   '/login': typeof LoginRoute
   '/olvide': typeof OlvideRoute
@@ -132,6 +149,7 @@ export interface FileRoutesById {
   '/reset': typeof ResetRoute
   '/seguridad': typeof SeguridadRoute
   '/stats': typeof StatsRoute
+  '/terminos': typeof TerminosRoute
   '/tiendas': typeof TiendasRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -142,6 +160,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/cancha'
     | '/chat'
+    | '/contacto'
     | '/equipo'
     | '/login'
     | '/olvide'
@@ -149,6 +168,7 @@ export interface FileRouteTypes {
     | '/reset'
     | '/seguridad'
     | '/stats'
+    | '/terminos'
     | '/tiendas'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
@@ -157,6 +177,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/cancha'
     | '/chat'
+    | '/contacto'
     | '/equipo'
     | '/login'
     | '/olvide'
@@ -164,6 +185,7 @@ export interface FileRouteTypes {
     | '/reset'
     | '/seguridad'
     | '/stats'
+    | '/terminos'
     | '/tiendas'
     | '/api/auth/$'
   id:
@@ -172,6 +194,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/cancha'
     | '/chat'
+    | '/contacto'
     | '/equipo'
     | '/login'
     | '/olvide'
@@ -179,6 +202,7 @@ export interface FileRouteTypes {
     | '/reset'
     | '/seguridad'
     | '/stats'
+    | '/terminos'
     | '/tiendas'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
@@ -188,6 +212,7 @@ export interface RootRouteChildren {
   AgendaRoute: typeof AgendaRoute
   CanchaRoute: typeof CanchaRoute
   ChatRoute: typeof ChatRoute
+  ContactoRoute: typeof ContactoRoute
   EquipoRoute: typeof EquipoRoute
   LoginRoute: typeof LoginRoute
   OlvideRoute: typeof OlvideRoute
@@ -195,6 +220,7 @@ export interface RootRouteChildren {
   ResetRoute: typeof ResetRoute
   SeguridadRoute: typeof SeguridadRoute
   StatsRoute: typeof StatsRoute
+  TerminosRoute: typeof TerminosRoute
   TiendasRoute: typeof TiendasRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
@@ -227,6 +253,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contacto': {
+      id: '/contacto'
+      path: '/contacto'
+      fullPath: '/contacto'
+      preLoaderRoute: typeof ContactoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/equipo': {
@@ -278,6 +311,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StatsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/terminos': {
+      id: '/terminos'
+      path: '/terminos'
+      fullPath: '/terminos'
+      preLoaderRoute: typeof TerminosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tiendas': {
       id: '/tiendas'
       path: '/tiendas'
@@ -300,6 +340,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgendaRoute: AgendaRoute,
   CanchaRoute: CanchaRoute,
   ChatRoute: ChatRoute,
+  ContactoRoute: ContactoRoute,
   EquipoRoute: EquipoRoute,
   LoginRoute: LoginRoute,
   OlvideRoute: OlvideRoute,
@@ -307,6 +348,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetRoute: ResetRoute,
   SeguridadRoute: SeguridadRoute,
   StatsRoute: StatsRoute,
+  TerminosRoute: TerminosRoute,
   TiendasRoute: TiendasRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
