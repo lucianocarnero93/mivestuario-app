@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { authClient } from "@/lib/auth/client";
 import { UserButton } from "@/lib/auth/gates";
 import { queryGpsPermission, type GpsPermission } from "@/lib/fija/gps";
 import { useFija, useMe } from "@/lib/fija/store";
@@ -27,9 +28,57 @@ function SeguridadPage() {
   const [gps, setGps] = useState<GpsPermission>("unknown");
   const [leaving, setLeaving] = useState(false);
 
+  // Cambiar nombre
+  const [newName, setNewName] = useState(me.name ?? "");
+  const [savingName, setSavingName] = useState(false);
+  const [nameMessage, setNameMessage] = useState("");
+
+  // Borrar cuenta
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteMessage, setDeleteMessage] = useState("");
+
   useEffect(() => {
     void queryGpsPermission().then(setGps);
   }, []);
+
+  async function handleSaveName() {
+    const clean = newName.trim();
+    if (clean.length < 2) {
+      setNameMessage("El nombre tiene que tener al menos 2 letras.");
+      return;
+    }
+    setSavingName(true);
+    setNameMessage("");
+    const result = await authClient.updateUser({ name: clean });
+    setSavingName(false);
+    if (result.error) {
+      setNameMessage("No se pudo guardar. Probá de nuevo.");
+    } else {
+      setNameMessage("¡Listo! Nombre actualizado.");
+      // Refrescar la sesión para que la app vea el nuevo nombre
+      if (typeof window !== "undefined") {
+        setTimeout(() => window.location.reload(), 800);
+      }
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeletingAccount(true);
+    setDeleteMessage("");
+    try {
+      const result = await authClient.deleteUser();
+      if (result.error) {
+        setDeleteMessage("No se pudo borrar la cuenta. Probá de nuevo.");
+        setDeletingAccount(false);
+      } else if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
+    } catch {
+      setDeleteMessage("No se pudo borrar la cuenta. Probá de nuevo.");
+      setDeletingAccount(false);
+    }
+  }
 
   return (
     <main className="px-4 py-5">
@@ -75,8 +124,7 @@ function SeguridadPage() {
       <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Nube</h2>
         <p className="mt-2 text-sm text-muted">
-          El vestuario se guarda en la base de la app publicada. En el celular queda una copia. Google
-          Firebase no se puede abrir desde acá; esta nube sale con la publicación.
+          El vestuario se guarda en la base de la app publicada. En el celular queda una copia.
         </p>
         <p className="mt-2 text-sm">
           Estado:{" "}
@@ -114,20 +162,41 @@ function SeguridadPage() {
         </Link>
       </section>
 
+      {/* ─── Cuenta ─── */}
       <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Cuenta</h2>
-        <p className="mt-2 text-sm text-muted">La sesión de Google de este celular.</p>
+        <p className="mt-2 text-sm text-muted">La sesión de este celular.</p>
         <div className="mt-3">
           <UserButton />
         </div>
+
+        {/* Cambiar nombre */}
+        <div className="mt-4 border-t border-border pt-4">
+          <label className="block text-sm font-semibold">Cambiar nombre</label>
+          <p className="mt-1 text-xs text-muted">Es el nombre que ven tus compañeros en el equipo.</p>
+          <input
+            className="mt-2 flex h-12 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            value={newName}
+            onChange={(event) => setNewName(event.target.value)}
+            placeholder="Tu nombre"
+          />
+          {nameMessage ? <p className="mt-2 text-sm text-muted">{nameMessage}</p> : null}
+          <Button
+            className="mt-3 h-12 w-full"
+            onClick={() => void handleSaveName()}
+            disabled={savingName || newName.trim() === (me.name ?? "")}
+          >
+            {savingName ? "Guardando…" : "Guardar nombre"}
+          </Button>
+        </div>
       </section>
 
+      {/* ─── Salir del equipo ─── */}
       {club ? (
         <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Salir del equipo</h2>
           <p className="mt-2 text-sm text-muted">
-            {me.nick}, podés irte de {club.name} y entrar a otro con un código, o crear el tuyo. El DT, el
-            ayudante y el jugador tienen la misma salida.
+            {me.nick}, podés irte de {club.name} y entrar a otro con un código, o crear el tuyo.
           </p>
           {leaving ? (
             <div className="mt-3 grid gap-2">
@@ -145,6 +214,40 @@ function SeguridadPage() {
           )}
         </section>
       ) : null}
+
+      {/* ─── Zona peligrosa: borrar cuenta ─── */}
+      <section className="mt-4 rounded-xl border border-danger/30 bg-surface p-4 shadow-card">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-danger">Zona peligrosa</h2>
+        <p className="mt-2 text-sm text-muted">
+          Si borrás tu cuenta, se eliminan tus datos, tu sesión y tu equipo (si sos el creador).
+          Esta acción no se puede deshacer.
+        </p>
+        {confirmDelete ? (
+          <div className="mt-3 grid gap-2">
+            <p className="text-sm font-semibold text-danger">¿Estás seguro?</p>
+            <Button
+              variant="danger"
+              className="h-12"
+              onClick={() => void handleDeleteAccount()}
+              disabled={deletingAccount}
+            >
+              {deletingAccount ? "Borrando…" : "Sí, borrar mi cuenta"}
+            </Button>
+            <Button variant="ghost" className="h-12" onClick={() => setConfirmDelete(false)}>
+              Cancelar
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            className="mt-3 h-12 w-full"
+            onClick={() => setConfirmDelete(true)}
+          >
+            Borrar mi cuenta
+          </Button>
+        )}
+        {deleteMessage ? <p className="mt-2 text-sm text-danger">{deleteMessage}</p> : null}
+      </section>
     </main>
   );
 }

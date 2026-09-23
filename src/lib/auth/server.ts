@@ -1,7 +1,7 @@
 /**
  * Better Auth self-hosted para Mi Vestuario.
- * Google directo + email/password. Sin broker de Grok.
- * Reset de contraseña y borrado de cuenta vía Resend.
+ * Google directo + email/password.
+ * Reset de contraseña vía Resend. Borrado de cuenta directo.
  *
  * NEVER import from client code.
  */
@@ -65,7 +65,7 @@ export const auth = betterAuth({
         console.error("[auth] RESEND_API_KEY no seteado. No se puede enviar el mail de reset.");
         return;
       }
-      // NO await: evita timing attacks (recomendación oficial de Better Auth) [citation:2]
+      // NO await: evita timing attacks (recomendación oficial de Better Auth)
       void resend.emails.send({
         from: fromEmail,
         to: user.email,
@@ -83,23 +83,7 @@ export const auth = betterAuth({
   user: {
     deleteUser: {
       enabled: true,
-      sendDeleteAccountVerification: async ({ user, url }) => {
-        if (!resend) {
-          console.error("[auth] RESEND_API_KEY no seteado. No se puede enviar el mail de borrado.");
-          return;
-        }
-        void resend.emails.send({
-          from: fromEmail,
-          to: user.email,
-          subject: "Confirmá el borrado de tu cuenta de Mi Vestuario",
-          html: `
-            <p>Hola ${user.name ?? "jugador"},</p>
-            <p>Pediste borrar tu cuenta y todos tus datos.</p>
-            <p><a href="${url}">Confirmá el borrado acá</a></p>
-            <p>Si no pediste esto, ignorá este mail. Tu cuenta seguirá existiendo.</p>
-          `,
-        });
-      },
+      // Sin sendDeleteAccountVerification → borra directo (con confirmación en pantalla).
     },
   },
 
@@ -110,8 +94,5 @@ export const auth = betterAuth({
     defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },
   },
 
-  plugins: [
-    bearer(),
-    tanstackStartCookies(),
-  ],
+  plugins: [bearer(), tanstackStartCookies()],
 });
