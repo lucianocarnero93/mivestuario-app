@@ -22,11 +22,23 @@ const NAV = [
   { to: "/equipo", label: "Equipo", icon: Users, exact: false },
 ] as const;
 
+/** Rutas "peladas": sin AppBar ni BottomNav. */
+const BARE_PATHS = [
+  "/olvide",
+  "/reset",
+  "/login",
+  "/privacidad",
+  "/tiendas",
+  "/contacto",
+  "/terminos",
+] as const;
+
 export function PhoneShell() {
   const setHydrated = useFija((s) => s.setHydrated);
   const tickAlerts = useFija((s) => s.tickAlerts);
   const club = useFija((s) => s.club);
   const hydrated = useFija((s) => s.hydrated);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
     void Promise.resolve(useFija.persist.rehydrate()).then(() => {
@@ -38,26 +50,32 @@ export function PhoneShell() {
     return () => window.clearInterval(id);
   }, [setHydrated, tickAlerts]);
 
+  const isBare = (BARE_PATHS as readonly string[]).includes(pathname);
+
   return (
     <div className="min-h-dvh bg-void text-fg">
       <div className="app-titlebar" aria-hidden="true" />
       <PwaRegister />
       <div className="pitch-shell mx-auto flex min-h-dvh w-full max-w-phone flex-col shadow-card">
         <div className="grass-strip" aria-hidden="true" />
-        <AuthFrame>
-          {hydrated && !club ? (
-            <ClubGate />
-          ) : (
-            <>
-              <AppBar />
-              <PushBanner />
-              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2">
-                <Outlet />
-              </div>
-              <BottomNav />
-            </>
-          )}
-        </AuthFrame>
+        {isBare ? (
+          <Outlet />
+        ) : (
+          <AuthFrame>
+            {hydrated && !club ? (
+              <ClubGate />
+            ) : (
+              <>
+                <AppBar />
+                <PushBanner />
+                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2">
+                  <Outlet />
+                </div>
+                <BottomNav />
+              </>
+            )}
+          </AuthFrame>
+        )}
       </div>
     </div>
   );
@@ -65,14 +83,6 @@ export function PhoneShell() {
 
 function AuthFrame({ children }: { children: ReactNode }) {
   const { user } = useCurrentUserState();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-
-  // Rutas públicas: se muestran aunque no haya sesión.
-  const publicPaths = ["/olvide", "/reset", "/login", "/privacidad", "/tiendas", "/contacto", "/terminos"];
-  if (publicPaths.includes(pathname)) {
-    return children;
-  }
-
   if (!user) {
     return <SignInPanel opening={false} />;
   }
