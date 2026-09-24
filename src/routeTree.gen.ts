@@ -22,7 +22,6 @@ import { Route as ResetRouteImport } from './routes/reset'
 import { Route as SeguridadRouteImport } from './routes/seguridad'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as TerminosRouteImport } from './routes/terminos'
-import { Route as TiendasRouteImport } from './routes/tiendas'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -90,11 +89,6 @@ const TerminosRoute = TerminosRouteImport.update({
   path: '/terminos',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TiendasRoute = TiendasRouteImport.update({
-  id: '/tiendas',
-  path: '/tiendas',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -115,7 +109,6 @@ export interface FileRoutesByFullPath {
   '/seguridad': typeof SeguridadRoute
   '/stats': typeof StatsRoute
   '/terminos': typeof TerminosRoute
-  '/tiendas': typeof TiendasRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -132,7 +125,6 @@ export interface FileRoutesByTo {
   '/seguridad': typeof SeguridadRoute
   '/stats': typeof StatsRoute
   '/terminos': typeof TerminosRoute
-  '/tiendas': typeof TiendasRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -150,7 +142,6 @@ export interface FileRoutesById {
   '/seguridad': typeof SeguridadRoute
   '/stats': typeof StatsRoute
   '/terminos': typeof TerminosRoute
-  '/tiendas': typeof TiendasRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -169,7 +160,6 @@ export interface FileRouteTypes {
     | '/seguridad'
     | '/stats'
     | '/terminos'
-    | '/tiendas'
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -186,7 +176,6 @@ export interface FileRouteTypes {
     | '/seguridad'
     | '/stats'
     | '/terminos'
-    | '/tiendas'
     | '/api/auth/$'
   id:
     | '__root__'
@@ -203,7 +192,6 @@ export interface FileRouteTypes {
     | '/seguridad'
     | '/stats'
     | '/terminos'
-    | '/tiendas'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -221,7 +209,6 @@ export interface RootRouteChildren {
   SeguridadRoute: typeof SeguridadRoute
   StatsRoute: typeof StatsRoute
   TerminosRoute: typeof TerminosRoute
-  TiendasRoute: typeof TiendasRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -318,13 +305,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TerminosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/tiendas': {
-      id: '/tiendas'
-      path: '/tiendas'
-      fullPath: '/tiendas'
-      preLoaderRoute: typeof TiendasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -349,7 +329,6 @@ const rootRouteChildren: RootRouteChildren = {
   SeguridadRoute: SeguridadRoute,
   StatsRoute: StatsRoute,
   TerminosRoute: TerminosRoute,
-  TiendasRoute: TiendasRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

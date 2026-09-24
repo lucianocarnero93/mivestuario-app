@@ -186,16 +186,13 @@ function EventDialog({
               placeholder="Predio, cancha 2"
             />
           </div>
-          <div className="space-y-1.5">
+            <div className="space-y-1.5">
             <Label>Dirección para Mapas</Label>
             <Input
               value={mapsQuery}
               onChange={(e) => setMapsQuery(e.target.value)}
               placeholder="Calle y barrio, o un link de Maps"
             />
-            <p className="text-xs text-muted">
-              Se abre la app de Mapas del celular. Sin mapa acá adentro.
-            </p>
             <GpsLocateButton
               onFix={(fix) => {
                 setMapsQuery(fix.mapsQuery);

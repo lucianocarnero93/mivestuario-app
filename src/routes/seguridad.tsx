@@ -163,9 +163,6 @@ function SeguridadPage() {
 <Link to="/contacto" className="flex h-12 items-center font-semibold text-accent">
   Contacto
 </Link>
-<Link to="/tiendas" className="flex h-12 items-center font-semibold text-accent">
-  Pasos para la App Store
-</Link>
       </section>
 
       {/* ─── Cuenta ─── */}
