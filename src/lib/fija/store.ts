@@ -836,7 +836,7 @@ export const useFija = create<State>()(
           id: uid("club"),
           name: teamName,
           createdBy: me.id,
-          inviteCode: uid("EQ").replace("EQ-", "").slice(0, 5).toUpperCase(),
+          inviteCode: generarCodigoEquipo(),
           crest: crest && crest.startsWith("data:image/") ? crest : null,
         };
         set({
@@ -988,7 +988,16 @@ function isStaffId(state: { members: Member[]; activeId: string }): boolean {
   const me = state.members.find((m) => m.id === state.activeId);
   return me?.role === "dt" || me?.role === "ayudante";
 }
-
+// Genera un código de equipo de 5 letras mayúsculas, sin caracteres confundibles.
+// Excluye: I, L, O para evitar confusiones al tipear.
+function generarCodigoEquipo(): string {
+  const letras = "ABCDEFGHJKMNPQRSTUVWXYZ"; // sin I, L, O
+  let codigo = "";
+  for (let i = 0; i < 5; i += 1) {
+    codigo += letras[Math.floor(Math.random() * letras.length)];
+  }
+  return codigo;
+}
 // True si la persona actual es quien creó el equipo.
 function isCreatorId(state: { club: Club | null; activeId: string }): boolean {
   return Boolean(state.club && state.club.createdBy === state.activeId);
