@@ -31,6 +31,8 @@ export type Member = {
   role: Role;
   number: number | null;
   photo?: string | null;
+  /** True si aparece en la cancha, la planilla y las convocatorias. */
+  juega?: boolean;
 };
 
 export type Club = {
@@ -91,8 +93,11 @@ export type ClubEvent = {
   lineupPublishedAt: string | null;
   tournamentId: string | null;
   /** Quién lleva qué, solo para partidos. */
-  equipamiento?: Partial<Record<EquipmentItem, string>>;
+  equipamiento?: Partial<Record<ItemEquipamiento, string>>;
+  /** ID de la formación elegida (ej: "4-4-2", "clasica"). */
+  formacion?: string;
 };
+
 
 export type Rsvp = {
   eventId: string;

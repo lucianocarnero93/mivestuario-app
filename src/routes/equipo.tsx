@@ -30,6 +30,7 @@ function EquipoPage() {
   const club = useFija((s) => s.club);
   const setClubCrest = useFija((s) => s.setClubCrest);
   const setMyPhoto = useFija((s) => s.setMyPhoto);
+  const setJuega = useFija((s) => s.setJuega);
   const members = useFija((s) => s.members);
   const sheets = useFija((s) => s.matchSheets);
   const record = teamRecord(sheets);
@@ -115,16 +116,27 @@ function EquipoPage() {
         </Link>
       </section>
 
-      <section className="mt-6">
+         <section className="mt-6">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Cuerpo técnico</h2>
         <ul className="mt-2 space-y-2">
           {coaches.map((m) => (
             <li key={m.id} className="flex items-center gap-3 rounded-xl bg-surface px-4 py-3 shadow-card">
               <PlayerAvatar name={m.name} photo={m.photo} accent={m.id === me.id} />
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium">{m.name}</p>
                 <p className="text-xs text-muted">{ROLE_LABEL[m.role]}</p>
               </div>
+              {staff || creator ? (
+                <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted">
+                  <input
+                    type="checkbox"
+                    className="size-5 accent-accent"
+                    checked={m.juega ?? false}
+                    onChange={(e) => setJuega(m.id, e.target.checked)}
+                  />
+                  Juega
+                </label>
+              ) : null}
             </li>
           ))}
         </ul>

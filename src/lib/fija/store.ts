@@ -72,6 +72,7 @@ type State = ReturnType<typeof createSeed> & {
   setClubCrest: (crest: string | null) => void;
   invitePlayer: (input: { name: string; nick: string; number: number | null }) => string | null;
   assignRole: (memberId: string, role: Role) => void;
+    setJuega: (memberId: string, juega: boolean) => void;
     saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">) => void;
   asignarEquipamiento: (eventId: string, item: ItemEquipamiento, memberId: string | null) => void;
   ultimoEquipamiento: (beforeEventId: string, item: ItemEquipamiento) => string | null;
@@ -189,7 +190,9 @@ export const useFija = create<State>()(
           lineupPublishedAt: null,
           tournamentId: input.kind === "partido" ? (tournamentForMatch?.id ?? null) : null,
         };
-        const players = get().members.filter((person) => person.role === "jugador");
+                const players = get().members.filter(
+          (person) => person.juega ?? person.role === "jugador",
+        );
         const pendingAnswers = players.map((player) => ({
           eventId: event.id,
           memberId: player.id,
@@ -610,6 +613,16 @@ export const useFija = create<State>()(
           }),
         });
       },
+            // Marca o desmarca si alguien juega (aparece en la cancha, planilla y convocatorias).
+      // Puede ser cualquiera del plantel: jugador, DT o ayudante.
+      setJuega: (memberId, juega) => {
+        if (!isStaffId(get()) && !isCreatorId(get())) return;
+        set({
+          members: get().members.map((person) =>
+            person.id === memberId ? { ...person, juega } : person,
+          ),
+        });
+      },
 
       // Guarda el resultado y los números de cada jugador en ese partido.
       // Si ya había planilla, la reemplaza.
@@ -915,7 +928,7 @@ export const useFija = create<State>()(
         activeId: s.activeId,
         reminder: s.reminder,
       }),
-      onRehydrateStorage: () => (state) => {
+            onRehydrateStorage: () => (state) => {
         if (!state) return;
         if (!Array.isArray(state.matchSheets)) {
           state.matchSheets = createSeed().matchSheets;
@@ -930,6 +943,16 @@ export const useFija = create<State>()(
           state.profile = createSeed().profile;
         }
         if (!state.gpsConsent) state.gpsConsent = "unset";
+
+        // Migración: setear `juega` en miembros que no lo tengan.
+        // Jugadores → true (ya juegan). Staff → false (hasta que se marque).
+        if (Array.isArray(state.members)) {
+          state.members = state.members.map((person) => {
+            if (typeof person.juega === "boolean") return person;
+            return { ...person, juega: person.role === "jugador" };
+          });
+        }
+
         state.setHydrated();
       },
     },
@@ -1173,6 +1196,13 @@ export function useIsStaff(): boolean {
   if (!club) return false;
   return me.role === "dt" || me.role === "ayudante";
 }
+// Devuelve los miembros que juegan (cancha, planilla, convocatorias).
+// Incluye DT y ayudante que también juegan.
+export function useJugadores(): Member[] {
+  return useFija((s) =>
+    s.members.filter((p) => p.juega ?? p.role === "jugador"),
+  );
+}
 
 export function useIsCreator(): boolean {
   const me = useMe();
@@ -1212,7 +1242,7 @@ export function defaultSheetPlayers(
   members: Member[],
   existing?: MatchSheet,
 ): PlayerMatchStat[] {
-  const players = members.filter((m) => m.role === "jugador");
+  const players = members.filter((m) => m.juega ?? m.role === "jugador");
   const lineupIds = new Set(Object.values(event.lineup));
   const sorted = [...players].sort((a, b) => {
     const aIn = lineupIds.has(a.id) ? 0 : 1;
@@ -1221,7 +1251,6 @@ export function defaultSheetPlayers(
   });
   return sorted.map((p) => existing?.players.find((row) => row.memberId === p.id) ?? emptyStat(p.id));
 }
-
 export function convocatoriaFor(
   eventId: string,
   list: Convocatoria[],

@@ -5,18 +5,22 @@ import { cn } from "@/lib/utils";
 
 export function Pitch({
   modality,
+  formacionId,
   lineup,
   members,
   onSlot,
   editable,
 }: {
   modality: Modality;
+  formacionId?: string;
   lineup: Record<string, string>;
   members: Member[];
   onSlot?: (key: string) => void;
   editable?: boolean;
 }) {
-  const slots = FORMATIONS[modality];
+  const formaciones = FORMATIONS[modality];
+  const formacion = formaciones.find((f) => f.id === formacionId) ?? formaciones[0];
+  const slots = formacion.slots;
   const byId = new Map(members.map((m) => [m.id, m]));
   const dense = modality === "f11" || modality === "f9";
 

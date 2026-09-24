@@ -7,7 +7,7 @@ import { Segmented } from "@/components/fija/segmented";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
+import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
 import { formatWhen } from "@/lib/fija/format";
 import { nextEvent, useFija, useIsStaff } from "@/lib/fija/store";
 
@@ -21,6 +21,8 @@ function CanchaPage() {
   const setTactics = useFija((s) => s.setTactics);
   const updateEvent = useFija((s) => s.updateEvent);
   const publishLineup = useFija((s) => s.publishLineup);
+    const setJuega = useFija((s) => s.setJuega);
+  const me = useFija((s) => s.members.find((m) => m.id === s.activeId));
   const matchEvents = events
     .filter((e) => e.kind !== "reunion")
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
@@ -29,9 +31,22 @@ function CanchaPage() {
   const event = events.find((e) => e.id === eventId) ?? fallback;
   const [slot, setSlot] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const players = members.filter((m) => m.role === "jugador");
+   const players = members.filter((m) => m.juega ?? m.role === "jugador");
   const used = useMemo(() => new Set(Object.values(event?.lineup ?? {})), [event]);
   const filled = Object.keys(event?.lineup ?? {}).length;
+    function cambiarFormacion(nuevaId: string) {
+    if (!event) return;
+    if (!event.formacion && !event.lineup) return;
+    // Si ya hay jugadores puestos y la formación cambia, avisar y limpiar.
+    const tieneJugadores = Object.keys(event.lineup).length > 0;
+    if (tieneJugadores && event.formacion !== nuevaId) {
+      const ok = window.confirm(
+        "Cambiar la formación borra los jugadores que ya pusiste. ¿Seguir?",
+      );
+      if (!ok) return;
+    }
+    updateEvent(event.id, { formacion: nuevaId, lineup: {} });
+  }
 
   if (!event) {
     return (
@@ -79,10 +94,42 @@ function CanchaPage() {
           {MODALITY_LABEL[event.modality]}
         </p>
       )}
+            {staff ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {FORMATIONS[event.modality].map((f) => {
+            const activa = (event.formacion ?? FORMATIONS[event.modality][0].id) === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => cambiarFormacion(f.id)}
+                className={`h-11 shrink-0 rounded-md px-3 text-xs font-semibold ${
+                  activa ? "bg-accent text-accent-fg" : "bg-surface text-muted"
+                }`}
+              >
+                {f.name}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {staff && me ? (
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            className="size-5 accent-accent"
+            checked={me.juega ?? false}
+            onChange={(e) => setJuega(me.id, e.target.checked)}
+          />
+          Jugar yo también
+        </label>
+      ) : null}
 
       <div className="mt-4">
-        <Pitch
+          <Pitch
           modality={event.modality}
+          formacionId={event.formacion}
           lineup={event.lineup}
           members={members}
           editable={staff}
