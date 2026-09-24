@@ -4,6 +4,7 @@ import type { ClubEvent, Rsvp } from "@/lib/fija/types";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 import { PlaceLink } from "./place-link";
+import { EquipmentCard } from "./equipment-card";
 
 export function EventCard({
   event,
@@ -63,6 +64,7 @@ export function EventCard({
           · {pending} sin responder · {no} no
         </span>
       </p>
+         {event.kind === "partido" ? <EquipmentCard event={event} /> : null}
       {children}
     </article>
   );

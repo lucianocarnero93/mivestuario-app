@@ -17,11 +17,12 @@ export type Role = "dt" | "ayudante" | "jugador";
 export type Modality = "f5" | "f8" | "f9" | "f11";
 export type EventKind = "partido" | "entrenamiento" | "reunion";
 export type RsvpStatus = "pendiente" | "voy" | "no";
-export type InboxKind = "convocatoria" | "recordatorio" | "formacion" | "charla";
-export type InboxAudience = "all" | "pending" | "staff";
-export type AlertKind = "first" | "second";
+export type InboxKind = "convocatoria" | "recordatorio" | "formacion" | "charla" | "equipamiento";
+export type InboxAudience = "all" | "pending" | "staff" | "miembro";
+export type AlertKind = "first" | "second" | "equipment";
 export type TournamentStatus = "active" | "finished";
 export type GpsConsent = "unset" | "granted" | "denied";
+export type ItemEquipamiento = "remeras" | "pelotas";
 
 export type Member = {
   id: string;
@@ -73,6 +74,8 @@ export type MatchSheet = {
   players: PlayerMatchStat[];
 };
 
+export type EquipmentItem = "remeras" | "pelotas";
+
 export type ClubEvent = {
   id: string;
   kind: EventKind;
@@ -87,6 +90,8 @@ export type ClubEvent = {
   tactics: string;
   lineupPublishedAt: string | null;
   tournamentId: string | null;
+  /** Quién lleva qué, solo para partidos. */
+  equipamiento?: Partial<Record<EquipmentItem, string>>;
 };
 
 export type Rsvp = {

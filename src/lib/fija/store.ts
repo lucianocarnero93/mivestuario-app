@@ -20,6 +20,7 @@ import type {
   GpsConsent,
   InboxItem,
   Invite,
+  ItemEquipamiento,
   MatchSheet,
   Member,
   Modality,
@@ -71,7 +72,9 @@ type State = ReturnType<typeof createSeed> & {
   setClubCrest: (crest: string | null) => void;
   invitePlayer: (input: { name: string; nick: string; number: number | null }) => string | null;
   assignRole: (memberId: string, role: Role) => void;
-  saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">) => void;
+    saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">) => void;
+  asignarEquipamiento: (eventId: string, item: ItemEquipamiento, memberId: string | null) => void;
+  ultimoEquipamiento: (beforeEventId: string, item: ItemEquipamiento) => string | null;
   createTournament: (name: string) => string | null;
   finishTournament: (id: string) => void;
   setGpsConsent: (value: GpsConsent) => void;
@@ -430,9 +433,61 @@ export const useFija = create<State>()(
           }
         }
 
+            // Notificaciones de equipamiento: 24h antes del partido.
+        // Solo a los que llevan algo. Si llevan 2 cosas, va en una sola notificación.
+        const HOURS_BEFORE = 24;
+        const MS_PER_HOUR = 3_600_000;
+        for (const event of state.events) {
+          if (event.kind !== "partido") continue;
+          if (!event.equipamiento) continue;
+          const hoursUntil = (+new Date(event.startsAt) - now) / MS_PER_HOUR;
+          if (hoursUntil > HOURS_BEFORE || hoursUntil < 0) continue;
+          const alreadyNotified = alertsSent.some(
+            (alert) => alert.eventId === event.id && alert.kind === "equipment",
+          );
+          if (alreadyNotified) continue;
+
+          // Agrupar por miembro: { memberId: ["remeras", "pelotas"] }
+          const byMember = new Map<string, ItemEquipamiento[]>();
+          for (const [item, memberId] of Object.entries(event.equipamiento)) {
+            if (!memberId) continue;
+            const list = byMember.get(memberId) ?? [];
+            list.push(item as ItemEquipamiento);
+            byMember.set(memberId, list);
+          }
+          if (byMember.size === 0) continue;
+
+          const moment = new Date().toISOString();
+          for (const [memberId, items] of byMember) {
+            const itemLabels = items
+              .map((i) => (i === "remeras" ? "las remeras" : "las pelotas"))
+              .join(" y ");
+            const notice: InboxItem = {
+              id: uid("in"),
+              kind: "equipamiento",
+              title: "Mañana hay partido",
+              body: `Te toca llevar ${itemLabels} para ${event.title}.`,
+              eventId: event.id,
+              audience: "miembro",
+              at: moment,
+              readBy: [],
+            };
+            notices = [...notices, notice];
+            void notifyApp({
+              body: notice.body,
+              tag: `vestuario-eq-${event.id}-${memberId}`,
+              eventId: event.id,
+            });
+          }
+          alertsSent = [
+            ...alertsSent,
+            { id: uid("al"), eventId: event.id, kind: "equipment", at: moment },
+          ];
+          somethingChanged = true;
+        }
+
         if (somethingChanged) set({ inbox: notices, alertLog: alertsSent });
       },
-
       // Marca un aviso como leído por la persona que está usando la app.
       markInboxRead: (noticeId) => {
         const currentPersonId = get().activeId;
@@ -578,6 +633,44 @@ export const useFija = create<State>()(
         };
         const otherSheets = get().matchSheets.filter((saved) => saved.eventId !== sheet.eventId);
         set({ matchSheets: [...otherSheets, sheet] });
+      },
+      // El DT o el ayudante asignan quién lleva un item del equipamiento.
+      // También puede ser un jugador del plantel (DT/ayudante que juegan).
+      asignarEquipamiento: (eventId, item, memberId) => {
+        if (!isStaffId(get())) return;
+        set({
+          events: get().events.map((event) => {
+            if (event.id !== eventId) return event;
+            const equipamiento = { ...(event.equipamiento ?? {}) };
+            if (!memberId) {
+              delete equipamiento[item];
+            } else {
+              equipamiento[item] = memberId;
+            }
+            return { ...event, equipamiento };
+          }),
+        });
+      },
+
+      // Busca el último partido anterior a `beforeEventId` donde alguien llevó `item`.
+      // Devuelve el memberId o null.
+      ultimoEquipamiento: (beforeEventId, item) => {
+        const events = get().events;
+        const before = events.find((e) => e.id === beforeEventId);
+        if (!before) return null;
+        const previous = events
+          .filter(
+            (e) =>
+              e.kind === "partido" &&
+              e.id !== beforeEventId &&
+              +new Date(e.startsAt) < +new Date(before.startsAt),
+          )
+          .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
+        for (const event of previous) {
+          const memberId = event.equipamiento?.[item];
+          if (memberId) return memberId;
+        }
+        return null;
       },
 
       // Abre un torneo. No puede haber dos abiertos al mismo tiempo.
@@ -1044,9 +1137,14 @@ export function inboxVisible(
     const row = rsvps.find((r) => r.eventId === item.eventId && r.memberId === me.id);
     return row?.status === "pendiente";
   }
+  if (item.audience === "miembro") {
+    // Solo lo ve el miembro asignado al equipamiento de ese partido.
+    const event = useFija.getState().events.find((e) => e.id === item.eventId);
+    if (!event?.equipamiento) return false;
+    return Object.values(event.equipamiento).includes(me.id);
+  }
   return true;
 }
-
 export const GUEST: Member = {
   id: GUEST_ID,
   name: "Vos",
