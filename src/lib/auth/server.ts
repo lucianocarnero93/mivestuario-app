@@ -42,8 +42,10 @@ export const auth = betterAuth({
     "http://localhost:8080",
     "http://127.0.0.1:8080",
     "http://[::1]:8080",
-    env("BETTER_AUTH_URL") ?? "",
-  ].filter(Boolean),
+    "https://www.mivestuario.com.ar",
+    "https://mivestuario.com.ar",
+    "https://mivestuario-app.vercel.app",
+  ],
 
   socialProviders: authConfigured
     ? {

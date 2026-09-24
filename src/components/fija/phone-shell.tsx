@@ -96,8 +96,7 @@ function AppBar() {
     <header className="sticky top-0 z-30 border-b border-border bg-bg/95 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <div className="flex items-center justify-between gap-2">
         <BrandLockup />
-        <div className="flex items-center">
-          <CloudDot />
+               <div className="flex items-center">
           <InboxBell />
           <Link to="/seguridad" className="grid size-11 place-items-center text-muted">
             <Lock className="size-4" />
