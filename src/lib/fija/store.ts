@@ -979,7 +979,7 @@ export const useFija = create<State>()(
           activeId: me.id,
           hydrated: true,
         });
-        void get().flushCloud();
+        void get().publishClub();
       },
 
       setActiveClub: async (clubId) => {

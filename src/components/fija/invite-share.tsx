@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { inviteSharePayload, shareOrCopy } from "@/lib/fija/share";
 import { useFija } from "@/lib/fija/store";
 
+const FAIL = "No se pudo invitar. Fijate la conexión y tocalo de nuevo.";
+
 export function InviteShareButton({
   className,
   variant = "default",
@@ -13,7 +15,6 @@ export function InviteShareButton({
 }) {
   const club = useFija((s) => s.club);
   const publishClub = useFija((s) => s.publishClub);
-  const cloudError = useFija((s) => s.cloudError);
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -23,32 +24,36 @@ export function InviteShareButton({
         type="button"
         variant={variant}
         className={className ?? "h-14 w-full text-base"}
-        disabled={busy}
+        disabled={busy || !club}
         onClick={async () => {
           if (!club || busy) return;
           setBusy(true);
           setNote(null);
-          const published = await publishClub();
-          if (!published) {
-            setNote(useFija.getState().cloudError ?? "No se pudo publicar el equipo. Probá de nuevo.");
-            setBusy(false);
-            return;
+          if (useFija.getState().cloudStatus !== "ok") {
+            const published = await publishClub();
+            if (!published) {
+              setNote(FAIL);
+              setBusy(false);
+              return;
+            }
           }
           try {
-            const result = await shareOrCopy(inviteSharePayload(club));
-            setNote(result === "shared" ? "Elegí por dónde enviarlo." : "Enlace copiado. El código ya está en la nube.");
-          } catch {
-            setNote("El equipo ya está publicado. Podés pasar el código.");
+            const result = await shareOrCopy(inviteSharePayload(useFija.getState().club ?? club));
+            setNote(result === "copied" ? "Enlace copiado." : null);
+          } catch (error) {
+            const cancelled = error instanceof DOMException && error.name === "AbortError";
+            if (!cancelled) setNote(FAIL);
           } finally {
             setBusy(false);
           }
         }}
       >
         <Share2 className="size-4" />
-        {busy ? "Publicando…" : "Invitar al equipo"}
+        Invitar al equipo
       </Button>
-      {note ? <p className="mt-2 text-center text-xs text-muted">{note}</p> : null}
-      {!note && cloudError ? <p className="mt-2 text-center text-xs text-danger">{cloudError}</p> : null}
+      {note ? (
+        <p className={`mt-2 text-center text-xs ${note === FAIL ? "text-danger" : "text-muted"}`}>{note}</p>
+      ) : null}
     </div>
   );
 }

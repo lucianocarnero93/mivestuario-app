@@ -72,7 +72,6 @@ function EquipoPage() {
         <div className="mt-4">
           <InviteShareButton />
           <p className="mt-1 text-center text-xs text-muted">Código de vestuario: {club?.inviteCode}</p>
-          <CloudHint />
         </div>
       ) : null}
 
@@ -178,19 +177,6 @@ function EquipoPage() {
       <MisEquipos />
       <LeaveTeam />
     </main>
-  );
-}
-
-function CloudHint() {
-  const status = useFija((s) => s.cloudStatus);
-  const error = useFija((s) => s.cloudError);
-  if (status === "ok") {
-    return <p className="mt-1 text-center text-xs text-accent">Ya está en la nube. Se puede pasar.</p>;
-  }
-  return (
-    <p className="mt-1 text-center text-xs text-danger">
-      {error ?? "Todavía no está en la nube. Tocá Invitar al equipo para publicarlo antes de pasar el código."}
-    </p>
   );
 }
 
