@@ -3,54 +3,67 @@ import { CircleDot, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { loadClubDoc } from "@/lib/fija/cloud";
+import { clearRememberedInvite, readRememberedInvite } from "@/lib/fija/share";
 import { useFija } from "@/lib/fija/store";
+import type { ClubBundle } from "@/lib/fija/types";
 import { LogoMark } from "./logo";
-import { CrestPicker } from "./team-crest";
+import { CrestPicker, TeamCrest } from "./team-crest";
+
+type GateMode = "choose" | "preview" | "join" | "create";
+type CardStatus = "loading" | "ready" | "missing" | "error";
+
+type TeamCard = {
+  name: string;
+  crest: string | null;
+  coach: string;
+  players: number;
+};
 
 export function ClubGate() {
   const joinClub = useFija((s) => s.joinClub);
   const createClub = useFija((s) => s.createClub);
   const profile = useFija((s) => s.profile);
   const setProfile = useFija((s) => s.setProfile);
-  const [mode, setMode] = useState<"choose" | "join" | "create">("choose");
+  const [mode, setMode] = useState<GateMode>("choose");
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [crest, setCrest] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [nick, setNick] = useState(profile.nick);
   const [fullName, setFullName] = useState(profile.name);
-  const [autoJoining, setAutoJoining] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [fromCard, setFromCard] = useState(false);
+  const [card, setCard] = useState<TeamCard | null>(null);
+  const [cardStatus, setCardStatus] = useState<CardStatus>("loading");
+  const [retry, setRetry] = useState(0);
 
-  // Lee el ?invite= de la URL. Si existe, va directo al form de unirse.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const invite = params.get("invite");
-    if (invite) {
-      const clean = invite.trim().toUpperCase();
-      setCode(clean);
-      setMode("join");
-    }
-  }, []);
+    const clean = readRememberedInvite();
+    if (!clean) return;
+    setCode(clean);
+    setMode("preview");
+    setCardStatus("loading");
+    let cancelled = false;
+    void loadClubDoc({ data: clean })
+      .then((bundle) => {
+        if (cancelled) return;
+        if (!bundle) {
+          setCard(null);
+          setCardStatus("missing");
+          return;
+        }
+        setCard(teamCardFromBundle(bundle));
+        setCardStatus("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setCardStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [retry]);
 
-  // Auto-entrada: si hay ?invite= y el usuario ya tiene nombre, entra solo.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const invite = params.get("invite");
-    if (!invite || !code || autoJoining) return;
-    if (fullName.trim().length < 2) return;
-    setAutoJoining(true);
-    setProfile({ name: fullName, nick: nick || fullName.split(" ")[0] });
-    void joinClub(code).then((ok) => {
-      if (!ok) {
-        setError("Ese código no existe. Pedile el correcto al DT.");
-        setAutoJoining(false);
-      }
-    });
-  }, [code, fullName, nick, joinClub, setProfile, autoJoining]);
-
-  // ── Pantalla de elección ──
   if (mode === "choose") {
     return (
       <main className="flex min-h-dvh flex-col px-5 py-8">
@@ -61,10 +74,12 @@ export function ClubGate() {
         </p>
 
         <div className="mt-8 space-y-4">
-                {/* Opción 1: Unirme */}
           <button
             type="button"
-            onClick={() => setMode("join")}
+            onClick={() => {
+              setFromCard(false);
+              setMode("join");
+            }}
             className="flex w-full items-center gap-4 rounded-2xl bg-accent p-5 text-left shadow-card transition-opacity hover:opacity-90"
           >
             <CircleDot className="size-10 shrink-0 text-accent-fg" strokeWidth={1.8} />
@@ -75,7 +90,6 @@ export function ClubGate() {
               </p>
             </div>
           </button>
-                 {/* Opción 2: Crear */}
           <button
             type="button"
             onClick={() => setMode("create")}
@@ -98,14 +112,88 @@ export function ClubGate() {
     );
   }
 
-  // ── Pantalla de unirse ──
+  if (mode === "preview") {
+    const playersLabel = card?.players === 1 ? "1 jugador" : `${card?.players ?? 0} jugadores`;
+    return (
+      <main className="flex min-h-dvh flex-col px-5 py-8">
+        {cardStatus === "ready" && card ? (
+          <TeamCrest src={card.crest} name={card.name} className="mx-auto size-28 text-3xl shadow-card" />
+        ) : (
+          <LogoMark className="mx-auto size-28 shadow-card" />
+        )}
+
+        {cardStatus === "loading" ? (
+          <h1 className="mt-5 text-center text-3xl font-semibold">Buscando el equipo…</h1>
+        ) : null}
+
+        {cardStatus === "missing" ? (
+          <>
+            <h1 className="mt-5 text-center text-3xl font-semibold">No encontramos ese equipo</h1>
+            <p className="mt-2 text-center text-sm text-danger">
+              Ese código no existe. Pedile el correcto al DT.
+            </p>
+            <p className="mt-4 text-center font-display text-2xl font-semibold tracking-widest text-accent">
+              {code}
+            </p>
+          </>
+        ) : null}
+
+        {cardStatus === "error" ? (
+          <>
+            <h1 className="mt-5 text-center text-3xl font-semibold">No pudimos leer el equipo</h1>
+            <p className="mt-2 text-center text-sm text-muted">Probá de nuevo en un momento.</p>
+            <Button className="mt-6 h-14 w-full text-base" onClick={() => setRetry((n) => n + 1)}>
+              Reintentar
+            </Button>
+          </>
+        ) : null}
+
+        {cardStatus === "ready" && card ? (
+          <>
+            <h1 className="mt-5 text-center text-3xl font-semibold">{card.name}</h1>
+            <p className="mt-2 text-center text-sm text-muted">DT: {card.coach}</p>
+            <p className="mt-1 text-center text-sm text-muted">{playersLabel}</p>
+            <p className="mt-3 text-center text-xs tracking-widest text-subtle">Código {code}</p>
+            <Button
+              className="mt-6 h-auto min-h-14 w-full whitespace-normal px-4 py-3 text-base"
+              onClick={() => {
+                setFromCard(true);
+                setError("");
+                setMode("join");
+              }}
+            >
+              Unirme a {card.name}
+            </Button>
+          </>
+        ) : null}
+
+        <Button
+          variant="ghost"
+          className="mt-3 h-12 w-full"
+          onClick={() => {
+            setMode("choose");
+            setError("");
+          }}
+        >
+          No, gracias
+        </Button>
+      </main>
+    );
+  }
+
   if (mode === "join") {
     return (
       <main className="flex min-h-dvh flex-col px-5 py-8">
-        <LogoMark className="mx-auto size-28 shadow-card" />
-        <h1 className="mt-5 text-center text-3xl font-semibold">Unirme a un equipo</h1>
+        {fromCard && card ? (
+          <TeamCrest src={card.crest} name={card.name} className="mx-auto size-28 text-3xl shadow-card" />
+        ) : (
+          <LogoMark className="mx-auto size-28 shadow-card" />
+        )}
+        <h1 className="mt-5 text-center text-3xl font-semibold">
+          {fromCard && card ? `Unirme a ${card.name}` : "Unirme a un equipo"}
+        </h1>
         <p className="mt-2 text-center text-sm text-muted">
-          Poné tu nombre y el código que te pasó el DT.
+          {fromCard ? "Poné tu nombre y tu apodo." : "Poné tu nombre y el código que te pasó el DT."}
         </p>
 
         <div className="mt-6 space-y-3">
@@ -129,17 +217,19 @@ export function ClubGate() {
               placeholder="Ej: Juanchi"
             />
           </div>
-          <div>
-            <Label htmlFor="gate-code">Código del vestuario</Label>
-            <Input
-              id="gate-code"
-              className="mt-1 uppercase tracking-widest"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="CÓDIGO"
-              required
-            />
-          </div>
+          {fromCard ? null : (
+            <div>
+              <Label htmlFor="gate-code">Código del vestuario</Label>
+              <Input
+                id="gate-code"
+                className="mt-1 uppercase tracking-widest"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="CÓDIGO"
+                required
+              />
+            </div>
+          )}
           {error ? <p className="text-sm text-danger">{error}</p> : null}
         </div>
 
@@ -147,18 +237,31 @@ export function ClubGate() {
           className="mt-5 space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
+            if (joining) return;
             if (fullName.trim().length < 2) {
               setError("Poné tu nombre para entrar.");
               return;
             }
+            setError("");
+            setJoining(true);
             setProfile({ name: fullName, nick: nick || fullName.split(" ")[0] });
-            void joinClub(code).then((ok) => {
-              setError(ok ? "" : "Ese código no existe. Pedile el correcto al DT.");
-            });
+            void joinClub(code)
+              .then((ok) => {
+                if (ok) {
+                  clearRememberedInvite();
+                  return;
+                }
+                setError("Ese código no existe. Pedile el correcto al DT.");
+                setJoining(false);
+              })
+              .catch(() => {
+                setError("No pudimos leer el equipo. Probá de nuevo en un momento.");
+                setJoining(false);
+              });
           }}
         >
-          <Button type="submit" className="h-14 w-full text-base" disabled={autoJoining}>
-            {autoJoining ? "Entrando…" : "Entrar al equipo"}
+          <Button type="submit" className="h-14 w-full text-base" disabled={joining}>
+            {joining ? "Entrando…" : "Entrar al equipo"}
           </Button>
         </form>
 
@@ -166,7 +269,7 @@ export function ClubGate() {
           variant="ghost"
           className="mt-3 h-12 w-full"
           onClick={() => {
-            setMode("choose");
+            setMode(fromCard ? "preview" : "choose");
             setError("");
           }}
         >
@@ -176,7 +279,6 @@ export function ClubGate() {
     );
   }
 
-  // ── Pantalla de crear ──
   return (
     <main className="flex min-h-dvh flex-col px-5 py-8">
       <LogoMark className="mx-auto size-28 shadow-card" />
@@ -254,4 +356,17 @@ export function ClubGate() {
       </Button>
     </main>
   );
+}
+
+function teamCardFromBundle(bundle: ClubBundle): TeamCard {
+  const coach =
+    bundle.members.find((member) => member.role === "dt") ??
+    bundle.members.find((member) => member.id === bundle.club.createdBy);
+  const players = bundle.members.filter((member) => member.juega ?? member.role === "jugador").length;
+  return {
+    name: bundle.club.name,
+    crest: bundle.club.crest,
+    coach: coach?.name || "El DT",
+    players,
+  };
 }

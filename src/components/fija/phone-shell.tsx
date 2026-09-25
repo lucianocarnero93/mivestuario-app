@@ -2,6 +2,7 @@ import { CalendarDays, ChartColumn, House, Lock, MessageCircle, Shield, Users } 
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { ROLE_LABEL } from "@/lib/fija/format";
+import { rememberInvite } from "@/lib/fija/share";
 import { useFija, useMe } from "@/lib/fija/store";
 import { cn } from "@/lib/utils";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -38,6 +39,10 @@ export function PhoneShell() {
   const club = useFija((s) => s.club);
   const hydrated = useFija((s) => s.hydrated);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    rememberInvite(new URLSearchParams(window.location.search).get("invite"));
+  }, []);
 
   useEffect(() => {
     void Promise.resolve(useFija.persist.rehydrate()).then(() => {
@@ -91,6 +96,7 @@ function AuthFrame({ children }: { children: ReactNode }) {
 function AppBar() {
   const me = useMe();
   const club = useFija((s) => s.club);
+  const otherClubs = useFija((s) => s.otherClubs);
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg/95 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
@@ -106,9 +112,14 @@ function AppBar() {
       </div>
       <div className="mt-2 flex items-center gap-2">
         <TeamCrest src={club?.crest} name={club?.name} className="size-8 text-xs" />
-        <p className="text-xs text-muted">
+        <p className="min-w-0 flex-1 truncate text-xs text-muted">
           {club?.name ?? "Sin equipo"} · {me.nick} · {ROLE_LABEL[me.role]}
         </p>
+        {otherClubs.length > 0 ? (
+          <Link to="/equipo" className="shrink-0 text-xs font-semibold text-accent">
+            Cambiar
+          </Link>
+        ) : null}
       </div>
     </header>
   );

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { authClient, signInWithGoogle } from "@/lib/auth/client";
+import { inviteCallbackPath } from "@/lib/fija/share";
 import { LogoMark } from "./logo";
 
 // Pantalla de entrada.
@@ -30,32 +31,33 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
     }
 
     setBusy(true);
+    const back = inviteCallbackPath();
     const result =
       mode === "register"
         ? await authClient.signUp.email({
             name: fullName.trim(),
             email: cleanEmail,
             password,
-            callbackURL: "/",
+            callbackURL: back,
           })
         : await authClient.signIn.email({
             email: cleanEmail,
             password,
-            callbackURL: "/",
+            callbackURL: back,
           });
     setBusy(false);
 
     if (result.error) {
       setErrorText(accountError(result.error.message ?? "", mode));
     } else if (typeof window !== "undefined") {
-      window.location.href = "/";
+      window.location.href = back;
     }
   }
 
   async function submitGoogle() {
     setErrorText("");
     try {
-      await signInWithGoogle("/");
+      await signInWithGoogle(inviteCallbackPath());
     } catch {
       setErrorText("No se pudo abrir Google. Probá con mail y contraseña.");
     }

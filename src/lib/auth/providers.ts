@@ -1,7 +1,7 @@
 
 /**
  * Providers de autenticación que se muestran en la pantalla de login.
- * Solo Google. Sin broker, sin Grok, sin X.
+ * Solo Google.
  */
 export type AuthProvider = {
   providerId: string;

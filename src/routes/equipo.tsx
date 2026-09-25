@@ -174,6 +174,7 @@ function EquipoPage() {
         </div>
       ) : null}
       {staff ? <CederMando /> : null}
+      <MisEquipos />
       <LeaveTeam />
     </main>
   );
@@ -406,7 +407,9 @@ function LeaveTeam() {
     <div className="mt-8">
       {open ? (
         <div className="rounded-xl bg-surface p-4 shadow-card">
-          <p className="text-sm">¿Salís de {club.name}? Después podés entrar a otro con un código.</p>
+          <p className="text-sm">
+            ¿Salís de {club.name}? Se va solo este equipo. Los otros, si tenés, quedan en el celular.
+          </p>
           <div className="mt-3 grid gap-2">
             <Button variant="danger" className="h-12" onClick={() => leaveClub()}>
               Salir del equipo
@@ -418,9 +421,166 @@ function LeaveTeam() {
         </div>
       ) : (
         <Button variant="outline" className="h-14 w-full text-base" onClick={() => setOpen(true)}>
-          Salir del equipo
+          Salir de este equipo
         </Button>
       )}
     </div>
+  );
+}
+
+function MisEquipos() {
+  const club = useFija((s) => s.club);
+  const otherClubs = useFija((s) => s.otherClubs);
+  const setActiveClub = useFija((s) => s.setActiveClub);
+  const removeClub = useFija((s) => s.removeClub);
+  const joinClub = useFija((s) => s.joinClub);
+  const createClub = useFija((s) => s.createClub);
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [teamName, setTeamName] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const saved = otherClubs.map((item) => item.bundle.club);
+
+  return (
+    <section id="equipos" className="mt-8">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Mis equipos</h2>
+      <ul className="mt-2 space-y-2">
+        {club ? (
+          <li className="flex items-center gap-3 rounded-xl bg-surface px-4 py-3 shadow-card">
+            <TeamCrest src={club.crest} name={club.name} className="size-10 text-sm" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{club.name}</p>
+              <p className="text-xs text-accent">Equipo activo</p>
+            </div>
+          </li>
+        ) : null}
+        {saved.map((item) => (
+          <li key={item.id} className="rounded-xl bg-surface px-4 py-3 shadow-card">
+            <div className="flex items-center gap-3">
+              <TeamCrest src={item.crest} name={item.name} className="size-10 text-sm" />
+              <p className="min-w-0 flex-1 truncate font-medium">{item.name}</p>
+            </div>
+            <div className="mt-3 grid gap-2">
+              <Button className="h-12 w-full" onClick={() => void setActiveClub(item.id)}>
+                Cambiar a este equipo
+              </Button>
+              <Button variant="ghost" className="h-11 w-full text-muted" onClick={() => removeClub(item.id)}>
+                Quitar de este celular
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <div className="mt-3 grid gap-2">
+        <Button variant="secondary" className="h-14 w-full text-base" onClick={() => setJoinOpen(true)}>
+          Unirme a otro equipo
+        </Button>
+        <Button variant="outline" className="h-14 w-full text-base" onClick={() => setCreateOpen(true)}>
+          Crear un equipo nuevo
+        </Button>
+      </div>
+      <p className="mt-2 text-xs text-muted">
+        Quitar un equipo de acá no lo borra para el resto. Sigue en la nube.
+      </p>
+
+      <Dialog
+        open={joinOpen}
+        onOpenChange={(next) => {
+          setJoinOpen(next);
+          if (!next) {
+            setCode("");
+            setError("");
+            setBusy(false);
+          }
+        }}
+      >
+        <DialogContent title="Unirme a otro equipo">
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (busy) return;
+              setError("");
+              setBusy(true);
+              void joinClub(code)
+                .then((ok) => {
+                  if (!ok) {
+                    setError("Ese código no existe. Pedile el correcto al DT.");
+                    setBusy(false);
+                    return;
+                  }
+                  setJoinOpen(false);
+                })
+                .catch(() => {
+                  setError("No pudimos leer el equipo. Probá de nuevo en un momento.");
+                  setBusy(false);
+                });
+            }}
+          >
+            <p className="text-sm text-muted">El equipo de ahora queda guardado. No salís de él.</p>
+            <div>
+              <Label htmlFor="otro-codigo">Código</Label>
+              <Input
+                id="otro-codigo"
+                className="mt-1 uppercase tracking-widest"
+                value={code}
+                onChange={(event) => setCode(event.target.value.toUpperCase())}
+                required
+              />
+            </div>
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            <Button type="submit" className="h-12 w-full" disabled={busy}>
+              {busy ? "Entrando…" : "Entrar"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={createOpen}
+        onOpenChange={(next) => {
+          setCreateOpen(next);
+          if (!next) {
+            setTeamName("");
+            setError("");
+          }
+        }}
+      >
+        <DialogContent title="Crear un equipo nuevo">
+          <form
+            className="space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (teamName.trim().length < 2) {
+                setError("Ponele un nombre al equipo.");
+                return;
+              }
+              void createClub(teamName);
+              setCreateOpen(false);
+            }}
+          >
+            <p className="text-sm text-muted">Vas a ser el DT de este equipo. El anterior queda en la lista.</p>
+            <div>
+              <Label htmlFor="otro-nombre">Nombre</Label>
+              <Input
+                id="otro-nombre"
+                className="mt-1"
+                value={teamName}
+                onChange={(event) => setTeamName(event.target.value)}
+                required
+              />
+            </div>
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            <Button type="submit" className="h-12 w-full">
+              Crear y cambiar
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </section>
   );
 }
