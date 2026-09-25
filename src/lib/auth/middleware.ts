@@ -27,11 +27,16 @@ import { createMiddleware } from "@tanstack/react-start";
  */
 export const authMiddleware = createMiddleware({ type: "function" })
   .client(async ({ next }) => {
-    // Live preview (partitioned iframe): the session rides a bearer token, not a
-    // cookie, so forward it to the server. Null when deployed (cookie auth), so
-    // this is a no-op there.
-    const { getBearerToken } = await import("./client");
-    return next({ sendContext: { bearerToken: getBearerToken() ?? undefined } });
+    // En producción la sesión va en la cookie. Si esta función falta o falla,
+    // el pedido igual tiene que salir: si no, el equipo nunca se guarda.
+    let bearerToken: string | undefined;
+    try {
+      const { getBearerToken } = await import("./client");
+      if (typeof getBearerToken === "function") bearerToken = getBearerToken() ?? undefined;
+    } catch {
+      bearerToken = undefined;
+    }
+    return next({ sendContext: { bearerToken } });
   })
   .server(async ({ next, context }) => {
     // ONLY import `*.server` modules here. This file is dual client/server

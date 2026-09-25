@@ -29,3 +29,8 @@ export async function signOut(redirectTo = "/"): Promise<void> {
     window.location.href = redirectTo;
   }
 }
+
+/** En el sitio publicado la sesión viaja en la cookie. No hay token aparte. */
+export function getBearerToken(): string | null {
+  return null;
+}

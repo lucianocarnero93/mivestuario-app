@@ -1131,8 +1131,8 @@ export const useFija = create<State>()(
               return true;
             }
             lastError = result.error || lastError;
-          } catch {
-            lastError = "No hay sesión o no hay red. Entrá de nuevo y reintentá.";
+          } catch (error) {
+            lastError = cloudFailureMessage(error);
           }
           await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
         }
@@ -1252,6 +1252,17 @@ if (typeof window !== "undefined") {
       void useFija.getState().flushCloud();
     }, 800) as unknown as ReturnType<typeof setTimeout>;
   });
+}
+
+function cloudFailureMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  if (message.includes("unauthorized") || message.includes("forbidden")) {
+    return "La sesión no llegó al servidor. Salí y volvé a entrar.";
+  }
+  if (message.includes("failed to fetch") || message.includes("network") || message.includes("load failed")) {
+    return "No hay red. Probá de nuevo cuando vuelva la conexión.";
+  }
+  return "No se pudo guardar el equipo. Probá de nuevo.";
 }
 
 // True si la persona actual es DT o ayudante. Ellos editan cancha y planilla.
