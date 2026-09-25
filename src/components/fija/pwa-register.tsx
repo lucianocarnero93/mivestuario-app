@@ -62,15 +62,38 @@ export function PwaRegister() {
     if (!("serviceWorker" in navigator)) return;
 
     let cancelled = false;
+    let refreshing = false;
+    const hadController = Boolean(navigator.serviceWorker.controller);
+
+    const onControllerChange = () => {
+      if (!hadController || refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+
+    const activateWaiting = (registration: ServiceWorkerRegistration) => {
+      const waiting = registration.waiting;
+      if (waiting) waiting.postMessage({ type: "SKIP_WAITING" });
+    };
+
     void navigator.serviceWorker
       .register("/sw.js", { scope: "/", updateViaCache: "none" })
       .then(async (registration) => {
         if (cancelled) return;
+        registration.addEventListener("updatefound", () => {
+          const worker = registration.installing;
+          if (!worker) return;
+          worker.addEventListener("statechange", () => {
+            if (worker.state === "installed") activateWaiting(registration);
+          });
+        });
         try {
           await registration.update();
         } catch {
           /* ignore */
         }
+        activateWaiting(registration);
         try {
           await registration.sync?.register("vestuario-sync");
         } catch {
@@ -88,8 +111,16 @@ export function PwaRegister() {
         /* insecure context / blocked */
       });
 
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void navigator.serviceWorker.getRegistration().then((reg) => reg?.update());
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
       cancelled = true;
+      navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
