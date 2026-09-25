@@ -1,7 +1,7 @@
 /* Mi Vestuario App service worker
  * Offline shell, network intercept, push, background sync.
  */
-const CACHE = "mi-vestuario-v1";
+const CACHE = "mi-vestuario-v2";
 const PRECACHE = [
   "/",
   "/offline.html",
@@ -27,6 +27,26 @@ function isViteInternal(url) {
   );
 }
 
+function shouldBypass(url) {
+  if (url.origin !== self.location.origin) return true;
+  if (isViteInternal(url)) return true;
+  const path = url.pathname;
+  if (path === "/sw.js") return true;
+  if (path.startsWith("/api/")) return true;
+  if (path.startsWith("/auth/")) return true;
+  return false;
+}
+
+function isAuthNavigation(url) {
+  const path = url.pathname.replace(/\/+$/, "") || "/";
+  return (
+    path === "/login" ||
+    path === "/olvide" ||
+    path === "/reset" ||
+    path === "/reset-password"
+  );
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
@@ -48,14 +68,34 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
-  if (isViteInternal(url)) return;
+  if (shouldBypass(url)) return;
 
   if (request.mode === "navigate") {
+    if (isAuthNavigation(url)) {
+      event.respondWith(
+        fetch(request).catch(async () => {
+          const offline = await caches.match("/offline.html");
+          return (
+            offline ||
+            new Response("Mi Vestuario App está sin conexión.", {
+              status: 503,
+              headers: { "Content-Type": "text/plain; charset=utf-8" },
+            })
+          );
+        }),
+      );
+      return;
+    }
     event.respondWith(networkFirst(request));
     return;
   }
@@ -65,9 +105,10 @@ self.addEventListener("fetch", (event) => {
 async function networkFirst(request) {
   try {
     const fresh = await fetch(request);
-    const copy = fresh.clone();
-    const cache = await caches.open(CACHE);
-    cache.put(request, copy);
+    if (fresh && fresh.ok && fresh.type === "basic" && !fresh.redirected) {
+      const cache = await caches.open(CACHE);
+      cache.put(request, fresh.clone());
+    }
     return fresh;
   } catch {
     const cached = await caches.match(request);
@@ -86,7 +127,9 @@ async function staleWhileRevalidate(request) {
   const cached = await cache.match(request);
   const network = fetch(request)
     .then((response) => {
-      if (response && response.ok) cache.put(request, response.clone());
+      if (response && response.ok && response.type === "basic") {
+        cache.put(request, response.clone());
+      }
       return response;
     })
     .catch(() => cached);
