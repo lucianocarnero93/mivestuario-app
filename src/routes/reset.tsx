@@ -1,18 +1,26 @@
-import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth/client";
 import { LogoMark } from "@/components/fija/logo";
 
-export const Route = createFileRoute("/reset")({ component: ResetPage });
+type ResetSearch = { token?: string; error?: string };
+
+export const Route = createFileRoute("/reset")({
+  validateSearch: (search: Record<string, unknown>): ResetSearch => ({
+    token: typeof search.token === "string" ? search.token : undefined,
+    error: typeof search.error === "string" ? search.error : undefined,
+  }),
+  component: ResetPage,
+});
 
 function ResetPage() {
-  const search = useSearch({ from: "/reset" }) as { token?: string; error?: string };
+  const search = Route.useSearch();
   const [password, setPassword] = useState("");
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState(() => resetError(search.error));
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const token = search.token;
+  const token = search.token ?? readTokenFromWindow();
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -78,4 +86,19 @@ function ResetPage() {
       )}
     </main>
   );
+}
+
+function readTokenFromWindow(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const value = new URLSearchParams(window.location.search).get("token");
+  return value || undefined;
+}
+
+function resetError(error: string | undefined): string {
+  if (!error) return "";
+  const text = error.toLowerCase();
+  if (text.includes("invalid") || text.includes("expired") || text.includes("token")) {
+    return "El enlace expiró o no es válido. Pedí uno nuevo.";
+  }
+  return "No se pudo abrir el enlace. Pedí uno nuevo.";
 }

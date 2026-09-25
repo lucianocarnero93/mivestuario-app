@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
-import { authClient } from "@/lib/auth/client";
+import { appOrigin, authClient } from "@/lib/auth/client";
 import { LogoMark } from "@/components/fija/logo";
 
 export const Route = createFileRoute("/olvide")({ component: OlvidePage });
@@ -15,7 +15,9 @@ function OlvidePage() {
     setBusy(true);
     await authClient.requestPasswordReset({
       email: email.trim().toLowerCase(),
-      redirectTo: "/reset",
+      // URL absoluta: Better Auth valida redirectTo contra trustedOrigins.
+      // Un path relativo (`/reset`) a veces cae en `/` y muestra ClubGate.
+      redirectTo: `${appOrigin()}/reset`,
     });
     setBusy(false);
     setSent(true);
@@ -46,6 +48,7 @@ function OlvidePage() {
                 className="mt-1 flex h-12 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg"
                 type="email"
                 value={email}
+                autoComplete="email"
                 onChange={(event) => setEmail(event.target.value)}
               />
             </label>
