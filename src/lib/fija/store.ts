@@ -31,9 +31,16 @@ import type {
   Tournament,
 } from "./types";
 
+type ShelfTeam = {
+  bundle: ClubBundle;
+  activeId: string;
+};
+
 type CloudStatus = "idle" | "syncing" | "ok" | "off";
 
 type State = ReturnType<typeof createSeed> & {
+  otherClubs: ShelfTeam[];
+  activeClubId: string | null;
   hydrated: boolean;
   cloudStatus: CloudStatus;
   setHydrated: () => void;
@@ -81,7 +88,9 @@ type State = ReturnType<typeof createSeed> & {
   setGpsConsent: (value: GpsConsent) => void;
   leaveClub: () => void;
   joinClub: (code: string) => Promise<boolean>;
-  createClub: (name: string, crest?: string | null) => void;
+  createClub: (name: string, crest?: string | null) => Promise<void>;
+  setActiveClub: (clubId: string) => Promise<void>;
+  removeClub: (clubId: string) => void;
   setProfile: (profile: { name: string; nick: string }) => void;
   setMyPhoto: (photo: string | null) => void;
   syncFromCloud: () => Promise<void>;
@@ -92,6 +101,8 @@ type State = ReturnType<typeof createSeed> & {
 const blank = {
   ...emptyClubState(),
   archivedClubs: [] as ReturnType<typeof createSeed>["archivedClubs"],
+  otherClubs: [] as ShelfTeam[],
+  activeClubId: null as string | null,
   profile: { name: "", nick: "" },
   gpsConsent: "unset" as const,
   activeId: GUEST_ID,
@@ -102,9 +113,11 @@ const blank = {
   y se guarda en el celular. Si hay código de equipo, también se copia a la nube.
 
   Nombres sencillos de cada función:
-  - createClub        crear equipo. Quien lo crea es el DT.
-  - joinClub          entrar con el código que pasó el DT.
-  - leaveClub         salir del equipo para poder entrar a otro.
+  - createClub        crear equipo. Quien lo crea es el DT. Si ya hay uno, lo guarda y abre el nuevo.
+  - joinClub          entrar con el código. Si ya estás en otro, lo guarda y cambia.
+  - leaveClub         salir solo del equipo activo. Los otros quedan.
+  - setActiveClub     cambiar de equipo sin salir.
+  - removeClub        sacar un equipo de este celular. No lo borra de la nube.
   - invitePlayer      sumar un jugador al plantel.
   - assignRole        pasar a alguien a DT, ayudante o jugador.
   - createEvent       anotar un partido, entrenamiento o reunión.
@@ -740,8 +753,8 @@ export const useFija = create<State>()(
         void get().flushCloud();
       },
 
-      // Sale del equipo. Si era el creador, el mando pasa a otra persona.
-      // El equipo queda guardado para poder volver a entrar con el código.
+      // Sale solo del equipo activo. Si hay otros, entra al siguiente.
+      // No borra el equipo de la nube: el plantel sigue ahí.
       leaveClub: () => {
         const state = get();
         if (!state.club) return;
@@ -762,8 +775,28 @@ export const useFija = create<State>()(
         }
         const savedCopy = toBundle({ ...state, club, members });
         const archived = upsertBundle(state.archivedClubs, savedCopy);
+        const others = state.otherClubs.filter((item) => item.bundle.club.id !== state.club?.id);
+        const next = others[0];
+        if (next) {
+          const rest = others.slice(1);
+          set({
+            ...next.bundle,
+            otherClubs: rest,
+            activeClubId: next.bundle.club.id,
+            archivedClubs: archived,
+            profile: state.profile,
+            gpsConsent: state.gpsConsent,
+            activeId: memberIdOnTeam(next),
+            reminder: null,
+            hydrated: true,
+          });
+          void get().syncFromCloud();
+          return;
+        }
         set({
           ...emptyClubState(),
+          otherClubs: [],
+          activeClubId: null,
           archivedClubs: archived,
           profile: state.profile,
           gpsConsent: state.gpsConsent,
@@ -771,46 +804,111 @@ export const useFija = create<State>()(
           hydrated: true,
         });
       },
-      // Entra a un equipo con el código. Primero mira la nube. Si no hay red, usa la copia local.
+      // Entra a un equipo. Si ya estás en otro, lo guarda y cambia a este.
       joinClub: async (code) => {
         const state = get();
-        if (state.club) return false;
         const inviteCode = sanitizeCode(code);
         if (!inviteCode) return false;
-        set({ cloudStatus: "syncing" });
+        if (state.club?.inviteCode.toUpperCase() === inviteCode) return true;
 
+        const shelved = state.otherClubs.find(
+          (item) => item.bundle.club.inviteCode.toUpperCase() === inviteCode,
+        );
+        if (shelved && state.club) {
+          try {
+            await get().flushCloud();
+          } catch {
+            // La copia local del estante alcanza para cambiar.
+          }
+          const fresh = get();
+          const current = fresh.club ? snapshotShelf(fresh) : null;
+          const rest = fresh.otherClubs.filter((item) => item.bundle.club.id !== shelved.bundle.club.id);
+          const shelf = current ? upsertShelf(rest, current) : rest;
+          set({
+            ...shelved.bundle,
+            otherClubs: shelf.filter((item) => item.bundle.club.id !== shelved.bundle.club.id),
+            activeClubId: shelved.bundle.club.id,
+            archivedClubs: fresh.archivedClubs,
+            profile: fresh.profile,
+            gpsConsent: fresh.gpsConsent,
+            activeId: memberIdOnTeam(shelved),
+            reminder: null,
+            hydrated: true,
+            cloudStatus: "syncing",
+          });
+          void get().syncFromCloud();
+          return true;
+        }
+
+        set({ cloudStatus: "syncing" });
         let teamFound =
           state.archivedClubs.find((saved) => saved.club.inviteCode.toUpperCase() === inviteCode) ??
           openClubs().find((saved) => saved.club.inviteCode.toUpperCase() === inviteCode) ??
           null;
+        let cloudFailed = false;
         try {
           const remoteTeam = await loadClubDoc({ data: inviteCode });
           if (remoteTeam) teamFound = remoteTeam;
         } catch {
-          // Si la nube no responde, se usa la copia de arriba.
+          cloudFailed = true;
         }
         if (!teamFound) {
           set({ cloudStatus: "off" });
+          if (cloudFailed) throw new Error("No pudimos leer el equipo.");
           return false;
         }
 
-        const me: Member = {
-          id: GUEST_ID,
-          name: state.profile.name || "Jugador",
-          nick: state.profile.nick || "Jugador",
-          role: "jugador",
-          number: null,
-        };
-        const members = teamFound.members.some((person) => person.id === me.id)
-          ? teamFound.members
+        const mine = memberIdForCode(inviteCode);
+        let personId = mine.id;
+        if (!mine.known) {
+          while (teamFound.members.some((person) => person.id === personId)) {
+            personId = uid("j");
+          }
+          rememberMemberId(inviteCode, personId);
+        }
+        const existing = teamFound.members.find((person) => person.id === personId);
+        const me: Member = existing
+          ? {
+              ...existing,
+              name: state.profile.name || existing.name,
+              nick: state.profile.nick || existing.nick,
+            }
+          : {
+              id: personId,
+              name: state.profile.name || "Jugador",
+              nick: state.profile.nick || "Jugador",
+              role: "jugador",
+              number: null,
+            };
+        const members = existing
+          ? teamFound.members.map((person) => (person.id === personId ? me : person))
           : [...teamFound.members, me];
+
+        let shelf = state.otherClubs.filter(
+          (item) =>
+            item.bundle.club.id !== teamFound.club.id &&
+            item.bundle.club.inviteCode.toUpperCase() !== inviteCode,
+        );
+        if (state.club) {
+          try {
+            await get().flushCloud();
+          } catch {
+            // Seguimos: el equipo anterior queda en el estante.
+          }
+          const fresh = get();
+          const shot = snapshotShelf(fresh);
+          if (shot) shelf = upsertShelf(shelf, shot);
+        }
+
         set({
           ...teamFound,
           members,
+          otherClubs: shelf,
+          activeClubId: teamFound.club.id,
           archivedClubs: state.archivedClubs.filter((saved) => saved.club.id !== teamFound.club.id),
           profile: state.profile,
           gpsConsent: state.gpsConsent,
-          activeId: me.id,
+          activeId: personId,
           reminder: null,
           hydrated: true,
           cloudStatus: "ok",
@@ -819,12 +917,22 @@ export const useFija = create<State>()(
         return true;
       },
 
-      // Crea un equipo nuevo. Quien lo crea queda como DT y recibe un código.
-      createClub: (name, crest) => {
+      // Crea un equipo nuevo. Si ya había uno, lo deja guardado y abre este.
+      createClub: async (name, crest) => {
         const state = get();
-        if (state.club) return;
         const teamName = sanitizeName(name);
         if (!teamName) return;
+        let shelf = state.otherClubs;
+        if (state.club) {
+          try {
+            await get().flushCloud();
+          } catch {
+            // El estante se queda con la copia local.
+          }
+          const fresh = get();
+          const shot = snapshotShelf(fresh);
+          if (shot) shelf = upsertShelf(fresh.otherClubs, shot);
+        }
         const me: Member = {
           id: GUEST_ID,
           name: state.profile.name || "DT",
@@ -843,6 +951,8 @@ export const useFija = create<State>()(
           ...emptyClubState(),
           club,
           members: [me],
+          otherClubs: shelf.filter((item) => item.bundle.club.id !== club.id),
+          activeClubId: club.id,
           archivedClubs: state.archivedClubs,
           profile: state.profile,
           gpsConsent: state.gpsConsent,
@@ -850,6 +960,47 @@ export const useFija = create<State>()(
           hydrated: true,
         });
         void get().flushCloud();
+      },
+
+      setActiveClub: async (clubId) => {
+        const state = get();
+        if (!clubId || state.club?.id === clubId) return;
+        const next = state.otherClubs.find((item) => item.bundle.club.id === clubId);
+        if (!next || !state.club) return;
+        try {
+          await get().flushCloud();
+        } catch {
+          // Cambiamos igual: la copia local no se pierde.
+        }
+        const fresh = get();
+        const current = snapshotShelf(fresh);
+        if (!current) return;
+        const rest = fresh.otherClubs.filter((item) => item.bundle.club.id !== clubId);
+        set({
+          ...next.bundle,
+          otherClubs: upsertShelf(rest, current).filter((item) => item.bundle.club.id !== next.bundle.club.id),
+          activeClubId: next.bundle.club.id,
+          archivedClubs: fresh.archivedClubs,
+          profile: fresh.profile,
+          gpsConsent: fresh.gpsConsent,
+          activeId: memberIdOnTeam(next),
+          reminder: null,
+          hydrated: true,
+          cloudStatus: "syncing",
+        });
+        void get().syncFromCloud();
+      },
+
+      removeClub: (clubId) => {
+        const state = get();
+        if (!clubId) return;
+        if (state.club?.id === clubId) {
+          get().leaveClub();
+          return;
+        }
+        set({
+          otherClubs: state.otherClubs.filter((item) => item.bundle.club.id !== clubId),
+        });
       },
 
       // Baja de la nube la última copia del equipo en el que ya estoy.
@@ -867,6 +1018,8 @@ export const useFija = create<State>()(
             const stillOnTheTeam = remoteTeam.members.some((person) => person.id === currentPersonId);
             set({
               ...remoteTeam,
+              otherClubs: get().otherClubs,
+              activeClubId: remoteTeam.club.id,
               profile: get().profile,
               gpsConsent: get().gpsConsent,
               archivedClubs: get().archivedClubs,
@@ -923,6 +1076,8 @@ export const useFija = create<State>()(
         reminderPolicy: s.reminderPolicy,
         tournaments: s.tournaments,
         archivedClubs: s.archivedClubs,
+        otherClubs: s.otherClubs,
+        activeClubId: s.activeClubId,
         profile: s.profile,
         gpsConsent: s.gpsConsent,
         activeId: s.activeId,
@@ -939,6 +1094,8 @@ export const useFija = create<State>()(
         if (!Array.isArray(state.archivedClubs)) {
           state.archivedClubs = createSeed().archivedClubs;
         }
+        if (!Array.isArray(state.otherClubs)) state.otherClubs = [];
+        if (!state.activeClubId) state.activeClubId = state.club?.id ?? null;
         if (!state.profile) {
           state.profile = createSeed().profile;
         }
@@ -1001,6 +1158,64 @@ function generarCodigoEquipo(): string {
 // True si la persona actual es quien creó el equipo.
 function isCreatorId(state: { club: Club | null; activeId: string }): boolean {
   return Boolean(state.club && state.club.createdBy === state.activeId);
+}
+
+function snapshotShelf(state: {
+  club: Club | null;
+  members: Member[];
+  events: ClubEvent[];
+  rsvps: State["rsvps"];
+  messages: ChatMessage[];
+  charla: CharlaPost[];
+  matchSheets: MatchSheet[];
+  invites: Invite[];
+  convocatorias: Convocatoria[];
+  inbox: InboxItem[];
+  alertLog: AlertLog[];
+  reminderPolicy: ReminderPolicy;
+  tournaments: Tournament[];
+  activeId: string;
+}): ShelfTeam | null {
+  if (!state.club) return null;
+  return { bundle: toBundle({ ...state, club: state.club }), activeId: state.activeId };
+}
+
+function upsertShelf(list: ShelfTeam[], next: ShelfTeam): ShelfTeam[] {
+  const code = next.bundle.club.inviteCode.toUpperCase();
+  return [
+    ...list.filter(
+      (item) => item.bundle.club.id !== next.bundle.club.id && item.bundle.club.inviteCode.toUpperCase() !== code,
+    ),
+    next,
+  ];
+}
+
+function memberIdOnTeam(team: ShelfTeam): string {
+  if (team.bundle.members.some((person) => person.id === team.activeId)) return team.activeId;
+  return team.bundle.members[0]?.id ?? team.activeId;
+}
+
+function memberIdForCode(inviteCode: string): { id: string; known: boolean } {
+  const key = `mv-member-${inviteCode}`;
+  if (typeof window === "undefined") return { id: uid("j"), known: false };
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored && stored !== GUEST_ID) return { id: stored, known: true };
+    const id = uid("j");
+    localStorage.setItem(key, id);
+    return { id, known: false };
+  } catch {
+    return { id: uid("j"), known: false };
+  }
+}
+
+function rememberMemberId(inviteCode: string, personId: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(`mv-member-${inviteCode}`, personId);
+  } catch {
+    // El id igual viaja en la memoria de esta sesión.
+  }
 }
 
 // Arma el paquete que se sube a la nube. No incluye el perfil personal ni el GPS.

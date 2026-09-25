@@ -21,25 +21,22 @@ export const loadClubDoc = createServerFn({ method: "GET" })
   .validator((code: string) => sanitizeCode(code))
   .handler(async ({ data: code }): Promise<ClubBundle | null> => {
     if (!code) return null;
-    try {
-      const { getSql } = await import("@/lib/db");
-      const sql = await getSql();
-      const rows = await sql.query<{ data: ClubBundle | string }>(
-        "select data from vestuario_docs where collection = $1 and id = $2",
-        [COLLECTION, code],
-      );
-      const raw = rows[0]?.data;
-      if (typeof raw === "string") {
-        try {
-          return asBundle(JSON.parse(raw));
-        } catch {
-          return null;
-        }
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql.query<{ data: ClubBundle | string }>(
+      "select data from vestuario_docs where collection = $1 and id = $2",
+      [COLLECTION, code],
+    );
+    const raw = rows[0]?.data;
+    if (raw == null) return null;
+    if (typeof raw === "string") {
+      try {
+        return asBundle(JSON.parse(raw));
+      } catch {
+        return null;
       }
-      return asBundle(raw);
-    } catch {
-      return null;
     }
+    return asBundle(raw);
   });
 
 export const saveClubDoc = createServerFn({ method: "POST" })

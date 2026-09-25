@@ -1,4 +1,5 @@
 import { formatWhen } from "./format";
+import { sanitizeCode } from "./sanitize";
 import type { Club, ClubEvent, Member } from "./types";
 
 export function inviteUrl(code: string): string {
@@ -8,6 +9,53 @@ export function inviteUrl(code: string): string {
   url.search = `?invite=${encodeURIComponent(code)}`;
   url.hash = "";
   return url.toString();
+}
+
+const INVITE_KEY = "mv-invite";
+const INVITE_TTL_MS = 30 * 60 * 1000;
+
+type StoredInvite = { code: string; timestamp: number };
+
+export function rememberInvite(code: string | null | undefined) {
+  if (typeof window === "undefined" || !code) return;
+  const clean = sanitizeCode(code);
+  if (!clean) return;
+  const payload: StoredInvite = { code: clean, timestamp: Date.now() };
+  localStorage.setItem(INVITE_KEY, JSON.stringify(payload));
+}
+
+export function readRememberedInvite(): string {
+  if (typeof window === "undefined") return "";
+  const fromUrl = sanitizeCode(new URLSearchParams(window.location.search).get("invite") ?? "");
+  if (fromUrl) {
+    rememberInvite(fromUrl);
+    return fromUrl;
+  }
+  try {
+    const raw = localStorage.getItem(INVITE_KEY);
+    if (!raw) return "";
+    const parsed = JSON.parse(raw) as Partial<StoredInvite>;
+    const code = typeof parsed.code === "string" ? sanitizeCode(parsed.code) : "";
+    const timestamp = typeof parsed.timestamp === "number" ? parsed.timestamp : 0;
+    if (!code || !timestamp || Date.now() - timestamp > INVITE_TTL_MS) {
+      localStorage.removeItem(INVITE_KEY);
+      return "";
+    }
+    return code;
+  } catch {
+    localStorage.removeItem(INVITE_KEY);
+    return "";
+  }
+}
+
+export function clearRememberedInvite() {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(INVITE_KEY);
+}
+
+export function inviteCallbackPath(): string {
+  const code = readRememberedInvite();
+  return code ? `/?invite=${encodeURIComponent(code)}` : "/";
 }
 
 export function inviteSharePayload(club: Club) {
