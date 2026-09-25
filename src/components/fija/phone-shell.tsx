@@ -22,15 +22,28 @@ const NAV = [
   { to: "/equipo", label: "Equipo", icon: Users, exact: false },
 ] as const;
 
-/** Rutas "peladas": sin AppBar ni BottomNav. */
+/** Rutas "peladas": sin AppBar ni BottomNav ni ClubGate. */
 const BARE_PATHS = [
   "/olvide",
   "/reset",
+  "/reset-password",
   "/login",
   "/privacidad",
   "/contacto",
   "/terminos",
 ] as const;
+
+function normalizePath(pathname: string): string {
+  const trimmed = pathname.replace(/\/+$/, "");
+  return trimmed.length > 0 ? trimmed : "/";
+}
+
+function isBarePath(pathname: string): boolean {
+  const path = normalizePath(pathname);
+  return (BARE_PATHS as readonly string[]).some(
+    (bare) => path === bare || path.startsWith(`${bare}/`),
+  );
+}
 
 export function PhoneShell() {
   const setHydrated = useFija((s) => s.setHydrated);
@@ -38,6 +51,7 @@ export function PhoneShell() {
   const club = useFija((s) => s.club);
   const hydrated = useFija((s) => s.hydrated);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const searchStr = useRouterState({ select: (s) => s.location.searchStr });
 
   useEffect(() => {
     void Promise.resolve(useFija.persist.rehydrate()).then(() => {
@@ -49,7 +63,27 @@ export function PhoneShell() {
     return () => window.clearInterval(id);
   }, [setHydrated, tickAlerts]);
 
-  const isBare = (BARE_PATHS as readonly string[]).includes(pathname);
+  useEffect(() => {
+    const path = normalizePath(pathname);
+    const params = new URLSearchParams(
+      searchStr.startsWith("?") ? searchStr.slice(1) : searchStr,
+    );
+    const token = params.get("token");
+    const error = params.get("error");
+    const shouldOpenReset =
+      path === "/reset-password" ||
+      ((Boolean(token) || error === "INVALID_TOKEN") &&
+        path !== "/reset" &&
+        path !== "/olvide" &&
+        path !== "/login");
+    if (!shouldOpenReset) return;
+    const next = new URL("/reset", window.location.origin);
+    if (token) next.searchParams.set("token", token);
+    if (error) next.searchParams.set("error", error);
+    window.location.replace(`${next.pathname}${next.search}`);
+  }, [pathname, searchStr]);
+
+  const isBare = isBarePath(pathname);
 
   return (
     <div className="min-h-dvh bg-void text-fg">
@@ -81,7 +115,10 @@ export function PhoneShell() {
 }
 
 function AuthFrame({ children }: { children: ReactNode }) {
-  const { user } = useCurrentUserState();
+  const { user, isPending } = useCurrentUserState();
+  if (isPending) {
+    return <SignInPanel opening />;
+  }
   if (!user) {
     return <SignInPanel opening={false} />;
   }
@@ -96,7 +133,7 @@ function AppBar() {
     <header className="sticky top-0 z-30 border-b border-border bg-bg/95 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <div className="flex items-center justify-between gap-2">
         <BrandLockup />
-               <div className="flex items-center">
+        <div className="flex items-center">
           <InboxBell />
           <Link to="/seguridad" className="grid size-11 place-items-center text-muted">
             <Lock className="size-4" />
@@ -111,17 +148,6 @@ function AppBar() {
         </p>
       </div>
     </header>
-  );
-}
-
-function CloudDot() {
-  const status = useFija((s) => s.cloudStatus);
-  const label =
-    status === "ok" ? "Nube" : status === "syncing" ? "Subiendo" : status === "off" ? "Local" : "Nube";
-  return (
-    <span className={cn("mr-1 text-[10px] font-semibold uppercase tracking-widest", status === "ok" ? "text-accent" : "text-muted")}>
-      {label}
-    </span>
   );
 }
 
