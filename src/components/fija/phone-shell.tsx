@@ -128,7 +128,7 @@ function AppBar() {
 function CloudDot() {
   const status = useFija((s) => s.cloudStatus);
   const label =
-    status === "ok" ? "Nube" : status === "syncing" ? "Subiendo" : status === "off" ? "Local" : "Nube";
+    status === "ok" ? "Nube" : status === "syncing" ? "Subiendo" : status === "off" ? "Local" : "En espera";
   return (
     <span className={cn("mr-1 text-[10px] font-semibold uppercase tracking-widest", status === "ok" ? "text-accent" : "text-muted")}>
       {label}

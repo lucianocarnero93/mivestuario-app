@@ -72,6 +72,7 @@ function EquipoPage() {
         <div className="mt-4">
           <InviteShareButton />
           <p className="mt-1 text-center text-xs text-muted">Código de vestuario: {club?.inviteCode}</p>
+          <CloudHint />
         </div>
       ) : null}
 
@@ -177,6 +178,19 @@ function EquipoPage() {
       <MisEquipos />
       <LeaveTeam />
     </main>
+  );
+}
+
+function CloudHint() {
+  const status = useFija((s) => s.cloudStatus);
+  const error = useFija((s) => s.cloudError);
+  if (status === "ok") {
+    return <p className="mt-1 text-center text-xs text-accent">Ya está en la nube. Se puede pasar.</p>;
+  }
+  return (
+    <p className="mt-1 text-center text-xs text-danger">
+      {error ?? "Todavía no está en la nube. Tocá Invitar al equipo para publicarlo antes de pasar el código."}
+    </p>
   );
 }
 
@@ -509,7 +523,7 @@ function MisEquipos() {
               void joinClub(code)
                 .then((ok) => {
                   if (!ok) {
-                    setError("Ese código no existe. Pedile el correcto al DT.");
+                    setError("Ese equipo no está en la nube. Pedile al DT que toque Invitar al equipo y te pase el código de nuevo.");
                     setBusy(false);
                     return;
                   }

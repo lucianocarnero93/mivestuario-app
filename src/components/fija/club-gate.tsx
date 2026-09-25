@@ -130,7 +130,7 @@ export function ClubGate() {
           <>
             <h1 className="mt-5 text-center text-3xl font-semibold">No encontramos ese equipo</h1>
             <p className="mt-2 text-center text-sm text-danger">
-              Ese código no existe. Pedile el correcto al DT.
+              Ese equipo todavía no está en la nube, o el código no es el de vestuario. Pedile al DT que abra la app y toque Invitar al equipo.
             </p>
             <p className="mt-4 text-center font-display text-2xl font-semibold tracking-widest text-accent">
               {code}
@@ -251,7 +251,7 @@ export function ClubGate() {
                   clearRememberedInvite();
                   return;
                 }
-                setError("Ese código no existe. Pedile el correcto al DT.");
+                setError("Ese equipo no está en la nube. Pedile al DT que toque Invitar al equipo y te pase el código de nuevo.");
                 setJoining(false);
               })
               .catch(() => {

@@ -62,7 +62,7 @@ export function inviteSharePayload(club: Club) {
   const url = inviteUrl(club.inviteCode);
   return {
     title: "Mi Vestuario App",
-    text: `Te invito al vestuario de ${club.name}. Entrá, confirmá y mirá la pizarra.`,
+    text: `Te invito al vestuario de ${club.name}. Código ${club.inviteCode}. ${url}`,
     url,
   };
 }

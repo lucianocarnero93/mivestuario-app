@@ -45,10 +45,10 @@ export const saveClubDoc = createServerFn({ method: "POST" })
     code: sanitizeCode(input.code),
     bundle: input.bundle,
   }))
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
-    if (!data.code || !data.bundle?.club) return { ok: false };
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    if (!data.code || !data.bundle?.club) return { ok: false, error: "El equipo está incompleto." };
     const payload = JSON.stringify(data.bundle);
-    if (payload.length > MAX_BYTES) return { ok: false };
+    if (payload.length > MAX_BYTES) return { ok: false, error: "El equipo pesa demasiado para subirlo." };
     try {
       const { getSql } = await import("@/lib/db");
       const sql = await getSql();
@@ -60,7 +60,9 @@ export const saveClubDoc = createServerFn({ method: "POST" })
         [COLLECTION, data.code, payload],
       );
       return { ok: true };
-    } catch {
-      return { ok: false };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "error desconocido";
+      console.error("[club] no se pudo guardar", message);
+      return { ok: false, error: "No se pudo guardar el equipo." };
     }
   });

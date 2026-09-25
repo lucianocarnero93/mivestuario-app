@@ -43,6 +43,7 @@ type State = ReturnType<typeof createSeed> & {
   activeClubId: string | null;
   hydrated: boolean;
   cloudStatus: CloudStatus;
+  cloudError: string | null;
   setHydrated: () => void;
   setActive: (id: string) => void;
   viewAsRole: (role: Role) => void;
@@ -94,7 +95,8 @@ type State = ReturnType<typeof createSeed> & {
   setProfile: (profile: { name: string; nick: string }) => void;
   setMyPhoto: (photo: string | null) => void;
   syncFromCloud: () => Promise<void>;
-  flushCloud: () => Promise<void>;
+  flushCloud: () => Promise<boolean>;
+  publishClub: () => Promise<boolean>;
   resetDemo: () => void;
 };
 
@@ -138,6 +140,7 @@ export const useFija = create<State>()(
       ...blank,
       hydrated: false,
       cloudStatus: "idle" as CloudStatus,
+      cloudError: null as string | null,
       // Marca que el celular ya recuperó lo guardado.
       setHydrated: () => set({ hydrated: true }),
 
@@ -1028,33 +1031,72 @@ export const useFija = create<State>()(
               cloudStatus: "ok",
             });
           } else {
-            await get().flushCloud();
+            const published = await get().publishClub();
+            if (!published) set({ cloudStatus: "off" });
           }
         } catch {
           set({ cloudStatus: "off" });
         }
       },
 
-      // Sube el equipo a la nube usando el código como llave.
+      // Sube el equipo a la nube usando el código como llave. Reintenta solo.
       flushCloud: async () => {
         const state = get();
-        if (!state.club) return;
+        if (!state.club) return false;
+        set({ cloudStatus: "syncing", cloudError: null });
+        let lastError = "No se pudo guardar el equipo.";
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const current = get();
+          if (!current.club) return false;
+          try {
+            const result = await saveClubDoc({
+              data: {
+                code: current.club.inviteCode,
+                bundle: toBundle({ ...current, club: current.club }),
+              },
+            });
+            if (result.ok) {
+              set({ cloudStatus: "ok", cloudError: null });
+              return true;
+            }
+            lastError = result.error || lastError;
+          } catch {
+            lastError = "No hay sesión o no hay red. Entrá de nuevo y reintentá.";
+          }
+          await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+        }
+        set({ cloudStatus: "off", cloudError: lastError });
+        return false;
+      },
+
+      // Guarda y después comprueba que el código se puede leer. Recién ahí se puede invitar.
+      publishClub: async () => {
+        const uploaded = await get().flushCloud();
+        const code = get().club?.inviteCode;
+        if (!uploaded || !code) return false;
         try {
-          const result = await saveClubDoc({
-            data: {
-              code: state.club.inviteCode,
-              bundle: toBundle({ ...state, club: state.club }),
-            },
-          });
-          set({ cloudStatus: result.ok ? "ok" : "off" });
+          const remote = await loadClubDoc({ data: code });
+          if (!remote) {
+            set({
+              cloudStatus: "off",
+              cloudError: "El equipo no quedó publicado. Tocá de nuevo en un momento.",
+            });
+            return false;
+          }
+          set({ cloudStatus: "ok", cloudError: null });
+          return true;
         } catch {
-          set({ cloudStatus: "off" });
+          set({
+            cloudStatus: "off",
+            cloudError: "No pudimos confirmar el equipo. Probá de nuevo.",
+          });
+          return false;
         }
       },
 
       // Vuelve al celular vacío, sin equipo cargado.
       resetDemo: () => {
-        set({ ...blank, hydrated: true, cloudStatus: "idle" });
+        set({ ...blank, hydrated: true, cloudStatus: "idle", cloudError: null });
       },
     }),
     {
