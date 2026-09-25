@@ -1,16 +1,28 @@
-import { useState, type FormEvent } from "react";
+import { Link } from "@tanstack/react-router";
+import { useEffect, useState, type FormEvent } from "react";
 import { authClient, signInWithGoogle } from "@/lib/auth/client";
 import { LogoMark } from "./logo";
 
 // Pantalla de entrada.
 // Login con mail/contraseña (siempre funciona) + Google (opcional).
-export function SignInPanel({ opening = false }: { opening?: boolean }) {
+export function SignInPanel({
+  opening = false,
+  authError,
+}: {
+  opening?: boolean;
+  authError?: string;
+}) {
   const [mode, setMode] = useState<"register" | "login">("register");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errorText, setErrorText] = useState("");
+  const [errorText, setErrorText] = useState(() => googleError(authError));
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const mapped = googleError(authError);
+    if (mapped) setErrorText(mapped);
+  }, [authError]);
 
   async function submitAccount(event: FormEvent) {
     event.preventDefault();
@@ -129,9 +141,9 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
               />
             </label>
             {mode === "login" ? (
-              <a href="/olvide" className="block text-sm text-accent">
+              <Link to="/olvide" className="block text-sm text-accent">
                 ¿Olvidaste tu contraseña?
-              </a>
+              </Link>
             ) : null}
             {errorText ? <p className="text-sm text-danger">{errorText}</p> : null}
             <button type="submit" className="h-14 w-full rounded-lg bg-accent text-base font-semibold text-accent-fg" disabled={busy}>
@@ -174,4 +186,16 @@ function accountError(message: string, mode: "register" | "login"): string {
   if (text.includes("invalid email")) return "El mail no parece válido.";
   if (mode === "login") return "Mail o contraseña incorrectos.";
   return "No se pudo crear la cuenta. Probá de nuevo.";
+}
+
+function googleError(error: string | undefined): string {
+  if (!error) return "";
+  const text = error.toLowerCase();
+  if (text.includes("state_mismatch") || text.includes("state")) {
+    return "Google se cortó al volver. Cerrá la pestaña y probá de nuevo.";
+  }
+  if (text.includes("access_denied") || text.includes("cancelled") || text.includes("denied")) {
+    return "Cancelaste el login con Google.";
+  }
+  return "No se pudo entrar con Google. Probá con mail y contraseña.";
 }
