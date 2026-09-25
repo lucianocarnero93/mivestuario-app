@@ -267,7 +267,7 @@ function InviteDialog() {
       <DialogContent title="Invitar jugador">
         {code ? (
           <div className="space-y-3">
-            <p className="text-sm text-muted">Ya está en el plantel. Compartí este código:</p>
+            <p className="text-sm text-muted">Ya está en el plantel. Para entrar usa el código del vestuario:</p>
             <p className="rounded-lg bg-bg py-4 text-center font-display text-2xl font-semibold tracking-widest text-accent">
               {code}
             </p>
@@ -289,7 +289,7 @@ function InviteDialog() {
               if (next) setCode(next);
             }}
           >
-            <p className="text-sm text-muted">Entrá el nombre. El código se genera para pasárselo.</p>
+            <p className="text-sm text-muted">Entrá el nombre y el número. Después pasale el código del vestuario.</p>
             <div>
               <Label htmlFor="inv-name">Nombre</Label>
               <Input id="inv-name" className="mt-1" value={name} onChange={(e) => setName(e.target.value)} required />

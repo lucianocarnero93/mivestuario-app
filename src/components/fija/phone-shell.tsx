@@ -3,6 +3,7 @@ import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { ROLE_LABEL } from "@/lib/fija/format";
 import { rememberInvite } from "@/lib/fija/share";
+import { registerTeamPush } from "@/lib/fija/push-client";
 import { useFija, useMe } from "@/lib/fija/store";
 import { cn } from "@/lib/utils";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -51,7 +52,23 @@ export function PhoneShell() {
     });
     tickAlerts();
     const id = window.setInterval(() => tickAlerts(), 30_000);
-    return () => window.clearInterval(id);
+    const refresh = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (!useFija.getState().club) return;
+      void useFija.getState().syncFromCloud();
+    }, 12_000);
+    const listen = () => {
+      const current = useFija.getState();
+      if (!current.club) return;
+      void registerTeamPush(current.club.inviteCode, current.activeId);
+    };
+    window.addEventListener("vestuario-notifications-granted", listen);
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") listen();
+    return () => {
+      window.clearInterval(id);
+      window.clearInterval(refresh);
+      window.removeEventListener("vestuario-notifications-granted", listen);
+    };
   }, [setHydrated, tickAlerts]);
 
   const isBare = (BARE_PATHS as readonly string[]).includes(pathname);

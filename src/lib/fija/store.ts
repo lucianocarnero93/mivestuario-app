@@ -6,6 +6,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { clampHours, hoursSince } from "./share";
 import { loadClubDoc, saveClubDoc } from "./cloud";
+import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
 import { safeStorage } from "./storage";
 import type {
@@ -27,6 +28,7 @@ import type {
   PlayerMatchStat,
   ReminderPolicy,
   Role,
+  Rsvp,
   RsvpStatus,
   Tournament,
 } from "./types";
@@ -133,6 +135,9 @@ const blank = {
   - syncFromCloud     traer el equipo desde la nube.
   - flushCloud        subir el equipo a la nube.
 */
+
+let applyingCloud = false;
+let syncingNow = false;
 
 export const useFija = create<State>()(
   persist(
@@ -580,15 +585,15 @@ export const useFija = create<State>()(
         void get().flushCloud();
       },
 
-      // Suma un jugador al plantel y le deja un código corto.
-      // También lo anota como "pendiente" en los partidos que ya existen.
+      // Suma un jugador al plantel. Entra con el código del vestuario, no con uno aparte.
       invitePlayer: (input) => {
         if (!isCreatorId(get())) return null;
         const fullName = sanitizeName(input.name);
         const nick = sanitizeName(input.nick) || fullName.split(" ")[0] || "Jugador";
         if (!fullName) return null;
         const personId = uid("j");
-        const personalCode = uid("FJ").replace("FJ-", "").slice(0, 4).toUpperCase();
+        const teamCode = get().club?.inviteCode ?? null;
+        if (!teamCode) return null;
         const newPlayer: Member = {
           id: personId,
           name: fullName,
@@ -604,7 +609,7 @@ export const useFija = create<State>()(
         const invite: Invite = {
           id: uid("inv"),
           memberId: personId,
-          code: personalCode,
+          code: teamCode,
           createdAt: new Date().toISOString(),
         };
         set({
@@ -612,7 +617,7 @@ export const useFija = create<State>()(
           rsvps: [...get().rsvps, ...pendingAnswers],
           invites: [...get().invites, invite],
         });
-        return personalCode;
+        return teamCode;
       },
 
       // Cambia el puesto de una persona. Si el puesto nuevo es DT o ayudante,
@@ -864,8 +869,20 @@ export const useFija = create<State>()(
         const mine = memberIdForCode(inviteCode);
         let personId = mine.id;
         if (!mine.known) {
-          while (teamFound.members.some((person) => person.id === personId)) {
-            personId = uid("j");
+          const wanted = (state.profile.name || "").trim().toLowerCase();
+          const preloaded =
+            wanted.length >= 2
+              ? teamFound.members.find(
+                  (person) =>
+                    person.name.trim().toLowerCase() === wanted &&
+                    (teamFound.invites ?? []).some((invite) => invite.memberId === person.id),
+                )
+              : undefined;
+          if (preloaded) personId = preloaded.id;
+          else {
+            while (teamFound.members.some((person) => person.id === personId)) {
+              personId = uid("j");
+            }
           }
           rememberMemberId(inviteCode, personId);
         }
@@ -1008,34 +1025,48 @@ export const useFija = create<State>()(
 
       // Baja de la nube la última copia del equipo en el que ya estoy.
       syncFromCloud: async () => {
+        if (syncingNow) return;
         const club = get().club;
         if (!club) {
           set({ cloudStatus: "ok" });
           return;
         }
-        set({ cloudStatus: "syncing" });
+        syncingNow = true;
+        const quiet = get().cloudStatus === "ok";
+        if (!quiet) set({ cloudStatus: "syncing" });
         try {
           const remoteTeam = await loadClubDoc({ data: club.inviteCode });
           if (remoteTeam) {
-            const currentPersonId = get().activeId;
-            const stillOnTheTeam = remoteTeam.members.some((person) => person.id === currentPersonId);
+            const current = get();
+            const local = toBundle({ ...current, club });
+            const merged = mergeClubBundles(local, remoteTeam, {
+              activeId: current.activeId,
+              staff: isStaffId(current),
+            });
+            const stillOnTheTeam = merged.members.some((person) => person.id === current.activeId);
+            applyingCloud = true;
             set({
-              ...remoteTeam,
-              otherClubs: get().otherClubs,
-              activeClubId: remoteTeam.club.id,
-              profile: get().profile,
-              gpsConsent: get().gpsConsent,
-              archivedClubs: get().archivedClubs,
-              activeId: stillOnTheTeam ? currentPersonId : (remoteTeam.members[0]?.id ?? currentPersonId),
+              ...merged,
+              otherClubs: current.otherClubs,
+              activeClubId: merged.club.id,
+              profile: current.profile,
+              gpsConsent: current.gpsConsent,
+              archivedClubs: current.archivedClubs,
+              activeId: stillOnTheTeam ? current.activeId : (merged.members[0]?.id ?? current.activeId),
               hydrated: true,
               cloudStatus: "ok",
+              cloudError: null,
             });
+            applyingCloud = false;
+            if (JSON.stringify(merged) !== JSON.stringify(remoteTeam)) void get().flushCloud();
           } else {
             const published = await get().publishClub();
-            if (!published) set({ cloudStatus: "off" });
+            if (!published && !quiet) set({ cloudStatus: "off" });
           }
         } catch {
-          set({ cloudStatus: "off" });
+          if (!quiet) set({ cloudStatus: "off" });
+        } finally {
+          syncingNow = false;
         }
       },
 
@@ -1049,14 +1080,54 @@ export const useFija = create<State>()(
           const current = get();
           if (!current.club) return false;
           try {
+            let remote: ClubBundle | null = null;
+            try {
+              remote = await loadClubDoc({ data: current.club.inviteCode });
+            } catch {
+              remote = null;
+            }
+            const local = toBundle({ ...current, club: current.club });
+            const merged = remote
+              ? mergeClubBundles(local, remote, { activeId: current.activeId, staff: isStaffId(current) })
+              : local;
             const result = await saveClubDoc({
               data: {
-                code: current.club.inviteCode,
-                bundle: toBundle({ ...current, club: current.club }),
+                code: merged.club.inviteCode,
+                bundle: merged,
               },
             });
             if (result.ok) {
-              set({ cloudStatus: "ok", cloudError: null });
+              if (JSON.stringify(local) !== JSON.stringify(merged)) {
+                applyingCloud = true;
+                set({
+                  ...merged,
+                  otherClubs: get().otherClubs,
+                  activeClubId: merged.club.id,
+                  profile: get().profile,
+                  gpsConsent: get().gpsConsent,
+                  archivedClubs: get().archivedClubs,
+                  activeId: get().activeId,
+                  hydrated: true,
+                  cloudStatus: "ok",
+                  cloudError: null,
+                });
+                applyingCloud = false;
+              } else {
+                set({ cloudStatus: "ok", cloudError: null });
+              }
+              const notice = freshNotice(current.activeId, remote, merged);
+              if (notice) {
+                void notifyClub({
+                  data: {
+                    code: merged.club.inviteCode,
+                    exceptMemberId: current.activeId,
+                    title: notice.title,
+                    body: notice.body,
+                    url: notice.url,
+                    tag: notice.tag,
+                  },
+                });
+              }
               return true;
             }
             lastError = result.error || lastError;
@@ -1161,6 +1232,7 @@ export const useFija = create<State>()(
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 if (typeof window !== "undefined") {
   useFija.subscribe((state, prev) => {
+    if (applyingCloud) return;
     if (!state.hydrated || !state.club) return;
     if (
       state.members === prev.members &&
@@ -1187,6 +1259,101 @@ function isStaffId(state: { members: Member[]; activeId: string }): boolean {
   const me = state.members.find((m) => m.id === state.activeId);
   return me?.role === "dt" || me?.role === "ayudante";
 }
+
+function unionById<T extends { id: string }>(remote: T[], local: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const item of remote) map.set(item.id, item);
+  for (const item of local) {
+    const previous = map.get(item.id);
+    map.set(item.id, previous ? { ...previous, ...item } : item);
+  }
+  return [...map.values()];
+}
+
+function mergeEvents(remote: ClubEvent[], local: ClubEvent[], staff: boolean): ClubEvent[] {
+  if (!remote.length) return local;
+  if (!staff) return remote;
+  return unionById(remote, local);
+}
+
+function mergeRsvps(remote: Rsvp[], local: Rsvp[], activeId: string): Rsvp[] {
+  const key = (row: Rsvp) => `${row.eventId}:${row.memberId}`;
+  const map = new Map<string, Rsvp>();
+  for (const row of remote) map.set(key(row), row);
+  for (const row of local) {
+    const previous = map.get(key(row));
+    if (!previous || row.memberId === activeId) map.set(key(row), row);
+    else if (previous.status === "pendiente" && row.status !== "pendiente") map.set(key(row), row);
+  }
+  return [...map.values()];
+}
+
+function mergeSheets(remote: MatchSheet[], local: MatchSheet[], staff: boolean): MatchSheet[] {
+  const map = new Map(remote.map((sheet) => [sheet.eventId, sheet]));
+  if (staff) {
+    for (const sheet of local) map.set(sheet.eventId, sheet);
+  }
+  return [...map.values()];
+}
+
+function mergeClubBundles(
+  local: ClubBundle,
+  remote: ClubBundle,
+  who: { activeId: string; staff: boolean },
+): ClubBundle {
+  const club = who.staff ? { ...remote.club, ...local.club } : { ...local.club, ...remote.club };
+  club.inviteCode = remote.club.inviteCode || local.club.inviteCode;
+  if (!who.staff && local.club.crest) club.crest = local.club.crest;
+  return {
+    club,
+    members: unionById(remote.members, local.members),
+    events: mergeEvents(remote.events, local.events, who.staff),
+    rsvps: mergeRsvps(remote.rsvps, local.rsvps, who.activeId),
+    messages: unionById(remote.messages, local.messages),
+    charla: unionById(remote.charla, local.charla),
+    matchSheets: mergeSheets(remote.matchSheets, local.matchSheets, who.staff),
+    invites: unionById(remote.invites, local.invites),
+    convocatorias: unionById(
+      remote.convocatorias.map((item) => ({ ...item, id: item.eventId })),
+      local.convocatorias.map((item) => ({ ...item, id: item.eventId })),
+    ).map(({ id: _id, ...item }) => item),
+    inbox: unionById(remote.inbox, local.inbox),
+    alertLog: unionById(remote.alertLog, local.alertLog),
+    reminderPolicy: who.staff ? local.reminderPolicy : remote.reminderPolicy,
+    tournaments: unionById(remote.tournaments, who.staff ? local.tournaments : []),
+  };
+}
+
+function freshNotice(
+  activeId: string,
+  remote: ClubBundle | null,
+  merged: ClubBundle,
+): { title: string; body: string; url: string; tag: string } | null {
+  const now = Date.now();
+  const fresh = (at: string) => now - new Date(at).getTime() < 3 * 60 * 1000;
+  const remoteMessages = new Set((remote?.messages ?? []).map((item) => item.id));
+  const remoteCharla = new Set((remote?.charla ?? []).map((item) => item.id));
+  const remoteInbox = new Set((remote?.inbox ?? []).map((item) => item.id));
+  const post = [...merged.charla]
+    .reverse()
+    .find((item) => !remoteCharla.has(item.id) && item.memberId === activeId && fresh(item.at));
+  if (post) return { title: "Charla del vestuario", body: post.text, url: "/chat", tag: `ch-${post.id}` };
+  const message = [...merged.messages]
+    .reverse()
+    .find((item) => !remoteMessages.has(item.id) && item.memberId === activeId && fresh(item.at));
+  if (message) {
+    const nick = merged.members.find((item) => item.id === message.memberId)?.nick ?? "Plantel";
+    return { title: nick, body: message.text, url: "/chat", tag: `msg-${message.id}` };
+  }
+  const note = [...merged.inbox]
+    .reverse()
+    .find((item) => !remoteInbox.has(item.id) && fresh(item.at) && item.readBy.includes(activeId));
+  if (!note) return null;
+  const url = note.kind === "formacion" ? "/cancha" : note.kind === "charla" ? "/chat" : "/";
+  return { title: note.title, body: note.body, url, tag: `in-${note.id}` };
+}
+
+// True si la persona actual es quien creó el equipo.
 // Genera un código de equipo de 5 letras mayúsculas, sin caracteres confundibles.
 // Excluye: I, L, O para evitar confusiones al tipear.
 function generarCodigoEquipo(): string {

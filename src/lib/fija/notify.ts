@@ -19,6 +19,10 @@ export async function notifyApp(input: {
     }
     if (permission !== "granted") return;
 
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("vestuario-notifications-granted"));
+    }
+
     const title = input.title ?? APP;
     const icon = "/icon-192.png";
 
