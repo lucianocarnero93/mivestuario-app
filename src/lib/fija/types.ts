@@ -33,6 +33,8 @@ export type Member = {
   photo?: string | null;
   /** True si aparece en la cancha, la planilla y las convocatorias. */
   juega?: boolean;
+  /** Cuenta con la que entró. El mismo mail no puede ser dos jugadores. */
+  accountId?: string | null;
 };
 
 export type Club = {
@@ -167,6 +169,8 @@ export type ClubBundle = {
   alertLog: AlertLog[];
   reminderPolicy: ReminderPolicy;
   tournaments: Tournament[];
+  /** Jugadores que el DT sacó. No vuelven a aparecer al mezclar. */
+  droppedIds?: string[];
 };
 
 export type Profile = {
@@ -188,6 +192,7 @@ export type AppState = {
   alertLog: AlertLog[];
   reminderPolicy: ReminderPolicy;
   tournaments: Tournament[];
+  droppedIds?: string[];
   archivedClubs: ClubBundle[];
   profile: Profile;
   gpsConsent: GpsConsent;

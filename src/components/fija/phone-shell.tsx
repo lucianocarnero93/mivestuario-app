@@ -56,7 +56,13 @@ export function PhoneShell() {
       if (document.visibilityState !== "visible") return;
       if (!useFija.getState().club) return;
       void useFija.getState().syncFromCloud();
-    }, 12_000);
+    }, 5_000);
+    const onFocus = () => {
+      if (!useFija.getState().club) return;
+      void useFija.getState().syncFromCloud();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
     const listen = () => {
       const current = useFija.getState();
       if (!current.club) return;
@@ -67,6 +73,8 @@ export function PhoneShell() {
     return () => {
       window.clearInterval(id);
       window.clearInterval(refresh);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
       window.removeEventListener("vestuario-notifications-granted", listen);
     };
   }, [setHydrated, tickAlerts]);

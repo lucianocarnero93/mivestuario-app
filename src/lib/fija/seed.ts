@@ -375,6 +375,7 @@ export function emptyClubState() {
     alertLog: [] as AlertLog[],
     reminderPolicy: { firstHours: 24, secondHours: 48 },
     tournaments: [] as Tournament[],
+    droppedIds: [] as string[],
     reminder: null as AppState["reminder"],
   };
 }
@@ -453,6 +454,7 @@ export function createSeed(): Omit<AppState, "hydrated"> {
     alertLog: callups.alertLog,
     reminderPolicy: { firstHours: 24, secondHours: 48 },
     tournaments: TORNEOS,
+    droppedIds: [],
     archivedClubs: openClubs(),
     profile: { name: "Martín Díaz", nick: "Profe" },
     gpsConsent: "unset",

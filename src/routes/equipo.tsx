@@ -31,6 +31,7 @@ function EquipoPage() {
   const setClubCrest = useFija((s) => s.setClubCrest);
   const setMyPhoto = useFija((s) => s.setMyPhoto);
   const setJuega = useFija((s) => s.setJuega);
+  const removeMember = useFija((s) => s.removeMember);
   const members = useFija((s) => s.members);
   const sheets = useFija((s) => s.matchSheets);
   const record = teamRecord(sheets);
@@ -161,6 +162,15 @@ function EquipoPage() {
                 <p className="text-xs text-muted">{p.name}</p>
               </div>
               <PlayerMarks row={byMember.get(p.id)} />
+              {creator && p.id !== me.id ? (
+                <button
+                  type="button"
+                  className="h-11 shrink-0 px-2 text-xs font-semibold text-danger"
+                  onClick={() => removeMember(p.id)}
+                >
+                  Sacar
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>

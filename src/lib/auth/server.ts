@@ -91,6 +91,12 @@ export const auth = betterAuth({
   baseURL: env("BETTER_AUTH_URL") ?? "http://localhost:8080",
   secret: env("BETTER_AUTH_SECRET") ?? "dev-secret-change-me-32-chars-minimum",
   database: database!,
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+    },
+  },
   trustedOrigins: [
     "http://localhost:8080",
     "http://127.0.0.1:8080",

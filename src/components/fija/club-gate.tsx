@@ -254,8 +254,9 @@ export function ClubGate() {
                 setError("Ese equipo no está en la nube. Pedile al DT que toque Invitar al equipo y te pase el código de nuevo.");
                 setJoining(false);
               })
-              .catch(() => {
-                setError("No pudimos leer el equipo. Probá de nuevo en un momento.");
+              .catch((error: unknown) => {
+                const message = error instanceof Error ? error.message : "";
+                setError(message || "No pudimos leer el equipo. Probá de nuevo en un momento.");
                 setJoining(false);
               });
           }}
