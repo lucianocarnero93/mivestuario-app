@@ -70,7 +70,7 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
       ) : (
         <>
           <p className="mt-2 text-sm text-muted">
-            Entrá con tu mail o con Google. Sin vueltas.
+            Entrá con tu mail o con Google.
           </p>
 
           <div className="mt-6 grid grid-cols-2 gap-2">
