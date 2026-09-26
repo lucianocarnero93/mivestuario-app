@@ -1108,24 +1108,41 @@ export const useFija = create<State>()(
           (person) => person.accountId === account.id || person.id === account.id,
         );
         const creator = state.members.find((person) => person.id === club.createdBy);
-        const profileName = state.profile.name.trim().toLowerCase();
+        const ownerLabel = state.profile.name.trim() || account.name;
+        const ownerName = ownerLabel.toLowerCase();
+        const stuckOnSomeoneElse = Boolean(
+          byAccount &&
+          byAccount.id !== club.createdBy &&
+          ownerName.length >= 2 &&
+          byAccount.name.trim().toLowerCase() !== ownerName &&
+          (!creator || creator.name.trim().toLowerCase() === ownerName),
+        );
         const creatorIsMe =
           creator &&
-          profileName.length >= 2 &&
-          creator.name.trim().toLowerCase() === profileName &&
+          ownerName.length >= 2 &&
+          creator.name.trim().toLowerCase() === ownerName &&
           (!byAccount || byAccount.id !== creator.id);
-        let me =
-          creatorIsMe && byAccount && !sameName(byAccount)
+        let me = stuckOnSomeoneElse
+          ? creator
+          : creatorIsMe && byAccount && !sameName(byAccount)
             ? creator
             : (byAccount ?? state.members.find((person) => person.id === state.activeId));
-        if (me?.accountId && me.accountId !== account.id) me = undefined;
-        if (!me) {
+        if (me?.accountId && me.accountId !== account.id && me.id !== club.createdBy) me = undefined;
+        if (!me && !stuckOnSomeoneElse) {
           const byName = state.members.filter((person) => !person.accountId && sameName(person));
           me = byName.length === 1 ? byName[0] : undefined;
         }
-        const personId = me?.id && me.id !== GUEST_ID ? me.id : account.id;
-        const name = me?.name || account.name || state.profile.name || "Jugador";
-        const nick = me?.nick || name.split(" ")[0] || "Jugador";
+        const personId = stuckOnSomeoneElse
+          ? club.createdBy
+          : me?.id && me.id !== GUEST_ID
+            ? me.id
+            : account.id;
+        const name = stuckOnSomeoneElse
+          ? creator?.name || state.profile.name || account.name || "DT"
+          : me?.name || account.name || state.profile.name || "Jugador";
+        const nick = stuckOnSomeoneElse
+          ? creator?.nick || state.profile.nick || name.split(" ")[0] || "DT"
+          : me?.nick || name.split(" ")[0] || "Jugador";
         if (personId !== state.activeId) set({ activeId: personId });
         try {
           const result = await claimMember({

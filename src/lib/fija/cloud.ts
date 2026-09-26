@@ -203,11 +203,30 @@ export const claimMember = createServerFn({ method: "POST" })
           (person) => person.accountId === accountId || person.id === accountId,
         );
         const byId = existing.members.find((person) => person.id === data.id);
+        const creatorId = existing.club.createdBy;
         const sessionName = data.name.trim().toLowerCase();
         const canTake = (person: Member | undefined) =>
           Boolean(person && (!person.accountId || person.accountId === accountId));
-        let current = byAccount;
-        if (
+        const stuckOnAnother =
+          byAccount &&
+          creatorId &&
+          data.id === creatorId &&
+          byAccount.id !== creatorId &&
+          byAccount.name.trim().toLowerCase() !== sessionName;
+        let current: Member | undefined = byAccount;
+        if (stuckOnAnother) {
+          current = byId
+            ? { ...byId, role: byId.role === "jugador" ? "dt" : byId.role, accountId }
+            : {
+                id: creatorId,
+                name: data.name || "DT",
+                nick: data.nick || "DT",
+                role: "dt",
+                number: null,
+                accountId,
+                juega: true,
+              };
+        } else if (
           byAccount &&
           byId &&
           byId.id !== byAccount.id &&
@@ -217,9 +236,10 @@ export const claimMember = createServerFn({ method: "POST" })
           byId.name.trim().toLowerCase() === sessionName
         ) {
           current = byId;
+        } else if (!current && canTake(byId)) {
+          current = byId;
         }
-        if (!current && canTake(byId)) current = byId;
-        if ((current && (dropped.has(current.id) || dropped.has(accountId))) || dropped.has(data.id)) {
+        if (!stuckOnAnother && ((current && (dropped.has(current.id) || dropped.has(accountId))) || dropped.has(data.id))) {
           return existing.members;
         }
         const next = current
@@ -245,9 +265,7 @@ export const claimMember = createServerFn({ method: "POST" })
         const stripped = existing.members.map((person) =>
           person.accountId === accountId && person.id !== next.id ? { ...person, accountId: null } : person,
         );
-        const without = stripped.filter(
-          (person) => person.id !== next.id && person.id !== accountId,
-        );
+        const without = stripped.filter((person) => person.id !== next.id);
         const list = [...without, next];
         await query(
           `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
