@@ -1146,19 +1146,25 @@ export const useFija = create<State>()(
         const linked = state.members.find(
           (person) => person.accountId === account.id || person.id === account.id,
         );
+        if (linked && linked.id !== state.activeId) set({ activeId: linked.id });
         if (linked) {
-          if (linked.id !== state.activeId) set({ activeId: linked.id });
-          return;
+          const remote = await loadClubDoc({ data: club.inviteCode });
+          const onServer =
+            remote.ok &&
+            remote.bundle.members.some((person) => person.accountId === account.id || person.id === account.id);
+          if (onServer || remote.reason === "limited" || remote.reason === "missing") return;
         }
+        const name = linked?.name || account.name || state.profile.name || "Jugador";
+        const nick = linked?.nick || name.split(" ")[0] || "Jugador";
         try {
           const result = await claimMember({
             data: {
               code: club.inviteCode,
               member: {
                 id: account.id,
-                name: account.name || state.profile.name || "Jugador",
-                nick: (account.name || state.profile.nick || "Jugador").split(" ")[0] || "Jugador",
-                number: null,
+                name,
+                nick,
+                number: linked?.number ?? null,
               },
             },
           });
