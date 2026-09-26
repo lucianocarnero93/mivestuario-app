@@ -48,8 +48,8 @@ export function PhoneShell() {
   useEffect(() => {
     void Promise.resolve(useFija.persist.rehydrate()).then(async () => {
       setHydrated();
-      await useFija.getState().ensureMySpot();
       await useFija.getState().syncFromCloud();
+      await useFija.getState().ensureMySpot();
     });
     tickAlerts();
     const id = window.setInterval(() => tickAlerts(), 30_000);

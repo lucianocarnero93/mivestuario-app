@@ -1105,9 +1105,13 @@ export const useFija = create<State>()(
           const mine =
             result.members.find((person) => person.id === me.id) ??
             result.members.find((person) => person.id === state.activeId);
+          const byId = new Map(result.members.map((person) => [person.id, person]));
+          for (const person of get().members) {
+            if (!byId.has(person.id)) byId.set(person.id, person);
+          }
           applyingCloud = true;
           set({
-            members: result.members,
+            members: [...byId.values()],
             activeId: mine?.id ?? state.activeId,
             cloudStatus: "ok",
             cloudError: null,
@@ -1155,7 +1159,7 @@ export const useFija = create<State>()(
             applyingCloud = false;
             const remoteIds = new Set(remoteTeam.members.map((person) => person.id));
             const localOnly = local.members.some((person) => !remoteIds.has(person.id));
-            if (localOnly) void get().ensureMySpot();
+            if (localOnly) await get().flushCloud();
           } else {
             const published = await get().publishClub();
             if (!published && !quiet) set({ cloudStatus: "off" });
