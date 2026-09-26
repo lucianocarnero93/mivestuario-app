@@ -48,6 +48,7 @@ function EquipoPage() {
   const byMember = new Map(rows.map((row) => [row.memberId, row]));
   const coaches = members.filter((m) => m.role !== "jugador");
   const players = members.filter((m) => m.role === "jugador");
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const mine = byMember.get(me.id);
 
   return (
@@ -155,26 +156,41 @@ function EquipoPage() {
         </div>
         <ul className="mt-2 divide-y divide-border overflow-hidden rounded-xl bg-surface shadow-card">
           {players.map((p) => (
-            <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-              <PlayerAvatar name={p.name} photo={p.photo} accent={p.id === me.id} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">
-                  {p.number != null ? (
-                    <span className="mr-1 tabular-nums text-accent">{p.number}</span>
-                  ) : null}
-                  {p.nick}
-                </p>
-                <p className="text-xs text-muted">{p.name}</p>
+            <li key={p.id} className="px-4 py-3">
+              <div className="flex items-center gap-3">
+                <PlayerAvatar name={p.name} photo={p.photo} accent={p.id === me.id} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">
+                    {p.number != null ? (
+                      <span className="mr-1 tabular-nums text-accent">{p.number}</span>
+                    ) : null}
+                    {p.nick}
+                  </p>
+                  <p className="text-xs text-muted">{p.name}</p>
+                </div>
+                <PlayerMarks row={byMember.get(p.id)} />
+                {creator && p.id !== me.id && pendingRemoveId !== p.id ? (
+                  <button
+                    type="button"
+                    className="h-11 shrink-0 px-2 text-xs font-semibold text-danger"
+                    onClick={() => setPendingRemoveId(p.id)}
+                  >
+                    Sacar
+                  </button>
+                ) : null}
               </div>
-              <PlayerMarks row={byMember.get(p.id)} />
-              {creator && p.id !== me.id ? (
-                <button
-                  type="button"
-                  className="h-11 shrink-0 px-2 text-xs font-semibold text-danger"
-                  onClick={() => removeMember(p.id)}
-                >
-                  Sacar
-                </button>
+              {pendingRemoveId === p.id ? (
+                <div className="mt-3 rounded-lg bg-surface-2 p-3">
+                  <p className="text-sm">¿Sacar a {p.nick} del equipo?</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Button variant="danger" className="h-11" onClick={() => removeMember(p.id)}>
+                      Sacar
+                    </Button>
+                    <Button variant="ghost" className="h-11" onClick={() => setPendingRemoveId(null)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
               ) : null}
             </li>
           ))}

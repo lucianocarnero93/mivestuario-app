@@ -39,7 +39,7 @@ export function InviteShareButton({
           }
           try {
             const result = await shareOrCopy(inviteSharePayload(useFija.getState().club ?? club));
-            setNote(result === "copied" ? "Enlace copiado." : null);
+            setNote(result === "copied" ? "Enlace copiado." : "Invitación enviada.");
           } catch (error) {
             const cancelled = error instanceof DOMException && error.name === "AbortError";
             if (!cancelled) setNote(FAIL);
@@ -52,7 +52,7 @@ export function InviteShareButton({
         Invitar al equipo
       </Button>
       {note ? (
-        <p className={`mt-2 text-center text-xs ${note === FAIL ? "text-danger" : "text-muted"}`}>{note}</p>
+        <p className={`mt-2 text-center text-sm font-medium ${note === FAIL ? "text-danger" : "text-success"}`}>{note}</p>
       ) : null}
     </div>
   );
