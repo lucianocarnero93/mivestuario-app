@@ -168,3 +168,96 @@ export const saveClubDoc = createServerFn({ method: "POST" })
       return { ok: false, error: "No se pudo guardar el equipo." };
     }
   });
+
+export const claimMember = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator(
+    (input: {
+      code: string;
+      member: { id: string; name: string; nick: string; role?: string; number?: number | null };
+    }) => ({
+      code: sanitizeCode(input.code),
+      id: String(input.member?.id ?? "").slice(0, 80),
+      name: String(input.member?.name ?? "").slice(0, 80),
+      nick: String(input.member?.nick ?? "").slice(0, 40),
+      number: typeof input.member?.number === "number" ? input.member.number : null,
+    }),
+  )
+  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; members?: Member[] }> => {
+    if (!data.code || !data.name) return { ok: false, error: "Falta el jugador." };
+    const accountId = String((context as { userId?: string }).userId ?? "");
+    if (!accountId) return { ok: false, error: "No hay sesión." };
+    try {
+      const { getSql } = await import("@/lib/db");
+      const sql = await getSql();
+      let members: Member[] = [];
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const rows = await sql.query<{ data: ClubBundle | string; updated_at: string | Date }>(
+          "select data, updated_at from vestuario_docs where collection = $1 and id = $2",
+          [COLLECTION, data.code],
+        );
+        if (!rows[0]) return { ok: false, error: "Ese equipo no está en la nube." };
+        const raw = rows[0].data;
+        let existing: ClubBundle | null = null;
+        if (typeof raw === "string") {
+          try {
+            existing = asBundle(JSON.parse(raw));
+          } catch {
+            existing = null;
+          }
+        } else {
+          existing = asBundle(raw);
+        }
+        if (!existing) return { ok: false, error: "Ese equipo no está en la nube." };
+        const dropped = new Set(existing.droppedIds ?? []);
+        const current = existing.members.find(
+          (person) => person.accountId === accountId || person.id === accountId || person.id === data.id,
+        );
+        if (current && (dropped.has(current.id) || dropped.has(accountId))) {
+          members = existing.members;
+          break;
+        }
+        const next = current
+          ? {
+              ...current,
+              name: data.name || current.name,
+              nick: data.nick || current.nick,
+              accountId,
+              number: current.number ?? data.number,
+            }
+          : {
+              id: data.id || accountId,
+              name: data.name,
+              nick: data.nick || data.name.split(" ")[0] || "Jugador",
+              role: "jugador" as const,
+              number: data.number,
+              accountId,
+              juega: true,
+            };
+        if (dropped.has(next.id)) {
+          members = existing.members;
+          break;
+        }
+        const without = existing.members.filter(
+          (person) => person.id !== next.id && person.accountId !== accountId && person.id !== accountId,
+        );
+        members = [...without, next];
+        const payload = JSON.stringify({ ...existing, members });
+        const stamp = rows[0].updated_at instanceof Date ? rows[0].updated_at.toISOString() : String(rows[0].updated_at);
+        const updated = await sql.query<{ id: string }>(
+          `update vestuario_docs
+           set data = $3::jsonb, updated_at = now()
+           where collection = $1 and id = $2 and updated_at = $4::timestamptz
+           returning id`,
+          [COLLECTION, data.code, payload, stamp],
+        );
+        if (updated[0]) break;
+      }
+      return { ok: true, members };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "error desconocido";
+      console.error("[club] no se pudo anotar", message);
+      return { ok: false, error: "No se pudo anotar en el plantel." };
+    }
+  });
+

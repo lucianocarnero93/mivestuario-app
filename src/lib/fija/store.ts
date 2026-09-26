@@ -5,7 +5,7 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { clampHours, hoursSince } from "./share";
-import { loadClubDoc, saveClubDoc } from "./cloud";
+import { claimMember, loadClubDoc, saveClubDoc } from "./cloud";
 import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
@@ -99,6 +99,7 @@ type State = ReturnType<typeof createSeed> & {
   setProfile: (profile: { name: string; nick: string }) => void;
   setMyPhoto: (photo: string | null) => void;
   syncFromCloud: () => Promise<void>;
+  ensureMySpot: () => Promise<void>;
   flushCloud: () => Promise<boolean>;
   publishClub: () => Promise<boolean>;
   resetDemo: () => void;
@@ -1077,6 +1078,36 @@ export const useFija = create<State>()(
         set({
           otherClubs: state.otherClubs.filter((item) => item.bundle.club.id !== clubId),
         });
+      },
+
+      // La persona que abre la app se anota en la base, aunque su celular tenga una lista vieja.
+      ensureMySpot: async () => {
+        const state = get();
+        const club = state.club;
+        const me = state.members.find((person) => person.id === state.activeId) ?? state.members[0];
+        if (!club || !me || me.id === GUEST_ID) return;
+        try {
+          const result = await claimMember({
+            data: {
+              code: club.inviteCode,
+              member: { id: me.id, name: me.name, nick: me.nick, number: me.number },
+            },
+          });
+          if (!result.ok || !result.members) return;
+          const mine =
+            result.members.find((person) => person.id === me.id) ??
+            result.members.find((person) => person.id === state.activeId);
+          applyingCloud = true;
+          set({
+            members: result.members,
+            activeId: mine?.id ?? state.activeId,
+            cloudStatus: "ok",
+            cloudError: null,
+          });
+          applyingCloud = false;
+        } catch {
+          // Si falla, el próximo guardado vuelve a intentarlo.
+        }
       },
 
       // Baja de la nube la última copia del equipo en el que ya estoy.

@@ -1,6 +1,6 @@
 // Equipo: plantel, invitar jugadores y cambiar el puesto de cada uno.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { InviteShareButton } from "@/components/fija/invite-share";
 import { CrestPicker, TeamCrest } from "@/components/fija/team-crest";
 import {
@@ -39,6 +39,11 @@ function EquipoPage() {
   const scorers = rankedBy(rows, "goals").slice(0, 5);
   const assists = rankedBy(rows, "assists").slice(0, 5);
   const cards = rows.filter((row) => row.yellow > 0 || row.red > 0);
+  const syncFromCloud = useFija((s) => s.syncFromCloud);
+
+  useEffect(() => {
+    void syncFromCloud();
+  }, [syncFromCloud]);
   const byId = new Map(members.map((m) => [m.id, m]));
   const byMember = new Map(rows.map((row) => [row.memberId, row]));
   const coaches = members.filter((m) => m.role !== "jugador");
