@@ -1003,7 +1003,15 @@ export const useFija = create<State>()(
           throw new Error("No se pudo entrar al equipo. Fijate la conexión y probá de nuevo.");
         }
         applyingCloud = true;
-        set({ members: claimed.members, cloudStatus: "ok", cloudError: null });
+        const linked = account
+          ? claimed.members.find((person) => person.accountId === account || person.id === account)
+          : undefined;
+        set({
+          members: claimed.members,
+          activeId: linked?.id ?? personId,
+          cloudStatus: "ok",
+          cloudError: null,
+        });
         applyingCloud = false;
         return true;
       },
@@ -1110,30 +1118,32 @@ export const useFija = create<State>()(
           if (linked.id !== state.activeId) set({ activeId: linked.id });
           return;
         }
-        const me = state.members.find((person) => person.id === state.activeId);
-        if (me?.accountId && me.accountId !== account.id) return;
-        const personId = me?.id && me.id !== GUEST_ID ? me.id : account.id;
-        const name = me?.name || account.name || state.profile.name || "Jugador";
-        const nick = me?.nick || name.split(" ")[0] || "Jugador";
         try {
           const result = await claimMember({
             data: {
               code: club.inviteCode,
-              member: { id: personId, name, nick, number: me?.number ?? null },
+              member: {
+                id: account.id,
+                name: account.name || state.profile.name || "Jugador",
+                nick: (account.name || state.profile.nick || "Jugador").split(" ")[0] || "Jugador",
+                number: null,
+              },
             },
           });
           if (!result.ok || !result.members) return;
-          const mine = result.members.find((person) => person.id === personId);
+          const mine = result.members.find(
+            (person) => person.accountId === account.id || person.id === account.id,
+          );
           applyingCloud = true;
           set({
             members: result.members,
-            activeId: mine?.id ?? personId,
+            activeId: mine?.id ?? state.activeId,
             cloudStatus: "ok",
             cloudError: null,
           });
           applyingCloud = false;
         } catch {
-          // Si falla, no se inventa otra persona.
+          // Si falla, no se pega la cuenta a otro nombre.
         }
       },
 
@@ -1402,6 +1412,19 @@ function isStaffId(state: { members: Member[]; activeId: string }): boolean {
   return me?.role === "dt" || me?.role === "ayudante";
 }
 
+function keepAccountOwner(remote: Member[], merged: Member[]): Member[] {
+  const owner = new Map<string, string>();
+  for (const person of remote) {
+    if (person.accountId) owner.set(person.accountId, person.id);
+  }
+  return merged.map((person) => {
+    if (!person.accountId) return person;
+    const remoteOwner = owner.get(person.accountId);
+    if (remoteOwner && remoteOwner !== person.id) return { ...person, accountId: null };
+    return person;
+  });
+}
+
 function unionById<T extends { id: string }>(remote: T[], local: T[]): T[] {
   const map = new Map<string, T>();
   for (const item of remote) map.set(item.id, item);
@@ -1448,8 +1471,11 @@ function mergeClubBundles(
   if (!who.staff && local.club.crest) club.crest = local.club.crest;
   return {
     club,
-    members: unionById(remote.members, local.members).filter(
-      (person) => !(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id),
+    members: keepAccountOwner(
+      remote.members,
+      unionById(remote.members, local.members).filter(
+        (person) => !(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id),
+      ),
     ),
     events: mergeEvents(remote.events, local.events, who.staff),
     rsvps: mergeRsvps(remote.rsvps, local.rsvps, who.activeId),

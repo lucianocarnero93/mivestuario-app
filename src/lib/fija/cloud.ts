@@ -202,10 +202,7 @@ export const claimMember = createServerFn({ method: "POST" })
         const byAccount = existing.members.find(
           (person) => person.accountId === accountId || person.id === accountId,
         );
-        const byId = existing.members.find((person) => person.id === data.id);
-        const canTake = (person: Member | undefined) =>
-          Boolean(person && (!person.accountId || person.accountId === accountId));
-        let current: Member | undefined = byAccount ?? (canTake(byId) ? byId : undefined);
+        const current = byAccount;
         if (current && (dropped.has(current.id) || dropped.has(accountId))) {
           return existing.members;
         }
