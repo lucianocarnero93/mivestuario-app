@@ -1,5 +1,5 @@
-// Nube del vestuario. loadClubDoc trae el equipo. saveClubDoc lo guarda.
-// La llave es el código del equipo, no el mail de una sola persona.
+// Nube del vestuario. El código muestra la ficha y sirve para entrar.
+// El plantel, el chat y los cambios solo los ve quien ya está en el equipo.
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
@@ -7,6 +7,9 @@ import { sanitizeCode } from "./sanitize";
 import type { ClubBundle, ClubEvent, Member, Rsvp } from "./types";
 
 const COLLECTION = "clubs";
+const ATTEMPTS = "intentos";
+const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const ATTEMPT_LIMIT = 30;
 const MAX_BYTES = 350_000;
 
 function asBundle(value: unknown): ClubBundle | null {
@@ -17,27 +20,136 @@ function asBundle(value: unknown): ClubBundle | null {
   return row;
 }
 
+export type ClubCard = {
+  name: string;
+  crest: string | null;
+  coach: string;
+  players: number;
+};
+
+export type ClubLoad =
+  | { ok: true; bundle: ClubBundle }
+  | { ok: false; reason: "missing" | "forbidden" | "limited" };
+
+function userIdOf(context: { userId?: string } | undefined): string {
+  return String(context?.userId ?? "");
+}
+
+function memberFor(members: Member[], userId: string): Member | undefined {
+  if (!userId) return undefined;
+  return members.find((person) => person.accountId === userId || person.id === userId);
+}
+
+function isStaffMember(person: Member | undefined): boolean {
+  return person?.role === "dt" || person?.role === "ayudante";
+}
+
+async function noteLookup(userId: string): Promise<void> {
+  if (!userId) throw new Error("Entrá de nuevo para buscar un equipo.");
+  await withTransaction(async (query) => {
+    const rows = await query<{ data: { n?: number; since?: number } | string }>(
+      "select data from vestuario_docs where collection = $1 and id = $2 for update",
+      [ATTEMPTS, userId],
+    );
+    const now = Date.now();
+    let n = 1;
+    let since = now;
+    const raw = rows[0]?.data;
+    let parsed: { n?: number; since?: number } | null = null;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw) as { n?: number; since?: number };
+      } catch {
+        parsed = null;
+      }
+    } else if (raw && typeof raw === "object") {
+      parsed = raw;
+    }
+    if (parsed && typeof parsed.since === "number" && now - parsed.since < ATTEMPT_WINDOW_MS) {
+      n = (parsed.n ?? 0) + 1;
+      since = parsed.since;
+    }
+    if (n > ATTEMPT_LIMIT) throw new Error("Demasiados intentos. Esperá un rato.");
+    await query(
+      `insert into vestuario_docs (collection, id, data, updated_at)
+       values ($1, $2, $3::jsonb, now())
+       on conflict (collection, id)
+       do update set data = excluded.data, updated_at = now()`,
+      [ATTEMPTS, userId, JSON.stringify({ n, since })],
+    );
+  });
+}
+
+async function readClub(code: string): Promise<ClubBundle | null> {
+  const { getSql } = await import("@/lib/db");
+  const sql = await getSql();
+  const rows = await sql.query<{ data: ClubBundle | string }>(
+    "select data from vestuario_docs where collection = $1 and id = $2",
+    [COLLECTION, code],
+  );
+  const raw = rows[0]?.data;
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    try {
+      return asBundle(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  }
+  return asBundle(raw);
+}
+
+export async function isClubMember(code: string, userId: string): Promise<boolean> {
+  if (!code || !userId) return false;
+  const bundle = await readClub(code);
+  return Boolean(bundle && memberFor(bundle.members, userId));
+}
+
+export const loadClubCard = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator((code: string) => sanitizeCode(code))
+  .handler(async ({ data: code, context }): Promise<ClubCard | null> => {
+    if (!code) return null;
+    const userId = userIdOf(context as { userId?: string });
+    await noteLookup(userId);
+    const bundle = await readClub(code);
+    if (!bundle) return null;
+    const coach =
+      bundle.members.find((member) => member.role === "dt") ??
+      bundle.members.find((member) => member.id === bundle.club.createdBy);
+    const players = bundle.members.filter((member) => member.juega ?? member.role === "jugador").length;
+    return {
+      name: bundle.club.name,
+      crest: bundle.club.crest,
+      coach: coach?.name || "El DT",
+      players,
+    };
+  });
+
 export const loadClubDoc = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .validator((code: string) => sanitizeCode(code))
-  .handler(async ({ data: code }): Promise<ClubBundle | null> => {
-    if (!code) return null;
-    const { getSql } = await import("@/lib/db");
-    const sql = await getSql();
-    const rows = await sql.query<{ data: ClubBundle | string }>(
-      "select data from vestuario_docs where collection = $1 and id = $2",
-      [COLLECTION, code],
-    );
-    const raw = rows[0]?.data;
-    if (raw == null) return null;
-    if (typeof raw === "string") {
+  .handler(async ({ data: code, context }): Promise<ClubLoad> => {
+    if (!code) return { ok: false, reason: "missing" };
+    const userId = userIdOf(context as { userId?: string });
+    const bundle = await readClub(code);
+    if (!bundle) {
       try {
-        return asBundle(JSON.parse(raw));
+        await noteLookup(userId);
       } catch {
-        return null;
+        return { ok: false, reason: "limited" };
       }
+      return { ok: false, reason: "missing" };
     }
-    return asBundle(raw);
+    if (!memberFor(bundle.members, userId)) {
+      try {
+        await noteLookup(userId);
+      } catch {
+        return { ok: false, reason: "limited" };
+      }
+      return { ok: false, reason: "forbidden" };
+    }
+    return { ok: true, bundle };
   });
 
 function unionById<T extends { id: string }>(kept: T[], incoming: T[]): T[] {
@@ -73,10 +185,32 @@ function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {
   return [...map.values()];
 }
 
-function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle): ClubBundle {
+function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId: string): ClubBundle {
   if (!existing) return incoming;
-  const dropped = new Set([...(existing.droppedIds ?? []), ...(incoming.droppedIds ?? [])]);
-  const members = unionById(existing.members, incoming.members).filter((person) => !dropped.has(person.id));
+  const me = memberFor(existing.members, userId);
+  const staff = isStaffMember(me);
+  const dropped = new Set(staff ? [...(existing.droppedIds ?? []), ...(incoming.droppedIds ?? [])] : (existing.droppedIds ?? []));
+  const previous = new Map(existing.members.map((person) => [person.id, person]));
+  const members = staff
+    ? unionById(existing.members, incoming.members)
+        .filter((person) => !dropped.has(person.id))
+        .map((person) => {
+          const old = previous.get(person.id);
+          if (!old?.accountId) return person;
+          return { ...person, accountId: old.accountId };
+        })
+    : existing.members.map((person) => {
+        if (person.accountId !== userId && person.id !== userId) return person;
+        const mine = incoming.members.find((item) => item.id === person.id || item.accountId === userId);
+        if (!mine) return person;
+        return {
+          ...person,
+          name: mine.name || person.name,
+          nick: mine.nick || person.nick,
+          number: mine.number ?? person.number,
+          photo: mine.photo,
+        };
+      });
   const seenAccount = new Set<string>();
   const unique: Member[] = [];
   for (const person of members) {
@@ -86,26 +220,31 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle): ClubBu
     }
     unique.push(person);
   }
+  const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
   return {
-    club: { ...existing.club, ...incoming.club, inviteCode: existing.club.inviteCode },
+    club: staff ? { ...existing.club, ...incoming.club, inviteCode: existing.club.inviteCode, createdBy: existing.club.createdBy } : existing.club,
     members: unique,
-    events: mergeEvents(existing.events, incoming.events),
-    rsvps: mergeRsvps(existing.rsvps, incoming.rsvps).filter((row) => unique.some((person) => person.id === row.memberId)),
+    events: staff ? mergeEvents(existing.events, incoming.events) : existing.events,
+    rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => unique.some((person) => person.id === row.memberId)),
     messages: unionById(existing.messages, incoming.messages),
-    charla: unionById(existing.charla, incoming.charla),
-    matchSheets: unionById(
-      existing.matchSheets.map((sheet) => ({ ...sheet, id: sheet.eventId })),
-      incoming.matchSheets.map((sheet) => ({ ...sheet, id: sheet.eventId })),
-    ).map(({ id: _id, ...sheet }) => sheet),
-    invites: unionById(existing.invites, incoming.invites),
-    convocatorias: unionById(
-      (existing.convocatorias ?? []).map((item) => ({ ...item, id: item.eventId })),
-      (incoming.convocatorias ?? []).map((item) => ({ ...item, id: item.eventId })),
-    ).map(({ id: _id, ...item }) => item),
+    charla: staff ? unionById(existing.charla, incoming.charla) : existing.charla,
+    matchSheets: staff
+      ? unionById(
+          existing.matchSheets.map((sheet) => ({ ...sheet, id: sheet.eventId })),
+          incoming.matchSheets.map((sheet) => ({ ...sheet, id: sheet.eventId })),
+        ).map(({ id: _id, ...sheet }) => sheet)
+      : existing.matchSheets,
+    invites: staff ? unionById(existing.invites, incoming.invites) : existing.invites,
+    convocatorias: staff
+      ? unionById(
+          (existing.convocatorias ?? []).map((item) => ({ ...item, id: item.eventId })),
+          (incoming.convocatorias ?? []).map((item) => ({ ...item, id: item.eventId })),
+        ).map(({ id: _id, ...item }) => item)
+      : (existing.convocatorias ?? []),
     inbox: unionById(existing.inbox, incoming.inbox),
-    alertLog: unionById(existing.alertLog, incoming.alertLog),
-    reminderPolicy: incoming.reminderPolicy ?? existing.reminderPolicy,
-    tournaments: unionById(existing.tournaments, incoming.tournaments),
+    alertLog: staff ? unionById(existing.alertLog, incoming.alertLog) : existing.alertLog,
+    reminderPolicy: staff ? (incoming.reminderPolicy ?? existing.reminderPolicy) : existing.reminderPolicy,
+    tournaments: staff ? unionById(existing.tournaments, incoming.tournaments) : existing.tournaments,
     droppedIds: [...dropped],
   };
 }
@@ -116,8 +255,10 @@ export const saveClubDoc = createServerFn({ method: "POST" })
     code: sanitizeCode(input.code),
     bundle: input.bundle,
   }))
-  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; bundle?: ClubBundle }> => {
+  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; bundle?: ClubBundle }> => {
     if (!data.code || !data.bundle?.club) return { ok: false, error: "El equipo está incompleto." };
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId) return { ok: false, error: "Entrá de nuevo para guardar." };
     try {
       const merged = await withTransaction(async (query) => {
         const rows = await query<{ data: ClubBundle | string }>(
@@ -135,7 +276,13 @@ export const saveClubDoc = createServerFn({ method: "POST" })
         } else if (raw) {
           existing = asBundle(raw);
         }
-        const next = mergeForSave(existing, data.bundle);
+        if (existing && !memberFor(existing.members, userId)) {
+          throw new Error("No estás en este equipo.");
+        }
+        if (!existing && !memberFor(data.bundle.members, userId)) {
+          throw new Error("No estás en este equipo.");
+        }
+        const next = mergeForSave(existing, data.bundle, userId);
         const payload = JSON.stringify(next);
         if (payload.length > MAX_BYTES) throw new Error("El equipo pesa demasiado para subirlo.");
         if (!rows[0]) {
@@ -156,7 +303,7 @@ export const saveClubDoc = createServerFn({ method: "POST" })
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
       console.error("[club] no se pudo guardar", message);
-      if (message.includes("pesa demasiado")) return { ok: false, error: message };
+      if (message.includes("pesa demasiado") || message.includes("No estás")) return { ok: false, error: message };
       return { ok: false, error: "No se pudo guardar el equipo." };
     }
   });
@@ -179,6 +326,11 @@ export const claimMember = createServerFn({ method: "POST" })
     if (!data.code || !data.name) return { ok: false, error: "Falta el jugador." };
     const accountId = String((context as { userId?: string }).userId ?? "");
     if (!accountId) return { ok: false, error: "No hay sesión." };
+    try {
+      await noteLookup(accountId);
+    } catch {
+      return { ok: false, error: "Demasiados intentos. Esperá un rato." };
+    }
     try {
       const members = await withTransaction(async (query) => {
         const rows = await query<{ data: ClubBundle | string }>(
@@ -269,6 +421,8 @@ export const useMyName = createServerFn({ method: "POST" })
           existing = asBundle(raw);
         }
         if (!existing) throw new Error("Ese equipo no está en la nube.");
+        const caller = memberFor(existing.members, accountId);
+        if (!isStaffMember(caller)) throw new Error("No podés cambiar de nombre.");
         const target = existing.members.find((person) => person.id === data.memberId);
         if (!target) throw new Error("Ese nombre no está en el plantel.");
         if (target.accountId && target.accountId !== accountId) {

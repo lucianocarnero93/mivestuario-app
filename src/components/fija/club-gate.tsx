@@ -3,10 +3,9 @@ import { CircleDot, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { loadClubDoc } from "@/lib/fija/cloud";
+import { loadClubCard } from "@/lib/fija/cloud";
 import { clearRememberedInvite, readRememberedInvite } from "@/lib/fija/share";
 import { useFija } from "@/lib/fija/store";
-import type { ClubBundle } from "@/lib/fija/types";
 import { LogoMark } from "./logo";
 import { CrestPicker, TeamCrest } from "./team-crest";
 
@@ -45,15 +44,15 @@ export function ClubGate() {
     setMode("preview");
     setCardStatus("loading");
     let cancelled = false;
-    void loadClubDoc({ data: clean })
-      .then((bundle) => {
+    void loadClubCard({ data: clean })
+      .then((card) => {
         if (cancelled) return;
-        if (!bundle) {
+        if (!card) {
           setCard(null);
           setCardStatus("missing");
           return;
         }
-        setCard(teamCardFromBundle(bundle));
+        setCard(card);
         setCardStatus("ready");
       })
       .catch(() => {
@@ -357,17 +356,4 @@ export function ClubGate() {
       </Button>
     </main>
   );
-}
-
-function teamCardFromBundle(bundle: ClubBundle): TeamCard {
-  const coach =
-    bundle.members.find((member) => member.role === "dt") ??
-    bundle.members.find((member) => member.id === bundle.club.createdBy);
-  const players = bundle.members.filter((member) => member.juega ?? member.role === "jugador").length;
-  return {
-    name: bundle.club.name,
-    crest: bundle.club.crest,
-    coach: coach?.name || "El DT",
-    players,
-  };
 }

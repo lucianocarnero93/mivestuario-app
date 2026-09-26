@@ -1,6 +1,7 @@
 // Avisos del plantel. La clave pública se crea sola la primera vez y queda en la base.
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
+import { isClubMember } from "./cloud";
 import { sanitizeCode } from "./sanitize";
 
 const PUSHES = "pushes";
@@ -100,8 +101,10 @@ export const savePushSubscription = createServerFn({ method: "POST" })
       auth: String(input.subscription?.keys?.auth ?? "").slice(0, 200),
     }),
   )
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    const userId = String((context as { userId?: string }).userId ?? "");
     if (!data.code || !data.memberId || !data.endpoint || !data.p256dh || !data.auth) return { ok: false };
+    if (!(await isClubMember(data.code, userId))) return { ok: false };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
     const current = asPushes(await readJson(sql, PUSHES, data.code));
@@ -131,8 +134,10 @@ export const notifyClub = createServerFn({ method: "POST" })
       tag: String(input.tag ?? "vestuario").slice(0, 80),
     }),
   )
-  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    const userId = String((context as { userId?: string }).userId ?? "");
     if (!data.code || !data.body) return { ok: false };
+    if (!(await isClubMember(data.code, userId))) return { ok: false };
     const keys = await ensureVapid();
     if (!keys) return { ok: false };
     const webpush = (await import("web-push")).default;

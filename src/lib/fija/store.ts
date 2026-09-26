@@ -888,16 +888,48 @@ export const useFija = create<State>()(
         }
 
         set({ cloudStatus: "syncing" });
-        let teamFound =
-          state.archivedClubs.find((saved) => saved.club.inviteCode.toUpperCase() === inviteCode) ??
-          openClubs().find((saved) => saved.club.inviteCode.toUpperCase() === inviteCode) ??
-          null;
+        let teamFound: ClubBundle | null = null;
         let cloudFailed = false;
         try {
           const remoteTeam = await loadClubDoc({ data: inviteCode });
-          if (remoteTeam) teamFound = remoteTeam;
-        } catch {
+          if (remoteTeam.ok) teamFound = remoteTeam.bundle;
+          else if (remoteTeam.reason === "limited") {
+            set({ cloudStatus: "off" });
+            throw new Error("Demasiados intentos. Esperá un rato.");
+          } else if (remoteTeam.reason === "forbidden") {
+            const account = await currentAccountId();
+            if (!account) {
+              set({ cloudStatus: "off" });
+              throw new Error("Entrá con tu mail para unirte.");
+            }
+            const name = (state.profile.name || "Jugador").trim() || "Jugador";
+            const nick = (state.profile.nick || name.split(" ")[0] || "Jugador").trim();
+            const claimed = await claimMember({
+              data: { code: inviteCode, member: { id: account, name, nick, number: null } },
+            });
+            if (!claimed.ok) {
+              set({ cloudStatus: "off" });
+              throw new Error(claimed.error || "No se pudo entrar al equipo.");
+            }
+            const again = await loadClubDoc({ data: inviteCode });
+            if (!again.ok) {
+              set({ cloudStatus: "off" });
+              throw new Error("No pudimos leer el equipo.");
+            }
+            teamFound = again.bundle;
+          }
+        } catch (error) {
+          if (error instanceof Error && error.message !== "No pudimos leer el equipo.") {
+            const known = error.message.includes("Demasiados") || error.message.includes("mail") || error.message.includes("entrar") || error.message.includes("anotar") || error.message.includes("sesión") || error.message.includes("Falta");
+            if (known) throw error;
+          }
           cloudFailed = true;
+        }
+        if (!teamFound && cloudFailed) {
+          teamFound =
+            state.archivedClubs.find((saved) => saved.club.inviteCode.toUpperCase() === inviteCode) ??
+            openClubs().find((saved) => saved.club.inviteCode.toUpperCase() === inviteCode) ??
+            null;
         }
         if (!teamFound) {
           set({ cloudStatus: "off" });
@@ -1177,10 +1209,10 @@ export const useFija = create<State>()(
         if (!quiet) set({ cloudStatus: "syncing" });
         try {
           const remoteTeam = await loadClubDoc({ data: club.inviteCode });
-          if (remoteTeam) {
+          if (remoteTeam.ok) {
             const current = get();
             const local = toBundle({ ...current, club });
-            const merged = mergeClubBundles(local, remoteTeam, {
+            const merged = mergeClubBundles(local, remoteTeam.bundle, {
               activeId: current.activeId,
               staff: isStaffId(current),
             });
@@ -1198,12 +1230,17 @@ export const useFija = create<State>()(
               cloudError: null,
             });
             applyingCloud = false;
-            const remoteIds = new Set(remoteTeam.members.map((person) => person.id));
+            const remoteIds = new Set(remoteTeam.bundle.members.map((person) => person.id));
             const localOnly = local.members.some((person) => !remoteIds.has(person.id));
             if (localOnly) await get().flushCloud();
-          } else {
+          } else if (remoteTeam.reason === "missing") {
             const published = await get().publishClub();
             if (!published && !quiet) set({ cloudStatus: "off" });
+          } else if (!quiet) {
+            set({
+              cloudStatus: "off",
+              cloudError: remoteTeam.reason === "limited" ? "Demasiados intentos. Esperá un rato." : null,
+            });
           }
         } catch {
           if (!quiet) set({ cloudStatus: "off" });
@@ -1224,7 +1261,15 @@ export const useFija = create<State>()(
           try {
             let remote: ClubBundle | null = null;
             try {
-              remote = await loadClubDoc({ data: current.club.inviteCode });
+              const loaded = await loadClubDoc({ data: current.club.inviteCode });
+              if (loaded.ok) remote = loaded.bundle;
+              else if (loaded.reason === "forbidden") {
+                lastError = "No estás en este equipo.";
+                break;
+              } else if (loaded.reason === "limited") {
+                lastError = "Demasiados intentos. Esperá un rato.";
+                break;
+              }
             } catch {
               remote = null;
             }
@@ -1286,7 +1331,7 @@ export const useFija = create<State>()(
         if (!uploaded || !code) return false;
         try {
           const remote = await loadClubDoc({ data: code });
-          if (!remote) {
+          if (!remote.ok) {
             set({
               cloudStatus: "off",
               cloudError: "El equipo no quedó publicado. Tocá de nuevo en un momento.",
