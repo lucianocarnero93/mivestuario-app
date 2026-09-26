@@ -963,8 +963,13 @@ export const useFija = create<State>()(
           hydrated: true,
           cloudStatus: "syncing",
         });
-        const saved = await get().flushCloud();
-        if (!saved) {
+        const claimed = await claimMember({
+          data: {
+            code: inviteCode,
+            member: { id: personId, name: me.name, nick: me.nick, number: me.number },
+          },
+        });
+        if (!claimed.ok || !claimed.members?.some((person) => person.id === personId || (account != null && person.accountId === account))) {
           set({
             club: state.club,
             members: state.members,
@@ -989,6 +994,9 @@ export const useFija = create<State>()(
           });
           throw new Error("No se pudo entrar al equipo. Fijate la conexión y probá de nuevo.");
         }
+        applyingCloud = true;
+        set({ members: claimed.members, cloudStatus: "ok", cloudError: null });
+        applyingCloud = false;
         return true;
       },
 
@@ -1085,7 +1093,7 @@ export const useFija = create<State>()(
         const state = get();
         const club = state.club;
         const me = state.members.find((person) => person.id === state.activeId) ?? state.members[0];
-        if (!club || !me || me.id === GUEST_ID) return;
+        if (!club || !me) return;
         try {
           const result = await claimMember({
             data: {
@@ -1145,7 +1153,9 @@ export const useFija = create<State>()(
               cloudError: null,
             });
             applyingCloud = false;
-            if (JSON.stringify(merged) !== JSON.stringify(remoteTeam)) void get().flushCloud();
+            const remoteIds = new Set(remoteTeam.members.map((person) => person.id));
+            const localOnly = local.members.some((person) => !remoteIds.has(person.id));
+            if (localOnly) void get().ensureMySpot();
           } else {
             const published = await get().publishClub();
             if (!published && !quiet) set({ cloudStatus: "off" });

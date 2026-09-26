@@ -46,6 +46,7 @@ export interface Sql {
  */
 const globalRef = globalThis as typeof globalThis & {
   __pgSqlPromise__?: Promise<Sql>;
+  __pgPool__?: import("pg").Pool;
   __pgliteInstance__?: Promise<import("@electric-sql/pglite").PGlite>;
   __pgliteMigrateChain__?: Promise<void>;
 };
@@ -94,6 +95,7 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
     const pool = new Pool({ connectionString: databaseUrl });
+    globalRef.__pgPool__ = pool;
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];
@@ -192,6 +194,45 @@ export function getSql(): Promise<Sql> {
     throw err;
   });
   return sqlPromise;
+}
+
+type TxQuery = <T = Record<string, unknown>>(text: string, params?: unknown[]) => Promise<T[]>;
+
+/** Una sola conexión y una transacción. El SELECT FOR UPDATE espera a que el otro termine. */
+export async function withTransaction<T>(fn: (query: TxQuery) => Promise<T>): Promise<T> {
+  await getSql();
+  if (dbSource === "neon") {
+    const pool = globalRef.__pgPool__;
+    if (!pool) throw new Error("No hay conexión a la base.");
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const query = (async (text: string, params?: unknown[]) => {
+        const res = await client.query(text, params ?? []);
+        return res.rows;
+      }) as TxQuery;
+      const result = await fn(query);
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {
+        // Si la conexión murió, se conserva el error original.
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+  const pg = await getPglite();
+  return pg.transaction(async (tx) => {
+    const query = (async (text: string, params?: unknown[]) => {
+      const res = await tx.query(text, params ?? []);
+      return res.rows ?? [];
+    }) as TxQuery;
+    return fn(query);
+  });
 }
 
 /**

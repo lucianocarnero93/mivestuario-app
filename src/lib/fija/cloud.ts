@@ -2,6 +2,7 @@
 // La llave es el código del equipo, no el mail de una sola persona.
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
+import { withTransaction } from "@/lib/db";
 import { sanitizeCode } from "./sanitize";
 import type { ClubBundle, ClubEvent, Member, Rsvp } from "./types";
 
@@ -118,12 +119,9 @@ export const saveClubDoc = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string; bundle?: ClubBundle }> => {
     if (!data.code || !data.bundle?.club) return { ok: false, error: "El equipo está incompleto." };
     try {
-      const { getSql } = await import("@/lib/db");
-      const sql = await getSql();
-      let merged: ClubBundle | null = null;
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        const rows = await sql.query<{ data: ClubBundle | string; updated_at: string | Date }>(
-          "select data, updated_at from vestuario_docs where collection = $1 and id = $2",
+      const merged = await withTransaction(async (query) => {
+        const rows = await query<{ data: ClubBundle | string }>(
+          "select data from vestuario_docs where collection = $1 and id = $2 for update",
           [COLLECTION, data.code],
         );
         const raw = rows[0]?.data;
@@ -137,34 +135,28 @@ export const saveClubDoc = createServerFn({ method: "POST" })
         } else if (raw) {
           existing = asBundle(raw);
         }
-        merged = mergeForSave(existing, data.bundle);
-        const payload = JSON.stringify(merged);
-        if (payload.length > MAX_BYTES) return { ok: false, error: "El equipo pesa demasiado para subirlo." };
+        const next = mergeForSave(existing, data.bundle);
+        const payload = JSON.stringify(next);
+        if (payload.length > MAX_BYTES) throw new Error("El equipo pesa demasiado para subirlo.");
         if (!rows[0]) {
-          const inserted = await sql.query<{ id: string }>(
+          await query(
             `insert into vestuario_docs (collection, id, data, updated_at)
-             values ($1, $2, $3::jsonb, now())
-             on conflict (collection, id) do nothing
-             returning id`,
+             values ($1, $2, $3::jsonb, now())`,
             [COLLECTION, data.code, payload],
           );
-          if (inserted[0]) break;
-          continue;
+        } else {
+          await query(
+            `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
+            [COLLECTION, data.code, payload],
+          );
         }
-        const stamp = rows[0].updated_at instanceof Date ? rows[0].updated_at.toISOString() : String(rows[0].updated_at);
-        const updated = await sql.query<{ id: string }>(
-          `update vestuario_docs
-           set data = $3::jsonb, updated_at = now()
-           where collection = $1 and id = $2 and updated_at = $4::timestamptz
-           returning id`,
-          [COLLECTION, data.code, payload, stamp],
-        );
-        if (updated[0]) break;
-      }
-      return { ok: true, bundle: merged ?? data.bundle };
+        return next;
+      });
+      return { ok: true, bundle: merged };
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
       console.error("[club] no se pudo guardar", message);
+      if (message.includes("pesa demasiado")) return { ok: false, error: message };
       return { ok: false, error: "No se pudo guardar el equipo." };
     }
   });
@@ -188,15 +180,12 @@ export const claimMember = createServerFn({ method: "POST" })
     const accountId = String((context as { userId?: string }).userId ?? "");
     if (!accountId) return { ok: false, error: "No hay sesión." };
     try {
-      const { getSql } = await import("@/lib/db");
-      const sql = await getSql();
-      let members: Member[] = [];
-      for (let attempt = 0; attempt < 4; attempt += 1) {
-        const rows = await sql.query<{ data: ClubBundle | string; updated_at: string | Date }>(
-          "select data, updated_at from vestuario_docs where collection = $1 and id = $2",
+      const members = await withTransaction(async (query) => {
+        const rows = await query<{ data: ClubBundle | string }>(
+          "select data from vestuario_docs where collection = $1 and id = $2 for update",
           [COLLECTION, data.code],
         );
-        if (!rows[0]) return { ok: false, error: "Ese equipo no está en la nube." };
+        if (!rows[0]) throw new Error("Ese equipo no está en la nube.");
         const raw = rows[0].data;
         let existing: ClubBundle | null = null;
         if (typeof raw === "string") {
@@ -208,14 +197,13 @@ export const claimMember = createServerFn({ method: "POST" })
         } else {
           existing = asBundle(raw);
         }
-        if (!existing) return { ok: false, error: "Ese equipo no está en la nube." };
+        if (!existing) throw new Error("Ese equipo no está en la nube.");
         const dropped = new Set(existing.droppedIds ?? []);
         const current = existing.members.find(
           (person) => person.accountId === accountId || person.id === accountId || person.id === data.id,
         );
-        if (current && (dropped.has(current.id) || dropped.has(accountId))) {
-          members = existing.members;
-          break;
+        if ((current && (dropped.has(current.id) || dropped.has(accountId))) || dropped.has(data.id)) {
+          return existing.members;
         }
         const next = current
           ? {
@@ -234,29 +222,21 @@ export const claimMember = createServerFn({ method: "POST" })
               accountId,
               juega: true,
             };
-        if (dropped.has(next.id)) {
-          members = existing.members;
-          break;
-        }
         const without = existing.members.filter(
           (person) => person.id !== next.id && person.accountId !== accountId && person.id !== accountId,
         );
-        members = [...without, next];
-        const payload = JSON.stringify({ ...existing, members });
-        const stamp = rows[0].updated_at instanceof Date ? rows[0].updated_at.toISOString() : String(rows[0].updated_at);
-        const updated = await sql.query<{ id: string }>(
-          `update vestuario_docs
-           set data = $3::jsonb, updated_at = now()
-           where collection = $1 and id = $2 and updated_at = $4::timestamptz
-           returning id`,
-          [COLLECTION, data.code, payload, stamp],
+        const list = [...without, next];
+        await query(
+          `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
+          [COLLECTION, data.code, JSON.stringify({ ...existing, members: list })],
         );
-        if (updated[0]) break;
-      }
+        return list;
+      });
       return { ok: true, members };
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
       console.error("[club] no se pudo anotar", message);
+      if (message.includes("no está")) return { ok: false, error: message };
       return { ok: false, error: "No se pudo anotar en el plantel." };
     }
   });
