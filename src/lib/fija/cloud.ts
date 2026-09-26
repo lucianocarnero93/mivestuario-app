@@ -199,22 +199,42 @@ export const claimMember = createServerFn({ method: "POST" })
         }
         if (!existing) throw new Error("Ese equipo no está en la nube.");
         const dropped = new Set(existing.droppedIds ?? []);
-        const current = existing.members.find(
-          (person) => person.accountId === accountId || person.id === accountId || person.id === data.id,
+        const byAccount = existing.members.find(
+          (person) => person.accountId === accountId || person.id === accountId,
         );
+        const byId = existing.members.find((person) => person.id === data.id);
+        const sessionName = data.name.trim().toLowerCase();
+        const canTake = (person: Member | undefined) =>
+          Boolean(person && (!person.accountId || person.accountId === accountId));
+        let current = byAccount;
+        if (
+          byAccount &&
+          byId &&
+          byId.id !== byAccount.id &&
+          canTake(byId) &&
+          sessionName.length >= 2 &&
+          byAccount.name.trim().toLowerCase() !== sessionName &&
+          byId.name.trim().toLowerCase() === sessionName
+        ) {
+          current = byId;
+        }
+        if (!current && canTake(byId)) current = byId;
         if ((current && (dropped.has(current.id) || dropped.has(accountId))) || dropped.has(data.id)) {
           return existing.members;
         }
         const next = current
           ? {
               ...current,
-              name: data.name || current.name,
+              name:
+                current.name.trim().toLowerCase() === sessionName || !current.accountId
+                  ? data.name || current.name
+                  : current.name,
               nick: data.nick || current.nick,
               accountId,
               number: current.number ?? data.number,
             }
           : {
-              id: data.id || accountId,
+              id: accountId,
               name: data.name,
               nick: data.nick || data.name.split(" ")[0] || "Jugador",
               role: "jugador" as const,
@@ -222,8 +242,11 @@ export const claimMember = createServerFn({ method: "POST" })
               accountId,
               juega: true,
             };
-        const without = existing.members.filter(
-          (person) => person.id !== next.id && person.accountId !== accountId && person.id !== accountId,
+        const stripped = existing.members.map((person) =>
+          person.accountId === accountId && person.id !== next.id ? { ...person, accountId: null } : person,
+        );
+        const without = stripped.filter(
+          (person) => person.id !== next.id && person.id !== accountId,
         );
         const list = [...without, next];
         await query(

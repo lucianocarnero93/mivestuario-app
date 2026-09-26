@@ -139,14 +139,21 @@ const blank = {
   - flushCloud        subir el equipo a la nube.
 */
 
-async function currentAccountId(): Promise<string | null> {
+async function currentAccount(): Promise<{ id: string; name: string } | null> {
   try {
     const session = await authClient.getSession();
     const id = session?.data?.user?.id;
-    return typeof id === "string" && id.length > 0 ? id : null;
+    const name = session?.data?.user?.name;
+    if (typeof id !== "string" || id.length === 0) return null;
+    return { id, name: typeof name === "string" ? name.trim() : "" };
   } catch {
     return null;
   }
+}
+
+async function currentAccountId(): Promise<string | null> {
+  const account = await currentAccount();
+  return account?.id ?? null;
 }
 
 let applyingCloud = false;
@@ -1088,23 +1095,47 @@ export const useFija = create<State>()(
         });
       },
 
-      // La persona que abre la app se anota en la base, aunque su celular tenga una lista vieja.
+      // La persona que abre la app se anota en la base, sin pisar a otro del plantel.
       ensureMySpot: async () => {
+        const account = await currentAccount();
+        if (!account) return;
         const state = get();
         const club = state.club;
-        const me = state.members.find((person) => person.id === state.activeId) ?? state.members[0];
-        if (!club || !me) return;
+        if (!club) return;
+        const sameName = (person: { name: string }) =>
+          account.name.length >= 2 && person.name.trim().toLowerCase() === account.name.toLowerCase();
+        const byAccount = state.members.find(
+          (person) => person.accountId === account.id || person.id === account.id,
+        );
+        const creator = state.members.find((person) => person.id === club.createdBy);
+        const profileName = state.profile.name.trim().toLowerCase();
+        const creatorIsMe =
+          creator &&
+          profileName.length >= 2 &&
+          creator.name.trim().toLowerCase() === profileName &&
+          (!byAccount || byAccount.id !== creator.id);
+        let me =
+          creatorIsMe && byAccount && !sameName(byAccount)
+            ? creator
+            : (byAccount ?? state.members.find((person) => person.id === state.activeId));
+        if (me?.accountId && me.accountId !== account.id) me = undefined;
+        if (!me) {
+          const byName = state.members.filter((person) => !person.accountId && sameName(person));
+          me = byName.length === 1 ? byName[0] : undefined;
+        }
+        const personId = me?.id && me.id !== GUEST_ID ? me.id : account.id;
+        const name = me?.name || account.name || state.profile.name || "Jugador";
+        const nick = me?.nick || name.split(" ")[0] || "Jugador";
+        if (personId !== state.activeId) set({ activeId: personId });
         try {
           const result = await claimMember({
             data: {
               code: club.inviteCode,
-              member: { id: me.id, name: me.name, nick: me.nick, number: me.number },
+              member: { id: personId, name, nick, number: me?.number ?? null },
             },
           });
           if (!result.ok || !result.members) return;
-          const mine =
-            result.members.find((person) => person.id === me.id) ??
-            result.members.find((person) => person.id === state.activeId);
+          const mine = result.members.find((person) => person.id === personId);
           const byId = new Map(result.members.map((person) => [person.id, person]));
           for (const person of get().members) {
             if (!byId.has(person.id)) byId.set(person.id, person);
@@ -1112,7 +1143,7 @@ export const useFija = create<State>()(
           applyingCloud = true;
           set({
             members: [...byId.values()],
-            activeId: mine?.id ?? state.activeId,
+            activeId: mine?.id ?? personId,
             cloudStatus: "ok",
             cloudError: null,
           });
@@ -1142,7 +1173,6 @@ export const useFija = create<State>()(
               activeId: current.activeId,
               staff: isStaffId(current),
             });
-            const stillOnTheTeam = merged.members.some((person) => person.id === current.activeId);
             applyingCloud = true;
             set({
               ...merged,
@@ -1151,7 +1181,7 @@ export const useFija = create<State>()(
               profile: current.profile,
               gpsConsent: current.gpsConsent,
               archivedClubs: current.archivedClubs,
-              activeId: stillOnTheTeam ? current.activeId : (merged.members[0]?.id ?? current.activeId),
+              activeId: current.activeId,
               hydrated: true,
               cloudStatus: "ok",
               cloudError: null,
@@ -1730,7 +1760,6 @@ export function useMe(): Member {
   return useFija((s) => {
     const found = s.members.find((m) => m.id === s.activeId);
     if (found) return found;
-    if (s.members[0]) return s.members[0];
     return {
       ...GUEST,
       name: s.profile.name || GUEST.name,
