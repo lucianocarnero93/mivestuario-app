@@ -151,8 +151,8 @@ function SeguridadPage() {
       <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Datos</h2>
         <p className="mt-2 text-sm text-muted">
-          El plantel vive en este celular y se copia a la nube. No mandamos GPS en vivo. El chat se limpia
-          de código extraño. Solo DT y ayudante cargan planilla y pizarra.
+          El plantel está en la nube: el DT y los jugadores ven la misma lista. No mandamos GPS en vivo.
+          Solo el DT y el ayudante cargan la planilla y la pizarra.
         </p>
         <Link to="/privacidad" className="mt-3 flex h-12 items-center font-semibold text-accent">
   Política de privacidad

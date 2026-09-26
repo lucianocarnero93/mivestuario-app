@@ -20,6 +20,13 @@ function AgendaPage() {
         {staff ? <CreateEventButton /> : null}
       </div>
       <p className="mt-1 text-sm text-muted">Partidos, entrenos y reuniones del plantel.</p>
+      {sorted.length === 0 ? (
+        <p className="mt-6 text-sm text-muted">
+          {staff
+            ? "Todavía no hay fechas. Tocá Nuevo para cargar el próximo partido."
+            : "Todavía no hay fechas. Cuando el DT cargue una, aparece acá."}
+        </p>
+      ) : null}
       <ul className="mt-4 space-y-3">
         {sorted.map((event) => {
           const sheet = sheetFor(event.id, sheets);

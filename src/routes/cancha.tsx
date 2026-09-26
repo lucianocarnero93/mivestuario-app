@@ -146,13 +146,13 @@ function CanchaPage() {
           disabled={filled === 0}
           onClick={() => {
             publishLineup(event.id);
-            setNote("Avisamos al plantel.");
+            setNote("Publicado. El plantel ya puede ver la formación.");
           }}
         >
           {event.lineupPublishedAt ? "Actualizar formación y avisar" : "Publicar formación"}
         </Button>
       ) : null}
-      {note ? <p className="mt-2 text-center text-xs text-accent">{note}</p> : null}
+      {note ? <p className="mt-3 text-center text-sm font-semibold text-accent">{note}</p> : null}
       {event.lineupPublishedAt && !staff ? (
         <p className="mt-2 text-center text-xs text-muted">Formación publicada.</p>
       ) : null}

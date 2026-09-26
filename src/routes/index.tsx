@@ -101,25 +101,21 @@ function HomePage() {
         <div className="mt-5 grid gap-3">
           <Button
             className="h-16 text-base font-semibold"
-            variant={mine?.status === "voy" ? "default" : "secondary"}
+            variant={mine?.status === "voy" ? "success" : "secondary"}
             onClick={() => setRsvp(event.id, "voy")}
           >
-            Confirmar asistencia
+            {mine?.status === "voy" ? "Voy ✓" : "Voy"}
           </Button>
           <Button
             className="h-16 text-base font-semibold"
-            variant={mine?.status === "no" ? "danger" : "outline"}
+            variant={mine?.status === "no" ? "danger" : "secondary"}
             onClick={() => setRsvp(event.id, "no")}
           >
-            Rechazar
+            {mine?.status === "no" ? "No voy ✕" : "No voy"}
           </Button>
-          <p className="text-center text-xs text-muted">
-            {mine?.status === "voy"
-              ? "Estás confirmado."
-              : mine?.status === "no"
-                ? "Marcaste que no vas."
-                : "Todavía no respondiste."}
-          </p>
+          {mine?.status === "voy" || mine?.status === "no" ? null : (
+            <p className="rounded-lg bg-surface py-3 text-center text-sm font-medium text-muted">Pendiente</p>
+          )}
           <Button asChild variant="ghost" className="h-12">
             <Link to="/cancha">Ver formación</Link>
           </Button>

@@ -121,6 +121,7 @@ function EventDialog({
   const [mapsQuery, setMapsQuery] = useState(initial.mapsQuery);
   const [when, setWhen] = useState(initial.when);
   const [tournamentId, setTournamentId] = useState(initial.tournamentId);
+  const [saved, setSaved] = useState(false);
   const [newTournamentName, setNewTournamentName] = useState("");
   const tournaments = useFija((s) => s.tournaments);
   const createTournament = useFija((s) => s.createTournament);
@@ -137,6 +138,7 @@ function EventDialog({
     setMapsQuery(initial.mapsQuery);
     setWhen(initial.when);
     setTournamentId(initial.tournamentId);
+    setSaved(false);
   }
 
   return (
@@ -249,10 +251,11 @@ function EventDialog({
             onClick={() => {
               if (!canSaveMatch) return;
               onSubmit({ kind, modality, title: eventTitle, place, mapsQuery, when, tournamentId });
-              setOpen(false);
+              setSaved(true);
+              window.setTimeout(() => setOpen(false), 700);
             }}
           >
-            {submitLabel}
+            {saved ? "Guardado" : submitLabel}
           </Button>
           {onDelete ? (
             <Button

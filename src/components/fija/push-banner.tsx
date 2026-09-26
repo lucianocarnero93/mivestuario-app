@@ -31,18 +31,11 @@ export function PushBanner() {
               Falta tu respuesta para {reminderEvent.title}.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <Button
-                className="h-12 bg-accent-fg text-accent hover:opacity-90"
-                onClick={() => setRsvp(reminderEvent.id, "voy")}
-              >
-                Confirmar
+              <Button className="h-12" variant="success" onClick={() => setRsvp(reminderEvent.id, "voy")}>
+                Voy ✓
               </Button>
-              <Button
-                className="h-12 border-accent-fg/30 bg-transparent text-accent-fg"
-                variant="outline"
-                onClick={() => setRsvp(reminderEvent.id, "no")}
-              >
-                No juego
+              <Button className="h-12" variant="danger" onClick={() => setRsvp(reminderEvent.id, "no")}>
+                No voy ✕
               </Button>
             </div>
             <button type="button" className="mt-2 h-11 text-xs underline" onClick={dismiss}>

@@ -28,6 +28,7 @@ export function MatchSheetForm({
   const [rows, setRows] = useState<PlayerMatchStat[]>(() =>
     defaultSheetPlayers(event, members, existing),
   );
+  const [saved, setSaved] = useState(false);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const sumGoals = rows.reduce((n, row) => n + row.goals, 0);
   const result = outcome(gf, ga);
@@ -56,7 +57,8 @@ export function MatchSheetForm({
             return used || row.goals + row.assists + row.yellow + row.red > 0;
           }),
         });
-        onDone();
+        setSaved(true);
+        window.setTimeout(onDone, 700);
       }}
     >
       <div>
@@ -159,8 +161,8 @@ export function MatchSheetForm({
         <Button type="button" variant="outline" className="h-14 flex-1" onClick={onDone}>
           Cancelar
         </Button>
-        <Button type="submit" className="h-14 flex-1">
-          Guardar planilla
+        <Button type="submit" className="h-14 flex-1" disabled={saved}>
+          {saved ? "Planilla guardada" : "Guardar planilla"}
         </Button>
       </div>
     </form>

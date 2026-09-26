@@ -6,12 +6,13 @@ import { LogoMark } from "./logo";
 // Pantalla de entrada.
 // Login con mail/contraseña (siempre funciona) + Google (opcional).
 export function SignInPanel({ opening = false }: { opening?: boolean }) {
-  const [mode, setMode] = useState<"register" | "login">("register");
+  const [mode, setMode] = useState<"register" | "login">("login");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorText, setErrorText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
 
   async function submitAccount(event: FormEvent) {
     event.preventDefault();
@@ -56,9 +57,11 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
 
   async function submitGoogle() {
     setErrorText("");
+    setGoogleBusy(true);
     try {
       await signInWithGoogle(inviteCallbackPath());
     } catch {
+      setGoogleBusy(false);
       setErrorText("No se pudo abrir Google. Probá con mail y contraseña.");
     }
   }
@@ -150,9 +153,10 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
           <button
             type="button"
             className="mt-4 h-12 w-full rounded-lg bg-surface text-sm font-semibold text-fg"
+            disabled={googleBusy}
             onClick={() => void submitGoogle()}
           >
-            Continuar con Google
+            {googleBusy ? "Abriendo Google…" : "Continuar con Google"}
           </button>
         </>
       )}

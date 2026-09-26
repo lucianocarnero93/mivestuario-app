@@ -45,12 +45,12 @@ function ChatPage() {
 }
 
 function CharlaWall() {
-  const me = useMe();
   const staff = useIsStaff();
   const members = useFija((s) => s.members);
   const charla = useFija((s) => s.charla);
   const postCharla = useFija((s) => s.postCharla);
   const [text, setText] = useState("");
+  const [posted, setPosted] = useState(false);
   const byId = new Map(members.map((m) => [m.id, m]));
   const posts = [...charla].sort((a, b) => +new Date(a.at) - +new Date(b.at));
 
@@ -82,6 +82,7 @@ function CharlaWall() {
             e.preventDefault();
             postCharla(text);
             setText("");
+            setPosted(true);
           }}
         >
           <Textarea
@@ -91,10 +92,10 @@ function CharlaWall() {
             className="min-h-24"
           />
           <Button type="submit" className="h-14 w-full" disabled={!text.trim()}>
-            Publicar y avisar
+            {posted && !text.trim() ? "Publicado" : "Publicar y avisar"}
           </Button>
           <p className="text-xs text-muted">
-            Se dispara una alerta interna a {me.role === "dt" ? "todo el plantel" : "el resto"}.
+            {posted && !text.trim() ? "El plantel ya puede leerlo." : "Lo ven todos los del equipo."}
           </p>
         </form>
       ) : (
