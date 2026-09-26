@@ -5,7 +5,7 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { clampHours, hoursSince } from "./share";
-import { claimMember, loadClubDoc, saveClubDoc } from "./cloud";
+import { claimMember, loadClubDoc, saveClubDoc, useMyName } from "./cloud";
 import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
@@ -100,6 +100,7 @@ type State = ReturnType<typeof createSeed> & {
   setMyPhoto: (photo: string | null) => void;
   syncFromCloud: () => Promise<void>;
   ensureMySpot: () => Promise<void>;
+  useThisName: (memberId: string) => Promise<boolean>;
   flushCloud: () => Promise<boolean>;
   publishClub: () => Promise<boolean>;
   resetDemo: () => void;
@@ -1095,55 +1096,25 @@ export const useFija = create<State>()(
         });
       },
 
-      // La persona que abre la app se anota en la base, sin pisar a otro del plantel.
+      // Si la cuenta ya está en alguien, no se crea otra persona ni se mueve sola.
       ensureMySpot: async () => {
         const account = await currentAccount();
         if (!account) return;
         const state = get();
         const club = state.club;
         if (!club) return;
-        const sameName = (person: { name: string }) =>
-          account.name.length >= 2 && person.name.trim().toLowerCase() === account.name.toLowerCase();
-        const byAccount = state.members.find(
+        const linked = state.members.find(
           (person) => person.accountId === account.id || person.id === account.id,
         );
-        const creator = state.members.find((person) => person.id === club.createdBy);
-        const ownerLabel = state.profile.name.trim() || account.name;
-        const ownerName = ownerLabel.toLowerCase();
-        const stuckOnSomeoneElse = Boolean(
-          byAccount &&
-          byAccount.id !== club.createdBy &&
-          ownerName.length >= 2 &&
-          byAccount.name.trim().toLowerCase() !== ownerName &&
-          (!creator || creator.name.trim().toLowerCase() === ownerName),
-        );
-        const creatorIsMe =
-          creator &&
-          ownerName.length >= 2 &&
-          creator.name.trim().toLowerCase() === ownerName &&
-          (!byAccount || byAccount.id !== creator.id);
-        let me = stuckOnSomeoneElse
-          ? creator
-          : creatorIsMe && byAccount && !sameName(byAccount)
-            ? creator
-            : (byAccount ?? state.members.find((person) => person.id === state.activeId));
-        if (me?.accountId && me.accountId !== account.id && me.id !== club.createdBy) me = undefined;
-        if (!me && !stuckOnSomeoneElse) {
-          const byName = state.members.filter((person) => !person.accountId && sameName(person));
-          me = byName.length === 1 ? byName[0] : undefined;
+        if (linked) {
+          if (linked.id !== state.activeId) set({ activeId: linked.id });
+          return;
         }
-        const personId = stuckOnSomeoneElse
-          ? club.createdBy
-          : me?.id && me.id !== GUEST_ID
-            ? me.id
-            : account.id;
-        const name = stuckOnSomeoneElse
-          ? creator?.name || state.profile.name || account.name || "DT"
-          : me?.name || account.name || state.profile.name || "Jugador";
-        const nick = stuckOnSomeoneElse
-          ? creator?.nick || state.profile.nick || name.split(" ")[0] || "DT"
-          : me?.nick || name.split(" ")[0] || "Jugador";
-        if (personId !== state.activeId) set({ activeId: personId });
+        const me = state.members.find((person) => person.id === state.activeId);
+        if (me?.accountId && me.accountId !== account.id) return;
+        const personId = me?.id && me.id !== GUEST_ID ? me.id : account.id;
+        const name = me?.name || account.name || state.profile.name || "Jugador";
+        const nick = me?.nick || name.split(" ")[0] || "Jugador";
         try {
           const result = await claimMember({
             data: {
@@ -1153,21 +1124,34 @@ export const useFija = create<State>()(
           });
           if (!result.ok || !result.members) return;
           const mine = result.members.find((person) => person.id === personId);
-          const byId = new Map(result.members.map((person) => [person.id, person]));
-          for (const person of get().members) {
-            if (!byId.has(person.id)) byId.set(person.id, person);
-          }
           applyingCloud = true;
           set({
-            members: [...byId.values()],
+            members: result.members,
             activeId: mine?.id ?? personId,
             cloudStatus: "ok",
             cloudError: null,
           });
           applyingCloud = false;
         } catch {
-          // Si falla, el próximo guardado vuelve a intentarlo.
+          // Si falla, no se inventa otra persona.
         }
+      },
+
+      useThisName: async (memberId: string) => {
+        const state = get();
+        const club = state.club;
+        if (!club || !memberId) return false;
+        const result = await useMyName({ data: { code: club.inviteCode, memberId } });
+        if (!result.ok || !result.members) return false;
+        applyingCloud = true;
+        set({
+          members: result.members,
+          activeId: memberId,
+          cloudStatus: "ok",
+          cloudError: null,
+        });
+        applyingCloud = false;
+        return true;
       },
 
       // Baja de la nube la última copia del equipo en el que ya estoy.

@@ -203,53 +203,15 @@ export const claimMember = createServerFn({ method: "POST" })
           (person) => person.accountId === accountId || person.id === accountId,
         );
         const byId = existing.members.find((person) => person.id === data.id);
-        const creatorId = existing.club.createdBy;
-        const sessionName = data.name.trim().toLowerCase();
         const canTake = (person: Member | undefined) =>
           Boolean(person && (!person.accountId || person.accountId === accountId));
-        const stuckOnAnother =
-          byAccount &&
-          creatorId &&
-          data.id === creatorId &&
-          byAccount.id !== creatorId &&
-          byAccount.name.trim().toLowerCase() !== sessionName;
-        let current: Member | undefined = byAccount;
-        if (stuckOnAnother) {
-          current = byId
-            ? { ...byId, role: byId.role === "jugador" ? "dt" : byId.role, accountId }
-            : {
-                id: creatorId,
-                name: data.name || "DT",
-                nick: data.nick || "DT",
-                role: "dt",
-                number: null,
-                accountId,
-                juega: true,
-              };
-        } else if (
-          byAccount &&
-          byId &&
-          byId.id !== byAccount.id &&
-          canTake(byId) &&
-          sessionName.length >= 2 &&
-          byAccount.name.trim().toLowerCase() !== sessionName &&
-          byId.name.trim().toLowerCase() === sessionName
-        ) {
-          current = byId;
-        } else if (!current && canTake(byId)) {
-          current = byId;
-        }
-        if (!stuckOnAnother && ((current && (dropped.has(current.id) || dropped.has(accountId))) || dropped.has(data.id))) {
+        let current: Member | undefined = byAccount ?? (canTake(byId) ? byId : undefined);
+        if (current && (dropped.has(current.id) || dropped.has(accountId))) {
           return existing.members;
         }
         const next = current
           ? {
               ...current,
-              name:
-                current.name.trim().toLowerCase() === sessionName || !current.accountId
-                  ? data.name || current.name
-                  : current.name,
-              nick: data.nick || current.nick,
               accountId,
               number: current.number ?? data.number,
             }
@@ -281,4 +243,58 @@ export const claimMember = createServerFn({ method: "POST" })
       return { ok: false, error: "No se pudo anotar en el plantel." };
     }
   });
+
+export const useMyName = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code: string; memberId: string }) => ({
+    code: sanitizeCode(input.code),
+    memberId: String(input.memberId ?? "").slice(0, 80),
+  }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; members?: Member[] }> => {
+    const accountId = String((context as { userId?: string }).userId ?? "");
+    if (!accountId || !data.code || !data.memberId) return { ok: false, error: "Falta el nombre." };
+    try {
+      const members = await withTransaction(async (query) => {
+        const rows = await query<{ data: ClubBundle | string }>(
+          "select data from vestuario_docs where collection = $1 and id = $2 for update",
+          [COLLECTION, data.code],
+        );
+        if (!rows[0]) throw new Error("Ese equipo no está en la nube.");
+        const raw = rows[0].data;
+        let existing: ClubBundle | null = null;
+        if (typeof raw === "string") {
+          try {
+            existing = asBundle(JSON.parse(raw));
+          } catch {
+            existing = null;
+          }
+        } else {
+          existing = asBundle(raw);
+        }
+        if (!existing) throw new Error("Ese equipo no está en la nube.");
+        const target = existing.members.find((person) => person.id === data.memberId);
+        if (!target) throw new Error("Ese nombre no está en el plantel.");
+        if (target.accountId && target.accountId !== accountId) {
+          throw new Error("Ese nombre ya tiene otra cuenta.");
+        }
+        const list = existing.members.map((person) => {
+          if (person.id === target.id) return { ...person, accountId };
+          if (person.accountId === accountId) return { ...person, accountId: null };
+          return person;
+        });
+        await query(
+          `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
+          [COLLECTION, data.code, JSON.stringify({ ...existing, members: list })],
+        );
+        return list;
+      });
+      return { ok: true, members };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "error desconocido";
+      console.error("[club] no se pudo elegir el nombre", message);
+      if (message.includes("no está") || message.includes("otra cuenta")) return { ok: false, error: message };
+      return { ok: false, error: "No se pudo usar ese nombre." };
+    }
+  });
+
 

@@ -32,6 +32,7 @@ function EquipoPage() {
   const setMyPhoto = useFija((s) => s.setMyPhoto);
   const setJuega = useFija((s) => s.setJuega);
   const removeMember = useFija((s) => s.removeMember);
+  const useThisName = useFija((s) => s.useThisName);
   const members = useFija((s) => s.members);
   const sheets = useFija((s) => s.matchSheets);
   const record = teamRecord(sheets);
@@ -132,6 +133,15 @@ function EquipoPage() {
                 <p className="font-medium">{m.name}</p>
                 <p className="text-xs text-muted">{ROLE_LABEL[m.role]}</p>
               </div>
+              {m.id !== me.id ? (
+                <button
+                  type="button"
+                  className="h-11 shrink-0 px-2 text-xs font-semibold text-accent"
+                  onClick={() => void useThisName(m.id)}
+                >
+                  Soy yo
+                </button>
+              ) : null}
               {staff || creator ? (
                 <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted">
                   <input
@@ -167,6 +177,15 @@ function EquipoPage() {
                 <p className="text-xs text-muted">{p.name}</p>
               </div>
               <PlayerMarks row={byMember.get(p.id)} />
+              {p.id !== me.id ? (
+                <button
+                  type="button"
+                  className="h-11 shrink-0 px-2 text-xs font-semibold text-accent"
+                  onClick={() => void useThisName(p.id)}
+                >
+                  Soy yo
+                </button>
+              ) : null}
               {creator && p.id !== me.id ? (
                 <button
                   type="button"
