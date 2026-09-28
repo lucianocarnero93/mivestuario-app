@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { authClient, rememberSessionToken, signInWithGoogle } from "@/lib/auth/client";
 import { noteQuiet } from "@/lib/note";
-import { rememberMenor } from "@/lib/fija/edad";
+import { clearPedirEdad, esMenor, rememberMenor, rememberPedirEdad } from "@/lib/fija/edad";
 import { inviteCallbackPath } from "@/lib/fija/share";
 import { LogoMark } from "./logo";
 
@@ -15,8 +15,9 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
   const [errorText, setErrorText] = useState("");
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
-  const [under18, setUnder18] = useState<boolean | null>(null);
+  const [fecha, setFecha] = useState("");
   const [adultKnows, setAdultKnows] = useState(false);
+  const menor = mode === "register" ? esMenor(fecha) : null;
 
   async function submitAccount(event: FormEvent) {
     event.preventDefault();
@@ -34,14 +35,15 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
       setErrorText("Poné tu nombre para crear la cuenta.");
       return;
     }
-    if (mode === "register" && under18 === null) {
-      setErrorText("Decí si tenés menos de 18.");
+    if (mode === "register" && menor === null) {
+      setErrorText("Poné una fecha de nacimiento válida.");
       return;
     }
-    if (mode === "register" && under18 && !adultKnows) {
+    if (mode === "register" && menor && !adultKnows) {
       setErrorText("Un menor necesita que un adulto responsable sepa que usa la app.");
       return;
     }
+    if (mode === "login") clearPedirEdad();
 
     setBusy(true);
     try {
@@ -52,9 +54,9 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
               name: fullName.trim(),
               email: cleanEmail,
               password,
-              menor: under18 === true,
+              menor: menor === true,
               edadConfirmada: true,
-              adultoAvisado: under18 === true && adultKnows,
+              adultoAvisado: menor === true && adultKnows,
             })
           : await authClient.signIn.email({
               email: cleanEmail,
@@ -72,7 +74,7 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
         return;
       }
       rememberSessionToken(token);
-      if (mode === "register") rememberMenor(under18 === true);
+      if (mode === "register") rememberMenor(menor === true);
       await forgetStuckSession();
       if (typeof window !== "undefined") window.location.replace(back);
     } catch {
@@ -85,6 +87,8 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
 
   async function submitGoogle() {
     setErrorText("");
+    if (mode === "register") rememberPedirEdad();
+    else clearPedirEdad();
     setGoogleBusy(true);
     try {
       await signInWithGoogle(inviteCallbackPath());
@@ -163,30 +167,22 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
             </label>
             {mode === "register" ? (
               <fieldset className="space-y-2">
-                <legend className="text-sm">¿Tenés menos de 18?</legend>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    className={under18 === false ? tabOn : tabOff}
-                    onClick={() => {
-                      setUnder18(false);
+                <label className="block text-sm">
+                  Fecha de nacimiento
+                  <input
+                    className={field}
+                    type="date"
+                    value={fecha}
+                    max={hoyIso()}
+                    min="1900-01-01"
+                    onChange={(event) => {
+                      setFecha(event.target.value);
                       setErrorText("");
                     }}
-                  >
-                    No
-                  </button>
-                  <button
-                    type="button"
-                    className={under18 === true ? tabOn : tabOff}
-                    onClick={() => {
-                      setUnder18(true);
-                      setErrorText("");
-                    }}
-                  >
-                    Sí
-                  </button>
-                </div>
-                {under18 ? (
+                  />
+                </label>
+                <p className="text-xs text-muted">Se usa para saber si sos menor. No se guarda.</p>
+                {menor ? (
                   <label className="flex items-start gap-3 text-sm">
                     <input
                       type="checkbox"
@@ -234,6 +230,13 @@ const field =
   "mt-1 flex h-12 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 const tabOn = "h-11 rounded-lg bg-accent text-sm font-semibold text-accent-fg";
 const tabOff = "h-11 rounded-lg bg-surface text-sm font-semibold text-muted";
+
+function hoyIso() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
 
 function accountError(message: string, mode: "register" | "login"): string {
   const text = message.toLowerCase();

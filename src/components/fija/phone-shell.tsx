@@ -1,7 +1,8 @@
 import { CalendarDays, ChartColumn, House, Lock, MessageCircle, Shield, Users } from "lucide-react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ROLE_LABEL } from "@/lib/fija/format";
+import { readPedirEdad } from "@/lib/fija/edad";
 import { rememberInvite } from "@/lib/fija/share";
 import { registerTeamPush } from "@/lib/fija/push-client";
 import { useFija, useMe } from "@/lib/fija/store";
@@ -115,12 +116,14 @@ export function PhoneShell() {
 
 function AuthFrame({ children }: { children: ReactNode }) {
   const { user } = useCurrentUserState();
+  const [pedirEdad, setPedirEdad] = useState(false);
 
   useEffect(() => {
     void authClient.getSession().catch(() => undefined);
-  }, []);
+    setPedirEdad(readPedirEdad());
+  }, [user]);
 
-  if (user && !user.edadConfirmada) return <EdadGate />;
+  if (user && pedirEdad) return <EdadGate />;
   if (user) return children;
   return <SignInPanel />;
 }
