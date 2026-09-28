@@ -12,6 +12,7 @@ import { InboxBell } from "./inbox-bell";
 import { BrandLockup } from "./logo";
 import { PushBanner } from "./push-banner";
 import { PwaRegister } from "./pwa-register";
+import { resolveSignInGateState } from "@/lib/auth/sign-in-gate";
 import { SignInPanel } from "./sign-in-panel";
 import { TeamCrest } from "./team-crest";
 
@@ -112,10 +113,10 @@ export function PhoneShell() {
 }
 
 function AuthFrame({ children }: { children: ReactNode }) {
-  const { user } = useCurrentUserState();
-  if (!user) {
-    return <SignInPanel opening={false} />;
-  }
+  const { user, isPending } = useCurrentUserState();
+  const state = resolveSignInGateState({ isPending, hasUser: user !== null });
+  if (state === "pending") return <SignInPanel opening />;
+  if (state === "signed_out") return <SignInPanel />;
   return children;
 }
 

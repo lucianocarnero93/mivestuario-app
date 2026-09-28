@@ -1,7 +1,7 @@
 /* Mi Vestuario App service worker
  * Offline shell, network intercept, push, background sync.
  */
-const CACHE = "mi-vestuario-v2";
+const CACHE = "mi-vestuario-v3";
 const PRECACHE = [
   "/",
   "/offline.html",
@@ -54,6 +54,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   if (isViteInternal(url)) return;
+  if (url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate" || url.pathname.startsWith("/assets/") || url.pathname.endsWith(".js")) {
     event.respondWith(networkFirst(request));
