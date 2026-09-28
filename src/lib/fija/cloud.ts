@@ -13,6 +13,12 @@ const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const ATTEMPT_LIMIT = 30;
 const MAX_BYTES = 350_000;
 
+function guardMember(person: Member, previous?: Member): Member {
+  const menor = Boolean(person.menor || previous?.menor);
+  if (!menor) return person;
+  return { ...person, menor: true, photo: null };
+}
+
 function asBundle(value: unknown): ClubBundle | null {
   if (!value || typeof value !== "object") return null;
   const row = value as ClubBundle;
@@ -204,20 +210,23 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
         .filter((person) => !dropped.has(person.id))
         .map((person) => {
           const old = previous.get(person.id);
-          if (!old?.accountId) return person;
-          return { ...person, accountId: old.accountId };
+          const kept = guardMember(old?.accountId ? { ...person, accountId: old.accountId } : person, old);
+          return kept;
         })
     : existing.members.map((person) => {
         if (person.accountId !== userId && person.id !== userId) return person;
         const mine = incoming.members.find((item) => item.id === person.id || item.accountId === userId);
         if (!mine) return person;
-        return {
-          ...person,
-          name: mine.name || person.name,
-          nick: mine.nick || person.nick,
-          number: mine.number ?? person.number,
-          photo: mine.photo,
-        };
+        return guardMember(
+          {
+            ...person,
+            name: mine.name || person.name,
+            nick: mine.nick || person.nick,
+            number: mine.number ?? person.number,
+            photo: mine.photo,
+          },
+          person,
+        );
       });
   const seenAccount = new Set<string>();
   const unique: Member[] = [];
@@ -321,13 +330,14 @@ export const claimMember = createServerFn({ method: "POST" })
   .validator(
     (input: {
       code: string;
-      member: { id: string; name: string; nick: string; role?: string; number?: number | null };
+      member: { id: string; name: string; nick: string; role?: string; number?: number | null; menor?: boolean };
     }) => ({
       code: sanitizeCode(input.code),
       id: String(input.member?.id ?? "").slice(0, 80),
       name: String(input.member?.name ?? "").slice(0, 80),
       nick: String(input.member?.nick ?? "").slice(0, 40),
       number: typeof input.member?.number === "number" ? input.member.number : null,
+      menor: input.member?.menor === true,
     }),
   )
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; members?: Member[] }> => {
@@ -358,6 +368,10 @@ export const claimMember = createServerFn({ method: "POST" })
           existing = asBundle(raw);
         }
         if (!existing) throw new Error("Ese equipo no está en la nube.");
+        const accountRows = await query<{ menor: boolean }>(`select "menor" from "user" where "id" = $1`, [
+          accountId,
+        ]);
+        const menor = Boolean(accountRows[0]?.menor || data.menor);
         const dropped = new Set(existing.droppedIds ?? []);
         const byAccount = existing.members.find(
           (person) => person.accountId === accountId || person.id === accountId,
@@ -366,21 +380,26 @@ export const claimMember = createServerFn({ method: "POST" })
         if (current && (dropped.has(current.id) || dropped.has(accountId))) {
           return existing.members;
         }
-        const next = current
-          ? {
-              ...current,
-              accountId,
-              number: current.number ?? data.number,
-            }
-          : {
-              id: accountId,
-              name: data.name,
-              nick: data.nick || data.name.split(" ")[0] || "Jugador",
-              role: "jugador" as const,
-              number: data.number,
-              accountId,
-              juega: true,
-            };
+        const next = guardMember(
+          current
+            ? {
+                ...current,
+                accountId,
+                number: current.number ?? data.number,
+                menor: menor || current.menor,
+              }
+            : {
+                id: accountId,
+                name: data.name,
+                nick: data.nick || data.name.split(" ")[0] || "Jugador",
+                role: "jugador" as const,
+                number: data.number,
+                accountId,
+                juega: true,
+                menor,
+              },
+          current,
+        );
         const stripped = existing.members.map((person) =>
           person.accountId === accountId && person.id !== next.id ? { ...person, accountId: null } : person,
         );

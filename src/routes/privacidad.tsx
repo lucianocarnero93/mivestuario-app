@@ -19,7 +19,8 @@ function PrivacidadPage() {
           <h2 className="font-semibold text-fg">1. Qué datos recolectamos</h2>
           <p className="mt-1 text-muted">
             <strong className="text-fg">Cuenta:</strong> nombre, apodo y dirección de email. Si entrás con
-            Google, también obtenemos tu nombre y foto de perfil públicos.
+            Google, también obtenemos tu nombre y foto de perfil públicos. Te preguntamos si tenés menos
+            de 18. Guardamos esa respuesta, no la fecha de nacimiento ni el documento.
           </p>
           <p className="mt-1 text-muted">
             <strong className="text-fg">Equipo:</strong> nombre del equipo, escudo (si lo subís), plantel
@@ -82,8 +83,11 @@ function PrivacidadPage() {
         <section>
           <h2 className="font-semibold text-fg">7. Menores de edad</h2>
           <p className="mt-1 text-muted">
-            Si en el equipo hay menores, el adulto responsable debe gestionar la cuenta y supervisar el uso
-            de la app.
+            Un menor puede usar la app en el mismo equipo: entrar con el código, confirmar si va y ver la
+            formación. No le pedimos foto ni ubicación. No hay chat entre jugadores. Al crear la cuenta
+            queda anotado que un adulto responsable sabe que la usa. El DT ve que es menor y puede sacarlo
+            del plantel. El permiso de la familia lo gestiona ese adulto. No guardamos fecha de nacimiento
+            ni documento.
           </p>
         </section>
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { LocateFixed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { mapsQueryFromFix, queryGpsPermission, readGpsFix } from "@/lib/fija/gps";
-import { useFija } from "@/lib/fija/store";
+import { useFija, useMe } from "@/lib/fija/store";
 
 export function GpsLocateButton({
   onFix,
@@ -11,8 +11,11 @@ export function GpsLocateButton({
 }) {
   const consent = useFija((s) => s.gpsConsent);
   const setGpsConsent = useFija((s) => s.setGpsConsent);
+  const me = useMe();
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState("");
+
+  if (me.menor) return null;
 
   async function locate() {
     setBusy(true);

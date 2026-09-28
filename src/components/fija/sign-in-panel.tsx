@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { authClient, rememberSessionToken, signInWithGoogle } from "@/lib/auth/client";
 import { noteQuiet } from "@/lib/note";
+import { rememberMenor } from "@/lib/fija/edad";
 import { inviteCallbackPath } from "@/lib/fija/share";
 import { LogoMark } from "./logo";
 
@@ -14,6 +15,8 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
   const [errorText, setErrorText] = useState("");
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [under18, setUnder18] = useState<boolean | null>(null);
+  const [adultKnows, setAdultKnows] = useState(false);
 
   async function submitAccount(event: FormEvent) {
     event.preventDefault();
@@ -31,6 +34,14 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
       setErrorText("Poné tu nombre para crear la cuenta.");
       return;
     }
+    if (mode === "register" && under18 === null) {
+      setErrorText("Decí si tenés menos de 18.");
+      return;
+    }
+    if (mode === "register" && under18 && !adultKnows) {
+      setErrorText("Un menor necesita que un adulto responsable sepa que usa la app.");
+      return;
+    }
 
     setBusy(true);
     try {
@@ -41,6 +52,9 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
               name: fullName.trim(),
               email: cleanEmail,
               password,
+              menor: under18 === true,
+              edadConfirmada: true,
+              adultoAvisado: under18 === true && adultKnows,
             })
           : await authClient.signIn.email({
               email: cleanEmail,
@@ -58,6 +72,7 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
         return;
       }
       rememberSessionToken(token);
+      if (mode === "register") rememberMenor(under18 === true);
       await forgetStuckSession();
       if (typeof window !== "undefined") window.location.replace(back);
     } catch {
@@ -146,6 +161,44 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
+            {mode === "register" ? (
+              <fieldset className="space-y-2">
+                <legend className="text-sm">¿Tenés menos de 18?</legend>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    className={under18 === false ? tabOn : tabOff}
+                    onClick={() => {
+                      setUnder18(false);
+                      setErrorText("");
+                    }}
+                  >
+                    No
+                  </button>
+                  <button
+                    type="button"
+                    className={under18 === true ? tabOn : tabOff}
+                    onClick={() => {
+                      setUnder18(true);
+                      setErrorText("");
+                    }}
+                  >
+                    Sí
+                  </button>
+                </div>
+                {under18 ? (
+                  <label className="flex items-start gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1 size-5 accent-accent"
+                      checked={adultKnows}
+                      onChange={(event) => setAdultKnows(event.target.checked)}
+                    />
+                    Un adulto responsable sabe que uso esta app.
+                  </label>
+                ) : null}
+              </fieldset>
+            ) : null}
             {mode === "login" ? (
               <a href="/olvide" className="block text-sm text-accent">
                 ¿Olvidaste tu contraseña?

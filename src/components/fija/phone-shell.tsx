@@ -14,6 +14,7 @@ import { BrandLockup } from "./logo";
 import { PushBanner } from "./push-banner";
 import { PwaRegister } from "./pwa-register";
 import { SignInPanel } from "./sign-in-panel";
+import { EdadGate } from "./edad-gate";
 import { TeamCrest } from "./team-crest";
 
 const NAV = [
@@ -119,6 +120,7 @@ function AuthFrame({ children }: { children: ReactNode }) {
     void authClient.getSession().catch(() => undefined);
   }, []);
 
+  if (user && !user.edadConfirmada) return <EdadGate />;
   if (user) return children;
   return <SignInPanel />;
 }

@@ -6,6 +6,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { clampHours, hoursSince } from "./share";
 import { claimMember, loadClubDoc, saveClubDoc, useMyName } from "./cloud";
+import { readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
@@ -100,6 +101,7 @@ type State = ReturnType<typeof createSeed> & {
   removeClub: (clubId: string) => void;
   setProfile: (profile: { name: string; nick: string }) => void;
   setMyPhoto: (photo: string | null) => void;
+  applyMyEdad: (menor: boolean) => void;
   syncFromCloud: () => Promise<void>;
   ensureMySpot: () => Promise<void>;
   useThisName: (memberId: string) => Promise<boolean>;
@@ -646,7 +648,9 @@ export const useFija = create<State>()(
 
       removeMember: (memberId) => {
         const state = get();
-        if (!isCreatorId(state) || !memberId || memberId === state.activeId) return;
+        const target = state.members.find((person) => person.id === memberId);
+        const allowed = isCreatorId(state) || (isStaffId(state) && target?.menor === true);
+        if (!allowed || !memberId || memberId === state.activeId) return;
         if (!state.members.some((person) => person.id === memberId)) return;
         const droppedIds = [...new Set([...(state.droppedIds ?? []), memberId])];
         set({
@@ -791,7 +795,11 @@ export const useFija = create<State>()(
       },
 
       // El usuario aceptó o rechazó usar el GPS para marcar la cancha.
-      setGpsConsent: (value) => set({ gpsConsent: value }),
+      setGpsConsent: (value) => {
+        const me = get().members.find((person) => person.id === get().activeId);
+        if ((me?.menor || readMenor()) && value === "granted") return;
+        set({ gpsConsent: value });
+      },
 
       // Nombre y apodo de quien usa el celular.
       setProfile: (profile) =>
@@ -805,6 +813,8 @@ export const useFija = create<State>()(
       // La persona actual pone su foto. Sirve para DT, ayudante y jugador.
       setMyPhoto: (photo) => {
         const personId = get().activeId;
+        const me = get().members.find((person) => person.id === personId);
+        if (me?.menor || readMenor()) return;
         const safe = photo && photo.startsWith("data:image/") && photo.length < 120_000 ? photo : null;
         set({
           members: get().members.map((person) =>
@@ -812,6 +822,17 @@ export const useFija = create<State>()(
           ),
         });
         void get().flushCloud();
+      },
+
+      applyMyEdad: (menor) => {
+        const personId = get().activeId;
+        set({
+          members: get().members.map((person) =>
+            person.id === personId
+              ? { ...person, menor: menor || person.menor, photo: menor ? null : person.photo }
+              : person,
+          ),
+        });
       },
 
       // Sale solo del equipo activo. Si hay otros, entra al siguiente.
@@ -919,7 +940,7 @@ export const useFija = create<State>()(
             const name = (state.profile.name || "Jugador").trim() || "Jugador";
             const nick = (state.profile.nick || name.split(" ")[0] || "Jugador").trim();
             const claimed = await claimMember({
-              data: { code: inviteCode, member: { id: account, name, nick, number: null } },
+              data: { code: inviteCode, member: { id: account, name, nick, number: null, menor: readMenor() } },
             });
             if (!claimed.ok) {
               set({ cloudStatus: "off" });
@@ -975,6 +996,7 @@ export const useFija = create<State>()(
               name: state.profile.name || existing.name,
               nick: state.profile.nick || existing.nick,
               accountId: account || existing.accountId || null,
+              menor: Boolean(existing.menor || readMenor()) || undefined,
             }
           : {
               id: personId,
@@ -983,6 +1005,7 @@ export const useFija = create<State>()(
               role: "jugador",
               number: null,
               accountId: account,
+              menor: readMenor() || undefined,
             };
         const members = existing
           ? teamFound.members.map((person) => (person.id === personId ? me : person))
@@ -1020,7 +1043,7 @@ export const useFija = create<State>()(
         const claimed = await claimMember({
           data: {
             code: inviteCode,
-            member: { id: personId, name: me.name, nick: me.nick, number: me.number },
+            member: { id: personId, name: me.name, nick: me.nick, number: me.number, menor: me.menor === true },
           },
         });
         if (!claimed.ok || !claimed.members?.some((person) => person.id === personId || (account != null && person.accountId === account))) {
@@ -1086,6 +1109,7 @@ export const useFija = create<State>()(
           role: "dt",
           number: null,
           accountId: account,
+          menor: readMenor() || undefined,
         };
         const club: Club = {
           id: uid("club"),
@@ -1179,6 +1203,7 @@ export const useFija = create<State>()(
                 name,
                 nick,
                 number: linked?.number ?? null,
+                menor: linked?.menor === true || readMenor(),
               },
             },
           });

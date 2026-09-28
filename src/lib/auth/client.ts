@@ -2,6 +2,7 @@
  *   Better Auth client para el SPA. Google directo + email/password..
  */
 import { createAuthClient } from "better-auth/react";
+import { inferAdditionalFields } from "better-auth/client/plugins";
 
 const SESSION_TOKEN_KEY = "mv-session";
 
@@ -18,6 +19,15 @@ export function getBearerToken(): string | null {
 }
 
 export const authClient = createAuthClient({
+  plugins: [
+    inferAdditionalFields({
+      user: {
+        menor: { type: "boolean", required: false },
+        edadConfirmada: { type: "boolean", required: false },
+        adultoAvisado: { type: "boolean", required: false },
+      },
+    }),
+  ],
   fetchOptions: {
     auth: {
       type: "Bearer",

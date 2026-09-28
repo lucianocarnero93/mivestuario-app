@@ -66,13 +66,17 @@ function EquipoPage() {
         </div>
       ) : null}
       <div className="mt-4">
-        <CrestPicker
-          src={me.photo}
-          name={me.name}
-          onChange={setMyPhoto}
-          chooseLabel="Elegir mi foto"
-          emptyHint="Tu avatar. En la formación se ve en tu puesto."
-        />
+        {me.menor ? (
+          <p className="text-sm text-muted">No pedimos foto si sos menor de 18.</p>
+        ) : (
+          <CrestPicker
+            src={me.photo}
+            name={me.name}
+            onChange={setMyPhoto}
+            chooseLabel="Elegir mi foto"
+            emptyHint="Tu avatar. En la formación se ve en tu puesto."
+          />
+        )}
       </div>
 
       {staff || creator ? (
@@ -128,10 +132,13 @@ function EquipoPage() {
         <ul className="mt-2 space-y-2">
           {coaches.map((m) => (
             <li key={m.id} className="flex items-center gap-3 rounded-xl bg-surface px-4 py-3 shadow-card">
-              <PlayerAvatar name={m.name} photo={m.photo} accent={m.id === me.id} />
+              <PlayerAvatar name={m.name} photo={m.menor ? null : m.photo} accent={m.id === me.id} />
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{m.name}</p>
-                <p className="text-xs text-muted">{ROLE_LABEL[m.role]}</p>
+                <p className="text-xs text-muted">
+                  {ROLE_LABEL[m.role]}
+                  {staff && m.menor ? " · Menor" : ""}
+                </p>
               </div>
               {staff || creator ? (
                 <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted">
@@ -158,18 +165,19 @@ function EquipoPage() {
           {players.map((p) => (
             <li key={p.id} className="px-4 py-3">
               <div className="flex items-center gap-3">
-                <PlayerAvatar name={p.name} photo={p.photo} accent={p.id === me.id} />
+                <PlayerAvatar name={p.name} photo={p.menor ? null : p.photo} accent={p.id === me.id} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">
                     {p.number != null ? (
                       <span className="mr-1 tabular-nums text-accent">{p.number}</span>
                     ) : null}
                     {p.nick}
+                    {staff && p.menor ? <span className="ml-2 text-xs font-semibold text-muted">Menor</span> : null}
                   </p>
                   <p className="text-xs text-muted">{p.name}</p>
                 </div>
                 <PlayerMarks row={byMember.get(p.id)} />
-                {creator && p.id !== me.id && pendingRemoveId !== p.id ? (
+                {(creator || (staff && p.menor)) && p.id !== me.id && pendingRemoveId !== p.id ? (
                   <button
                     type="button"
                     className="h-11 shrink-0 px-2 text-xs font-semibold text-danger"

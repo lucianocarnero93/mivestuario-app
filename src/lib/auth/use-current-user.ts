@@ -6,6 +6,10 @@ export type AppUser = {
   displayName: string | null;
   primaryEmail: string | null;
   profileImageUrl: string | null;
+  /** True si declaró que es menor de 18. */
+  menor: boolean;
+  /** True cuando ya respondió la pregunta de la edad. */
+  edadConfirmada: boolean;
   /** True when this is the sandbox/dev fallback (auth not configured). */
   isDevFallback: boolean;
 };
@@ -22,6 +26,8 @@ export const DEV_USER: AppUser = {
   displayName: "Dev User",
   primaryEmail: "dev@example.com",
   profileImageUrl: null,
+  menor: false,
+  edadConfirmada: true,
   isDevFallback: true,
 };
 
@@ -58,7 +64,16 @@ export function useCurrentUserState(): CurrentUserState {
   if (!authEnabled) return { user: DEV_USER, isPending: false };
   // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
   const { data, isPending } = authClient.useSession();
-  const user = data?.user;
+  const user = data?.user as
+    | {
+        id: string;
+        name?: string | null;
+        email?: string | null;
+        image?: string | null;
+        menor?: boolean;
+        edadConfirmada?: boolean;
+      }
+    | undefined;
   return {
     user: user
       ? {
@@ -66,6 +81,8 @@ export function useCurrentUserState(): CurrentUserState {
           displayName: user.name ?? null,
           primaryEmail: user.email ?? null,
           profileImageUrl: user.image ?? null,
+          menor: user.menor === true,
+          edadConfirmada: user.edadConfirmada === true,
           isDevFallback: false,
         }
       : null,

@@ -135,9 +135,13 @@ export const auth = betterAuth({
   },
 
   user: {
+    additionalFields: {
+      menor: { type: "boolean", required: false, defaultValue: false, input: true },
+      edadConfirmada: { type: "boolean", required: false, defaultValue: false, input: true },
+      adultoAvisado: { type: "boolean", required: false, defaultValue: false, input: true },
+    },
     deleteUser: {
       enabled: true,
-      // Sin sendDeleteAccountVerification → borra directo (con confirmación en pantalla).
     },
   },
 

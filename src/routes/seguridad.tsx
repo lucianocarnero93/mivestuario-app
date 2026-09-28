@@ -90,6 +90,10 @@ function SeguridadPage() {
 
       <section className="mt-5 rounded-xl bg-surface p-4 shadow-card">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">GPS</h2>
+        {me.menor ? (
+          <p className="mt-2 text-sm text-muted">No pedimos tu ubicación.</p>
+        ) : (
+          <>
         <p className="mt-2 text-sm">Estado del sistema: {GPS_LABEL[gps]}</p>
         <p className="mt-1 text-sm text-muted">
           Consentimiento en la app:{" "}
@@ -119,6 +123,8 @@ function SeguridadPage() {
         <p className="mt-2 text-xs text-muted">
           Si el celular lo bloqueó, hay que habilitarlo en Ajustes → Ubicación → Mi Vestuario.
         </p>
+          </>
+        )}
       </section>
 
       <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">

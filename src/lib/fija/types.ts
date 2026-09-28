@@ -35,6 +35,8 @@ export type Member = {
   juega?: boolean;
   /** Cuenta con la que entró. El mismo mail no puede ser dos jugadores. */
   accountId?: string | null;
+  /** True si al crear la cuenta dijo que es menor de 18. No guardamos la fecha. */
+  menor?: boolean;
 };
 
 export type Club = {

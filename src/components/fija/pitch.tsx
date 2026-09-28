@@ -74,7 +74,7 @@ export function Pitch({
                       : "border-dashed border-line/80 bg-bg/35 text-line",
                   )}
                 >
-                  {member?.photo ? (
+                  {member?.photo && !member.menor ? (
                     <img src={member.photo} alt="" className="size-full object-cover" />
                   ) : member ? (
                     (member.number ?? initials(member.name))
@@ -82,7 +82,7 @@ export function Pitch({
                     slot.label
                   )}
                 </span>
-                {member?.photo && member.number != null ? (
+                {member?.photo && !member.menor && member.number != null ? (
                   <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-bg text-[9px] text-fg">
                     {member.number}
                   </span>
