@@ -53,6 +53,8 @@ export type Tournament = {
   startedAt: string;
   endedAt: string | null;
   status: TournamentStatus;
+  /** Cuándo se cambió el nombre o el estado. Gana la copia más nueva. */
+  updatedAt?: string;
 };
 
 export type Invite = {

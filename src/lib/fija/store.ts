@@ -5,7 +5,7 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { clampHours, hoursSince } from "./share";
-import { claimMember, loadClubDoc, saveClubDoc, useMyName } from "./cloud";
+import { claimMember, loadClubDoc, mergeTournaments, saveClubDoc, useMyName } from "./cloud";
 import { readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
@@ -766,6 +766,7 @@ export const useFija = create<State>()(
           startedAt: new Date().toISOString(),
           endedAt: null,
           status: "active",
+          updatedAt: new Date().toISOString(),
         };
         set({ tournaments: [...get().tournaments, tournament] });
         return tournament.id;
@@ -777,7 +778,9 @@ export const useFija = create<State>()(
         if (!tournamentName) return;
         set({
           tournaments: get().tournaments.map((tournament) =>
-            tournament.id === id ? { ...tournament, name: tournamentName } : tournament,
+            tournament.id === id
+              ? { ...tournament, name: tournamentName, updatedAt: new Date().toISOString() }
+              : tournament,
           ),
         });
       },
@@ -788,7 +791,12 @@ export const useFija = create<State>()(
         set({
           tournaments: get().tournaments.map((tournament) =>
             tournament.id === id && tournament.status === "active"
-              ? { ...tournament, status: "finished", endedAt: new Date().toISOString() }
+              ? {
+                  ...tournament,
+                  status: "finished",
+                  endedAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                }
               : tournament,
           ),
         });
@@ -1277,7 +1285,17 @@ export const useFija = create<State>()(
             applyingCloud = false;
             const remoteIds = new Set(remoteTeam.bundle.members.map((person) => person.id));
             const localOnly = local.members.some((person) => !remoteIds.has(person.id));
-            if (localOnly) await get().flushCloud();
+            const tournamentChanged =
+              isStaffId(current) &&
+              merged.tournaments.some((item) => {
+                const previous = (remoteTeam.bundle.tournaments ?? []).find((row) => row.id === item.id);
+                return (
+                  !previous ||
+                  previous.name !== item.name ||
+                  previous.status !== item.status
+                );
+              });
+            if (localOnly || tournamentChanged) await get().flushCloud();
           } else if (remoteTeam.reason === "missing") {
             const published = await get().publishClub();
             if (!published && !quiet) set({ cloudStatus: "off" });
@@ -1583,7 +1601,7 @@ function mergeClubBundles(
     inbox: unionById(remote.inbox, local.inbox),
     alertLog: unionById(remote.alertLog, local.alertLog),
     reminderPolicy: who.staff ? local.reminderPolicy : remote.reminderPolicy,
-    tournaments: unionById(remote.tournaments, who.staff ? local.tournaments : []),
+    tournaments: mergeTournaments(remote.tournaments, who.staff ? local.tournaments : []),
     droppedIds: [...new Set([...(remote.droppedIds ?? []), ...(local.droppedIds ?? [])])],
   };
 }

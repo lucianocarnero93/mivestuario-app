@@ -5,7 +5,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { sanitizeCode } from "./sanitize";
 import { vestuarioLog } from "@/lib/vestuario-log";
-import type { ClubBundle, ClubEvent, Member, Rsvp } from "./types";
+import type { ClubBundle, ClubEvent, Member, Rsvp, Tournament } from "./types";
 
 const COLLECTION = "clubs";
 const ATTEMPTS = "intentos";
@@ -161,10 +161,46 @@ export const loadClubDoc = createServerFn({ method: "GET" })
 
 function unionById<T extends { id: string }>(kept: T[], incoming: T[]): T[] {
   const map = new Map<string, T>();
-  for (const item of kept) map.set(item.id, item);
-  for (const item of incoming) {
+  for (const item of kept ?? []) map.set(item.id, item);
+  for (const item of incoming ?? []) {
     const previous = map.get(item.id);
     map.set(item.id, previous ? { ...previous, ...item } : item);
+  }
+  return [...map.values()];
+}
+
+function tournamentStamp(item: Tournament): number {
+  const stamp = Date.parse(item.updatedAt ?? "");
+  return Number.isFinite(stamp) ? stamp : 0;
+}
+
+// El nombre que se guardó último queda. Una copia vieja del celular no lo pisa.
+export function mergeTournaments(
+  kept: Tournament[] | null | undefined,
+  incoming: Tournament[] | null | undefined,
+): Tournament[] {
+  const map = new Map<string, Tournament>();
+  for (const item of kept ?? []) {
+    if (item?.id) map.set(item.id, item);
+  }
+  for (const item of incoming ?? []) {
+    if (!item?.id) continue;
+    const previous = map.get(item.id);
+    if (!previous) {
+      map.set(item.id, item);
+      continue;
+    }
+    const prevTime = tournamentStamp(previous);
+    const nextTime = tournamentStamp(item);
+    if (nextTime > prevTime) map.set(item.id, { ...previous, ...item });
+    else if (prevTime > nextTime) map.set(item.id, { ...item, ...previous });
+    else if (
+      previous.name !== item.name ||
+      previous.status !== item.status ||
+      previous.endedAt !== item.endedAt
+    ) {
+      map.set(item.id, { ...previous, ...item, updatedAt: new Date().toISOString() });
+    }
   }
   return [...map.values()];
 }
@@ -261,7 +297,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     inbox: unionById(existing.inbox, incoming.inbox),
     alertLog: staff ? unionById(existing.alertLog, incoming.alertLog) : existing.alertLog,
     reminderPolicy: staff ? (incoming.reminderPolicy ?? existing.reminderPolicy) : existing.reminderPolicy,
-    tournaments: staff ? unionById(existing.tournaments, incoming.tournaments) : existing.tournaments,
+    tournaments: staff
+      ? mergeTournaments(existing.tournaments, incoming.tournaments)
+      : mergeTournaments(existing.tournaments, []),
     droppedIds: [...dropped],
   };
 }
