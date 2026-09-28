@@ -7,8 +7,6 @@
   "scope": "/",
   "display": "standalone",
   "display_override": [
-    "window-controls-overlay",
-    "tabbed",
     "standalone",
     "minimal-ui",
     "browser"
@@ -20,8 +18,6 @@
   "dir": "ltr",
   "categories": ["sports", "utilities"],
   "prefer_related_applications": false,
-  "related_applications": [],
-  "iarc_rating_id": "e58c174a-81d2-5c3c-32cc-34b8de4a52e9",
   "scope_extensions": [],
   "edge_side_panel": {
     "preferred_width": 430
@@ -81,7 +77,13 @@
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [

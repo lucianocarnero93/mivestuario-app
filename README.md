@@ -32,14 +32,14 @@ En **Stats** está el rendimiento del plantel (ganados, empatados, perdidos), go
 | Miembro | Valor |
 |---|---|
 | `id` | `/mi-vestuario` — estable, no depende de `start_url` |
-| `background_color` / `theme_color` | `#f3eee6` |
+| `background_color` / `theme_color` | `#0b1c12` |
 | `orientation` | `portrait` |
 | `lang` / `dir` | `es-AR` / `ltr` |
 | `scope` | `/` |
 | `categories` | `sports`, `utilities` |
 | `screenshots` | 3 narrow (1080×1920) + 2 wide (1280×720) |
-| `iarc_rating_id` | UUID de ejemplo de PWABuilder. Reemplazalo por el certificado real de [IARC](https://www.globalratings.com/) |
-| `display_override` | `window-controls-overlay` → `tabbed` → `standalone` |
+| `iarc_rating_id` | No va en el manifiesto. La edad se completa en Play Console y en App Store Connect. |
+| `display` | `standalone` |
 | `edge_side_panel` | Panel lateral de Edge, ancho preferido 430 |
 | `scope_extensions` | Array vacío (un solo origen) |
 | `launch_handler` | Reusa la instancia abierta (`focus-existing`) |

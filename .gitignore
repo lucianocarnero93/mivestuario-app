@@ -10,6 +10,9 @@ artifacts
 .DS_Store
 .env
 .env.*
+*.keystore
+android.keystore
+store/*.keystore
 .project_id
 .node_modules.lock
 AGENTS.md

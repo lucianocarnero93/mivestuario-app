@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test src/lib/auth/sign-in-gate.test.ts src/lib/vestuario-note.test.ts src/lib/fija/edad.test.ts",
     "revisar": "node scripts/revisar.mjs",
+    "tienda": "node scripts/preparar-tienda.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

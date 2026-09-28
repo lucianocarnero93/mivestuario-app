@@ -1,7 +1,7 @@
 /* Mi Vestuario App service worker
  * Offline shell, network intercept, push, background sync.
  */
-const CACHE = "mi-vestuario-v4";
+const CACHE = "mi-vestuario-v5";
 const PRECACHE = [
   "/",
   "/offline.html",
@@ -11,6 +11,8 @@ const PRECACHE = [
   "/icon-48.png",
   "/icon-192.png",
   "/icon-512.png",
+  "/icon-maskable-512.png",
+  "/apple-touch-icon.png",
   "/logo.svg",
   "/widgets/next-match-template.json",
   "/widgets/next-match-data.json",
