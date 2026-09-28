@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { sanitizeCode } from "./sanitize";
+import { vestuarioLog } from "@/lib/vestuario-log";
 import type { ClubBundle, ClubEvent, Member, Rsvp } from "./types";
 
 const COLLECTION = "clubs";
@@ -309,7 +310,7 @@ export const saveClubDoc = createServerFn({ method: "POST" })
       return { ok: true, bundle: merged };
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
-      console.error("[club] no se pudo guardar", message);
+      vestuarioLog("guardar", message);
       if (message.includes("pesa demasiado") || message.includes("No estás")) return { ok: false, error: message };
       return { ok: false, error: "No se pudo guardar el equipo." };
     }
@@ -394,7 +395,7 @@ export const claimMember = createServerFn({ method: "POST" })
       return { ok: true, members };
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
-      console.error("[club] no se pudo anotar", message);
+      vestuarioLog("plantel", message);
       if (message.includes("no está")) return { ok: false, error: message };
       return { ok: false, error: "No se pudo anotar en el plantel." };
     }
@@ -449,7 +450,7 @@ export const useMyName = createServerFn({ method: "POST" })
       return { ok: true, members };
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
-      console.error("[club] no se pudo elegir el nombre", message);
+      vestuarioLog("nombre", message);
       if (message.includes("no está") || message.includes("otra cuenta")) return { ok: false, error: message };
       return { ok: false, error: "No se pudo usar ese nombre." };
     }

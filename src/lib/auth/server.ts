@@ -10,6 +10,7 @@ import { bearer } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { Pool } from "pg";
 import { Resend } from "resend";
+import { vestuarioLog } from "@/lib/vestuario-log";
 
 const env = (key: string): string | undefined => {
   const value = process.env[key]?.trim();
@@ -53,37 +54,35 @@ const database = databaseUrl
   : null;
 
 if (!database) {
-  console.error("[auth] DATABASE_URL no está seteado. Better Auth no puede persistir sesiones.");
+  vestuarioLog("sesion", "falta la base");
 }
 
 if (!resendApiKey) {
-  console.error("[resend] RESEND_API_KEY no está seteada. No se pueden enviar mails.");
+  vestuarioLog("mail", "falta la api key");
 } else if (!resendApiKey.startsWith("re_")) {
-  console.error("[resend] RESEND_API_KEY no tiene el formato de Resend. Debería empezar con re_.");
+  vestuarioLog("mail", "la api key no tiene el formato esperado");
 } else {
-  console.log("[resend] API key presente.");
+  console.log("[vestuario] mail listo");
 }
 
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 function sendMail(payload: { to: string; subject: string; html: string }) {
-  if (!resend) {
-    console.error("[resend] No se envió el mail: falta una API key válida.");
+  if (!resend || !fromEmail) {
+    vestuarioLog("mail", "no se envió: falta la api key o el remitente");
     return;
   }
-  // Sin await: Better Auth espera esta función y un await distinto
-  // delataría si el mail existe. El resultado igual se loguea.
   void resend.emails
     .send({ from: fromEmail, ...payload })
     .then((result) => {
       if (result.error) {
-        console.error("[resend] error:", result.error);
+        vestuarioLog("mail", result.error.message ?? "error al enviar");
         return;
       }
-      console.log("[resend] enviado:", result.data?.id);
+      console.log("[vestuario] mail enviado");
     })
     .catch((error: unknown) => {
-      console.error("[resend] excepción:", error);
+      vestuarioLog("mail", error instanceof Error ? error.message : "excepción al enviar");
     });
 }
 

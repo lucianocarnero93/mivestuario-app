@@ -6,6 +6,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { clampHours, hoursSince } from "./share";
 import { claimMember, loadClubDoc, saveClubDoc, useMyName } from "./cloud";
+import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
@@ -1340,6 +1341,7 @@ export const useFija = create<State>()(
           await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
         }
         set({ cloudStatus: "off", cloudError: lastError });
+        noteQuiet("guardar", lastError);
         return false;
       },
 
@@ -1355,6 +1357,7 @@ export const useFija = create<State>()(
               cloudStatus: "off",
               cloudError: "El equipo no quedó publicado. Tocá de nuevo en un momento.",
             });
+            noteQuiet("guardar", "no quedó publicado");
             return false;
           }
           set({ cloudStatus: "ok", cloudError: null });
@@ -1364,6 +1367,7 @@ export const useFija = create<State>()(
             cloudStatus: "off",
             cloudError: "No pudimos confirmar el equipo. Probá de nuevo.",
           });
+          noteQuiet("guardar", "no se pudo confirmar");
           return false;
         }
       },

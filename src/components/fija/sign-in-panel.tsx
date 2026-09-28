@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { authClient, rememberSessionToken, signInWithGoogle } from "@/lib/auth/client";
+import { noteQuiet } from "@/lib/note";
 import { inviteCallbackPath } from "@/lib/fija/share";
 import { LogoMark } from "./logo";
 
@@ -47,11 +48,13 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
             });
       if (result.error) {
         setErrorText(accountError(result.error.message ?? "", mode));
+        noteQuiet("login", mode === "login" ? "no coinciden" : "no se pudo crear");
         return;
       }
       const token = result.data?.token;
       if (!token) {
         setErrorText("No se pudo guardar la sesión. Probá de nuevo.");
+        noteQuiet("login", "sin token");
         return;
       }
       rememberSessionToken(token);
@@ -59,6 +62,7 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
       if (typeof window !== "undefined") window.location.replace(back);
     } catch {
       setErrorText("No se pudo entrar. Fijate la conexión y probá de nuevo.");
+      noteQuiet("login", "sin red");
     } finally {
       setBusy(false);
     }
