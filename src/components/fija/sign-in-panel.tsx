@@ -40,18 +40,17 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
               name: fullName.trim(),
               email: cleanEmail,
               password,
-              callbackURL: back,
             })
           : await authClient.signIn.email({
               email: cleanEmail,
               password,
-              callbackURL: back,
             });
       if (result.error) {
         setErrorText(accountError(result.error.message ?? "", mode));
         return;
       }
-      if (typeof window !== "undefined") window.location.href = back;
+      await forgetStuckSession();
+      if (typeof window !== "undefined") window.location.replace(back);
     } catch {
       setErrorText("No se pudo entrar. Fijate la conexión y probá de nuevo.");
     } finally {
@@ -176,12 +175,25 @@ const tabOff = "h-11 rounded-lg bg-surface text-sm font-semibold text-muted";
 function accountError(message: string, mode: "register" | "login"): string {
   const text = message.toLowerCase();
   if (text.includes("already") || text.includes("exist")) {
-    return "Ese mail ya tiene cuenta. Entrá con la contraseña.";
+    return "Ese mail ya tiene cuenta. Entrá con la contraseña, o con Google si la creaste así.";
   }
-  if (text.includes("password") || text.includes("short")) {
+  if (text.includes("too short") || text.includes("too_short") || text.includes("min password") || text.includes("at least")) {
     return "La contraseña necesita al menos 8 caracteres.";
   }
   if (text.includes("invalid email")) return "El mail no parece válido.";
-  if (mode === "login") return "Mail o contraseña incorrectos.";
+  if (mode === "login") {
+    return "Mail o contraseña incorrectos. Si esa cuenta la creaste con Google, usá ese botón.";
+  }
   return "No se pudo crear la cuenta. Probá de nuevo.";
+}
+
+async function forgetStuckSession() {
+  if (typeof navigator !== "undefined" && navigator.serviceWorker) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map((reg) => reg.unregister()));
+  }
+  if (typeof caches !== "undefined") {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+  }
 }
