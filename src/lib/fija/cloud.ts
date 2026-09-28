@@ -173,7 +173,14 @@ function mergeEvents(kept: ClubEvent[], incoming: ClubEvent[]): ClubEvent[] {
     }
     const previousSpots = Object.keys(previous.lineup ?? {}).length;
     const incomingSpots = Object.keys(event.lineup ?? {}).length;
-    map.set(event.id, incomingSpots >= previousSpots ? { ...previous, ...event } : { ...event, ...previous, lineup: previous.lineup });
+    const boardChanged =
+      previous.modality !== event.modality || (previous.formacion ?? "") !== (event.formacion ?? "");
+    map.set(
+      event.id,
+      boardChanged || incomingSpots >= previousSpots
+        ? { ...previous, ...event }
+        : { ...event, ...previous, lineup: previous.lineup },
+    );
   }
   return [...map.values()];
 }

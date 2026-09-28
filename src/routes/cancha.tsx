@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
 import { formatWhen } from "@/lib/fija/format";
 import { nextEvent, useFija, useIsStaff } from "@/lib/fija/store";
+import type { Modality } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/cancha")({ component: CanchaPage });
 
@@ -36,16 +37,28 @@ function CanchaPage() {
   const filled = Object.keys(event?.lineup ?? {}).length;
     function cambiarFormacion(nuevaId: string) {
     if (!event) return;
-    if (!event.formacion && !event.lineup) return;
-    // Si ya hay jugadores puestos y la formación cambia, avisar y limpiar.
+    const actual = event.formacion ?? FORMATIONS[event.modality][0].id;
+    if (actual === nuevaId) return;
     const tieneJugadores = Object.keys(event.lineup).length > 0;
-    if (tieneJugadores && event.formacion !== nuevaId) {
-      const ok = window.confirm(
-        "Cambiar la formación borra los jugadores que ya pusiste. ¿Seguir?",
-      );
+    if (tieneJugadores) {
+      const ok = window.confirm("Cambiar la formación borra los jugadores que ya pusiste. ¿Seguir?");
       if (!ok) return;
     }
     updateEvent(event.id, { formacion: nuevaId, lineup: {} });
+  }
+
+  function cambiarModalidad(modality: Modality) {
+    if (!event || event.modality === modality) return;
+    const tieneJugadores = Object.keys(event.lineup).length > 0;
+    if (tieneJugadores) {
+      const ok = window.confirm("Cambiar de fútbol borra los jugadores que ya pusiste. ¿Seguir?");
+      if (!ok) return;
+    }
+    updateEvent(event.id, {
+      modality,
+      formacion: FORMATIONS[modality][0].id,
+      lineup: {},
+    });
   }
 
   if (!event) {
@@ -83,7 +96,7 @@ function CanchaPage() {
         <Segmented
           className="mt-3"
           value={event.modality}
-          onChange={(id) => updateEvent(event.id, { modality: id })}
+          onChange={cambiarModalidad}
           options={MODALITIES.map((id) => ({
             id,
             label: MODALITY_SHORT[id],
