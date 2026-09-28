@@ -1,6 +1,6 @@
 import { CalendarDays, ChartColumn, House, Lock, MessageCircle, Shield, Users } from "lucide-react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ROLE_LABEL } from "@/lib/fija/format";
 import { rememberInvite } from "@/lib/fija/share";
 import { registerTeamPush } from "@/lib/fija/push-client";
@@ -12,7 +12,6 @@ import { InboxBell } from "./inbox-bell";
 import { BrandLockup } from "./logo";
 import { PushBanner } from "./push-banner";
 import { PwaRegister } from "./pwa-register";
-import { resolveSignInGateState } from "@/lib/auth/sign-in-gate";
 import { SignInPanel } from "./sign-in-panel";
 import { TeamCrest } from "./team-crest";
 
@@ -114,10 +113,20 @@ export function PhoneShell() {
 
 function AuthFrame({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
-  const state = resolveSignInGateState({ isPending, hasUser: user !== null });
-  if (state === "pending") return <SignInPanel opening />;
-  if (state === "signed_out") return <SignInPanel />;
-  return children;
+  const [waited, setWaited] = useState(false);
+
+  useEffect(() => {
+    if (!isPending) {
+      setWaited(false);
+      return;
+    }
+    const id = window.setTimeout(() => setWaited(true), 2000);
+    return () => window.clearTimeout(id);
+  }, [isPending]);
+
+  if (user) return children;
+  if (isPending && !waited) return <SignInPanel opening />;
+  return <SignInPanel />;
 }
 
 function AppBar() {
