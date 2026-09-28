@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { authClient, signInWithGoogle } from "@/lib/auth/client";
+import { authClient, rememberSessionToken, signInWithGoogle } from "@/lib/auth/client";
 import { inviteCallbackPath } from "@/lib/fija/share";
 import { LogoMark } from "./logo";
 
@@ -49,6 +49,12 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
         setErrorText(accountError(result.error.message ?? "", mode));
         return;
       }
+      const token = result.data?.token;
+      if (!token) {
+        setErrorText("No se pudo guardar la sesión. Probá de nuevo.");
+        return;
+      }
+      rememberSessionToken(token);
       await forgetStuckSession();
       if (typeof window !== "undefined") window.location.replace(back);
     } catch {

@@ -3,7 +3,28 @@
  */
 import { createAuthClient } from "better-auth/react";
 
-export const authClient = createAuthClient();
+const SESSION_TOKEN_KEY = "mv-session";
+
+export function rememberSessionToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  if (!token) localStorage.removeItem(SESSION_TOKEN_KEY);
+  else localStorage.setItem(SESSION_TOKEN_KEY, token);
+}
+
+/** En el sitio publicado la cookie a veces no sobrevive la recarga. El token sí. */
+export function getBearerToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(SESSION_TOKEN_KEY);
+}
+
+export const authClient = createAuthClient({
+  fetchOptions: {
+    auth: {
+      type: "Bearer",
+      token: () => getBearerToken() ?? undefined,
+    },
+  },
+});
 
 /**
  * True cuando la UI de login debe mostrarse.
@@ -24,13 +45,13 @@ export async function signInWithGoogle(callbackURL = "/"): Promise<void> {
  * Cierra sesión y redirige.
  */
 export async function signOut(redirectTo = "/"): Promise<void> {
-  await authClient.signOut();
+  try {
+    await authClient.signOut();
+  } catch {
+    // Si el servidor no contesta, igual hay que borrar el token de este celular.
+  }
+  rememberSessionToken(null);
   if (typeof window !== "undefined") {
     window.location.href = redirectTo;
   }
-}
-
-/** En el sitio publicado la sesión viaja en la cookie. No hay token aparte. */
-export function getBearerToken(): string | null {
-  return null;
 }
