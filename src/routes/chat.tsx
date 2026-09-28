@@ -40,29 +40,38 @@ function CharlaWall() {
   const [text, setText] = useState("");
   const [posted, setPosted] = useState(false);
   const byId = new Map(members.map((m) => [m.id, m]));
-  const posts = [...charla].sort((a, b) => +new Date(a.at) - +new Date(b.at));
+  const ordered = [...charla].sort((a, b) => +new Date(b.at) - +new Date(a.at));
+  const latest = ordered[0];
+  const older = ordered.slice(1);
 
   return (
     <div className="mt-4 flex min-h-0 flex-1 flex-col">
-      <Chalkboard title="Indicaciones">
-        {posts.length === 0 ? (
+      <Chalkboard title="Ahora">
+        {!latest ? (
           <p>El cuerpo técnico todavía no dejó una indicación.</p>
         ) : (
-          <ul className="space-y-4">
-            {posts.map((post) => {
-              const author = byId.get(post.memberId);
-              return (
-                <li key={post.id}>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-chalk/70">
-                    {author?.nick ?? "Cuerpo técnico"} · {formatTime(post.at)}
-                  </p>
-                  <p className="mt-1 leading-relaxed">{post.text}</p>
-                </li>
-              );
-            })}
-          </ul>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-chalk/70">
+              {byId.get(latest.memberId)?.nick ?? "Cuerpo técnico"} · {formatTime(latest.at)}
+            </p>
+            <p className="mt-1 text-lg leading-relaxed">{latest.text}</p>
+          </div>
         )}
       </Chalkboard>
+      {older.length > 0 ? (
+        <Chalkboard title="Anteriores" className="mt-4">
+          <ul className="space-y-4">
+            {older.map((post) => (
+              <li key={post.id}>
+                <p className="text-xs font-semibold uppercase tracking-widest text-chalk/70">
+                  {byId.get(post.memberId)?.nick ?? "Cuerpo técnico"} · {formatTime(post.at)}
+                </p>
+                <p className="mt-1 leading-relaxed">{post.text}</p>
+              </li>
+            ))}
+          </ul>
+        </Chalkboard>
+      ) : null}
       {staff ? (
         <form
           className="mt-4 space-y-2"
