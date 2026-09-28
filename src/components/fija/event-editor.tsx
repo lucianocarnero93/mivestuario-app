@@ -13,8 +13,7 @@ import { Segmented } from "./segmented";
 
 export function CreateEventButton() {
   const createEvent = useFija((s) => s.createEvent);
-  const tournaments = useFija((s) => s.tournaments);
-  const current = activeTournament(tournaments);
+  const current = activeTournament(useFija((s) => s.tournaments));
   return (
     <EventDialog
       title="Agendar"
@@ -27,7 +26,7 @@ export function CreateEventButton() {
         place: "",
         mapsQuery: "",
         when: "2026-09-27T20:30",
-        tournamentId: current?.id ?? tournaments[0]?.id ?? "",
+        tournamentId: current?.id ?? "",
       }}
       onSubmit={(data) => {
         const maps = parseMapsInput(data.mapsQuery);
@@ -68,6 +67,7 @@ export function EditEventButton({ event }: { event: ClubEvent }) {
         when: toDatetimeLocal(event.startsAt),
         tournamentId: event.tournamentId ?? "",
       }}
+      keepTournamentId={event.tournamentId}
       onSubmit={(data) => {
         const maps = parseMapsInput(data.mapsQuery);
         updateEvent(event.id, {
@@ -103,6 +103,7 @@ function EventDialog({
   trigger,
   submitLabel,
   initial,
+  keepTournamentId,
   onSubmit,
   onDelete,
 }: {
@@ -110,6 +111,7 @@ function EventDialog({
   trigger: ReactNode;
   submitLabel: string;
   initial: Draft;
+  keepTournamentId?: string | null;
   onSubmit: (data: Draft) => void;
   onDelete?: () => void;
 }) {
@@ -127,8 +129,13 @@ function EventDialog({
   const createTournament = useFija((s) => s.createTournament);
   const matchNeedsTournament = kind === "partido";
   const activeOne = tournaments.find((tournament) => tournament.status === "active");
+  const listed = tournaments.filter(
+    (tournament) => tournament.status === "active" || tournament.id === keepTournamentId,
+  );
+  const chosen = listed.find((tournament) => tournament.id === tournamentId);
   const canSaveMatch =
-    !matchNeedsTournament || Boolean(tournamentId && tournaments.some((t) => t.id === tournamentId));
+    !matchNeedsTournament ||
+    Boolean(chosen && (chosen.status === "active" || chosen.id === keepTournamentId));
 
   function reset() {
     setKind(initial.kind);
@@ -204,13 +211,13 @@ function EventDialog({
           {matchNeedsTournament ? (
             <div className="space-y-1.5">
               <Label>Torneo</Label>
-              {tournaments.length > 0 ? (
+              {listed.length > 0 ? (
                 <select
                   className="h-12 w-full rounded-md border border-border bg-bg px-3 text-sm"
-                  value={tournamentId}
+                  value={chosen ? tournamentId : ""}
                   onChange={(e) => setTournamentId(e.target.value)}
                 >
-                  {tournaments.map((tournament) => (
+                  {listed.map((tournament) => (
                     <option key={tournament.id} value={tournament.id}>
                       {tournament.name}
                       {tournament.status === "active" ? " · activo" : " · cerrado"}

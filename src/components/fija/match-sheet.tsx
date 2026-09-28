@@ -18,6 +18,9 @@ export function MatchSheetForm({
   const members = useFija((s) => s.members);
   const sheets = useFija((s) => s.matchSheets);
   const saveMatchSheet = useFija((s) => s.saveMatchSheet);
+  const tournaments = useFija((s) => s.tournaments);
+  const closedTournament = tournaments.find((tournament) => tournament.id === event.tournamentId);
+  const tournamentClosed = closedTournament?.status === "finished";
   const existing = sheetFor(event.id, sheets);
   const [opponent, setOpponent] = useState(
     existing?.opponent ?? event.title.replace(/^vs\s+/i, ""),
@@ -29,6 +32,7 @@ export function MatchSheetForm({
     defaultSheetPlayers(event, members, existing),
   );
   const [saved, setSaved] = useState(false);
+  const [confirmClosed, setConfirmClosed] = useState(false);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const sumGoals = rows.reduce((n, row) => n + row.goals, 0);
   const result = outcome(gf, ga);
@@ -46,17 +50,24 @@ export function MatchSheetForm({
       className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
-        saveMatchSheet({
-          eventId: event.id,
-          opponent,
-          goalsFor: gf,
-          goalsAgainst: ga,
-          notes,
-          players: rows.filter((row) => {
-            const used = Object.values(event.lineup).includes(row.memberId);
-            return used || row.goals + row.assists + row.yellow + row.red > 0;
-          }),
-        });
+        if (tournamentClosed && !confirmClosed) {
+          setConfirmClosed(true);
+          return;
+        }
+        saveMatchSheet(
+          {
+            eventId: event.id,
+            opponent,
+            goalsFor: gf,
+            goalsAgainst: ga,
+            notes,
+            players: rows.filter((row) => {
+              const used = Object.values(event.lineup).includes(row.memberId);
+              return used || row.goals + row.assists + row.yellow + row.red > 0;
+            }),
+          },
+          tournamentClosed ? { confirmClosed: true } : undefined,
+        );
         setSaved(true);
         window.setTimeout(onDone, 700);
       }}
@@ -157,12 +168,18 @@ export function MatchSheetForm({
         />
       </div>
 
+      {tournamentClosed && confirmClosed ? (
+        <p className="text-sm text-warning">
+          {closedTournament?.name ?? "Este torneo"} ya está cerrado. Tocá de nuevo si igual querés corregir la planilla.
+        </p>
+      ) : null}
+
       <div className="flex gap-2">
         <Button type="button" variant="outline" className="h-14 flex-1" onClick={onDone}>
           Cancelar
         </Button>
         <Button type="submit" className="h-14 flex-1" disabled={saved}>
-          {saved ? "Planilla guardada" : "Guardar planilla"}
+          {saved ? "Planilla guardada" : confirmClosed ? "Corregir igual" : "Guardar planilla"}
         </Button>
       </div>
     </form>

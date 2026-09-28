@@ -87,7 +87,7 @@ type State = ReturnType<typeof createSeed> & {
   removeMember: (memberId: string) => void;
   assignRole: (memberId: string, role: Role) => void;
     setJuega: (memberId: string, juega: boolean) => void;
-    saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">) => void;
+    saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">, options?: { confirmClosed?: boolean }) => void;
   asignarEquipamiento: (eventId: string, item: ItemEquipamiento, memberId: string | null) => void;
   ultimoEquipamiento: (beforeEventId: string, item: ItemEquipamiento) => string | null;
   createTournament: (name: string) => string | null;
@@ -220,8 +220,9 @@ export const useFija = create<State>()(
         const tournaments = get().tournaments;
         const chosen = tournaments.find((tournament) => tournament.id === input.tournamentId);
         const activeTournament = tournaments.find((tournament) => tournament.status === "active");
+        if (input.kind === "partido" && chosen?.status === "finished") return;
         const tournamentForMatch = chosen ?? activeTournament;
-        if (input.kind === "partido" && !tournamentForMatch) return;
+        if (input.kind === "partido" && tournamentForMatch?.status !== "active") return;
         const event: ClubEvent = {
           id: uid("ev"),
           kind: input.kind,
@@ -251,6 +252,12 @@ export const useFija = create<State>()(
       // Cambia datos de un evento ya creado. Solo DT o ayudante.
       updateEvent: (id, patch) => {
         if (!isStaffId(get())) return;
+        const current = get().events.find((event) => event.id === id);
+        if (!current) return;
+        if (patch.tournamentId && patch.tournamentId !== current.tournamentId) {
+          const next = get().tournaments.find((tournament) => tournament.id === patch.tournamentId);
+          if (!next || next.status === "finished") return;
+        }
         set({
           events: get().events.map((event) => (event.id === id ? { ...event, ...patch } : event)),
         });
@@ -693,8 +700,11 @@ export const useFija = create<State>()(
 
       // Guarda el resultado y los números de cada jugador en ese partido.
       // Si ya había planilla, la reemplaza.
-      saveMatchSheet: (input) => {
+      saveMatchSheet: (input, options) => {
         if (!isStaffId(get())) return;
+        const event = get().events.find((item) => item.id === input.eventId);
+        const tournament = get().tournaments.find((item) => item.id === event?.tournamentId);
+        if (tournament?.status === "finished" && !options?.confirmClosed) return;
         const playerStats: PlayerMatchStat[] = input.players.map((row) => ({
           memberId: row.memberId,
           goals: clampStat(row.goals),
