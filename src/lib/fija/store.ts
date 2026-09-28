@@ -89,6 +89,7 @@ type State = ReturnType<typeof createSeed> & {
   asignarEquipamiento: (eventId: string, item: ItemEquipamiento, memberId: string | null) => void;
   ultimoEquipamiento: (beforeEventId: string, item: ItemEquipamiento) => string | null;
   createTournament: (name: string) => string | null;
+  renameTournament: (id: string, name: string) => void;
   finishTournament: (id: string) => void;
   setGpsConsent: (value: GpsConsent) => void;
   leaveClub: () => void;
@@ -133,6 +134,7 @@ const blank = {
   - publishLineup     avisar que la formación ya está lista.
   - saveMatchSheet    guardar goles, asistencias y tarjetas.
   - createTournament  abrir un torneo nuevo.
+  - renameTournament  cambiar el nombre de un torneo ya creado.
   - finishTournament  cerrar el torneo. Las stats generales siguen.
   - setRsvp           el jugador dice si va o no.
   - sendChat          mensaje de la charla.
@@ -762,6 +764,17 @@ export const useFija = create<State>()(
         };
         set({ tournaments: [...get().tournaments, tournament] });
         return tournament.id;
+      },
+
+      renameTournament: (id, name) => {
+        if (!isStaffId(get())) return;
+        const tournamentName = sanitizeName(name);
+        if (!tournamentName) return;
+        set({
+          tournaments: get().tournaments.map((tournament) =>
+            tournament.id === id ? { ...tournament, name: tournamentName } : tournament,
+          ),
+        });
       },
 
       // Cierra el torneo. Los partidos viejos siguen contando en el total del equipo.

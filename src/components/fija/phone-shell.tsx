@@ -20,7 +20,7 @@ const NAV = [
   { to: "/agenda", label: "Agenda", icon: CalendarDays, exact: false },
   { to: "/cancha", label: "Pizarra", icon: Shield, exact: false },
   { to: "/stats", label: "Stats", icon: ChartColumn, exact: false },
-  { to: "/chat", label: "Charla", icon: MessageCircle, exact: false },
+  { to: "/chat", label: "Técnica", icon: MessageCircle, exact: false },
   { to: "/equipo", label: "Equipo", icon: Users, exact: false },
 ] as const;
 

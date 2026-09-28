@@ -28,13 +28,35 @@ export const FORMATIONS: Record<Modality, Formation[]> = {
   f5: [
     {
       id: "diamante",
-      name: "1-2-1 (diamante)",
+      name: "1-2-2",
       slots: [
-        { key: "ARQ", label: "ARQ", x: 50, y: 84 },
-        { key: "LI", label: "DEF", x: 26, y: 58 },
-        { key: "LD", label: "DEF", x: 74, y: 58 },
-        { key: "EI", label: "DEL", x: 28, y: 26 },
-        { key: "ED", label: "DEL", x: 72, y: 26 },
+        { key: "ARQ", label: "ARQ", x: 50, y: 86 },
+        { key: "LI", label: "DEF", x: 28, y: 62 },
+        { key: "LD", label: "DEF", x: 72, y: 62 },
+        { key: "EI", label: "DEL", x: 30, y: 24 },
+        { key: "ED", label: "DEL", x: 70, y: 24 },
+      ],
+    },
+    {
+      id: "rombo",
+      name: "Rombo",
+      slots: [
+        { key: "ARQ", label: "ARQ", x: 50, y: 86 },
+        { key: "DEF", label: "DEF", x: 50, y: 64 },
+        { key: "AI", label: "ALA", x: 22, y: 42 },
+        { key: "AD", label: "ALA", x: 78, y: 42 },
+        { key: "PIV", label: "PIV", x: 50, y: 18 },
+      ],
+    },
+    {
+      id: "1-1-1-2",
+      name: "1-1-1-2",
+      slots: [
+        { key: "ARQ", label: "ARQ", x: 50, y: 86 },
+        { key: "DEF", label: "DEF", x: 50, y: 64 },
+        { key: "VOL", label: "VOL", x: 50, y: 42 },
+        { key: "EI", label: "DEL", x: 32, y: 18 },
+        { key: "ED", label: "DEL", x: 68, y: 18 },
       ],
     },
   ],

@@ -1,6 +1,6 @@
 // Estadísticas: goleadores, asistencias, tarjetas y torneos.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MatchSheetForm, MatchSheetRead } from "@/components/fija/match-sheet";
 import { CardRow, MyNumbers, RankBlock, RankRow, RecordStrip } from "@/components/fija/stat-blocks";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ function StatsPage() {
   const sheets = useFija((s) => s.matchSheets);
   const tournaments = useFija((s) => s.tournaments);
   const createTournament = useFija((s) => s.createTournament);
+  const renameTournament = useFija((s) => s.renameTournament);
   const finishTournament = useFija((s) => s.finishTournament);
   const scope = torneo || "general";
   const scopedSheets = sheetsForScope(sheets, events, scope);
@@ -46,6 +47,12 @@ function StatsPage() {
   const focused = partidos.find((e) => e.id === partido) ?? events.find((e) => e.id === partido);
   const live = activeTournament(tournaments);
   const [newName, setNewName] = useState("");
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const selected = tournaments.find((t) => t.id === scope);
+
+  useEffect(() => {
+    setNameDraft(null);
+  }, [scope]);
 
   if (focused) {
     const back = () =>
@@ -112,7 +119,29 @@ function StatsPage() {
               Creá el primer torneo antes de agendar un partido. Cada partido queda atado a un torneo.
             </p>
           ) : null}
-          {scope !== "general" && tournaments.find((t) => t.id === scope)?.status === "active" ? (
+          {scope !== "general" && selected ? (
+            <form
+              className="mt-3 space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const next = (nameDraft ?? selected.name).trim();
+                if (!next || next === selected.name) return;
+                renameTournament(selected.id, next);
+                setNameDraft(null);
+              }}
+            >
+              <p className="text-sm text-muted">Nombre del torneo.</p>
+              <Input
+                value={nameDraft ?? selected.name}
+                onChange={(e) => setNameDraft(e.target.value)}
+                required
+              />
+              <Button type="submit" variant="secondary" className="h-12 w-full">
+                Guardar nombre
+              </Button>
+            </form>
+          ) : null}
+          {scope !== "general" && selected?.status === "active" ? (
             <div className="mt-2">
               <p className="text-sm">
                 Estás viendo <span className="font-semibold">{currentLabel}</span>. Al finalizarlo, estos
