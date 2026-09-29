@@ -93,6 +93,7 @@ type State = ReturnType<typeof createSeed> & {
   createTournament: (name: string) => string | null;
   renameTournament: (id: string, name: string) => void;
   finishTournament: (id: string) => void;
+  markMatchResult: (eventId: string, done: boolean) => void;
   setGpsConsent: (value: GpsConsent) => void;
   leaveClub: () => void;
   joinClub: (code: string) => Promise<boolean>;
@@ -826,6 +827,23 @@ export const useFija = create<State>()(
           inbox: light.inbox,
           alertLog: light.alertLog,
           convocatorias: light.convocatorias,
+        });
+      },
+
+      markMatchResult: (eventId, done) => {
+        if (!isStaffId(get())) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) =>
+            event.id === eventId
+              ? {
+                  ...event,
+                  resultClosedAt: done ? now : null,
+                  resultPending: !done,
+                  resultUpdatedAt: now,
+                }
+              : event,
+          ),
         });
       },
 
@@ -1981,12 +1999,42 @@ export function sheetsForScope(
   return sheets.filter((s) => ids.has(s.eventId));
 }
 
-export function nextEvent(events: ClubEvent[]): ClubEvent | undefined {
-  const now = Date.now() - 3_600_000;
-  const upcoming = [...events]
-    .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt))
-    .filter((e) => +new Date(e.startsAt) >= now);
-  return upcoming.find((e) => e.kind === "partido") ?? upcoming[0] ?? events[events.length - 1];
+export function matchSettled(event: ClubEvent, sheet?: MatchSheet): boolean {
+  if (event.kind !== "partido") return false;
+  if (event.resultPending) return false;
+  if (event.resultClosedAt) return true;
+  return Boolean(sheet);
+}
+
+export function eventOfClosedTournament(event: ClubEvent, tournaments: Tournament[]): boolean {
+  if (!event.tournamentId) return false;
+  return tournaments.some(
+    (tournament) => tournament.id === event.tournamentId && tournament.status === "finished",
+  );
+}
+
+export function nextEvent(
+  events: ClubEvent[],
+  options?: { tournaments?: Tournament[]; sheets?: MatchSheet[] },
+): ClubEvent | undefined {
+  const tournaments = options?.tournaments ?? [];
+  const sheets = options?.sheets ?? [];
+  const visible = events.filter((event) => !eventOfClosedTournament(event, tournaments));
+  const now = Date.now();
+  const pending = visible
+    .filter(
+      (event) =>
+        event.kind === "partido" &&
+        !matchSettled(event, sheetFor(event.id, sheets)) &&
+        +new Date(event.startsAt) < now,
+    )
+    .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
+  if (pending[0]) return pending[0];
+  const upcoming = visible
+    .filter((event) => +new Date(event.startsAt) >= now - 3_600_000)
+    .filter((event) => event.kind !== "partido" || !matchSettled(event, sheetFor(event.id, sheets)))
+    .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
+  return upcoming.find((event) => event.kind === "partido") ?? upcoming[0];
 }
 
 export function sheetFor(eventId: string, sheets: MatchSheet[]): MatchSheet | undefined {

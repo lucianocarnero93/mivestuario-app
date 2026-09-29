@@ -18,6 +18,7 @@ export function MatchSheetForm({
   const members = useFija((s) => s.members);
   const sheets = useFija((s) => s.matchSheets);
   const saveMatchSheet = useFija((s) => s.saveMatchSheet);
+  const markMatchResult = useFija((s) => s.markMatchResult);
   const tournaments = useFija((s) => s.tournaments);
   const closedTournament = tournaments.find((tournament) => tournament.id === event.tournamentId);
   const tournamentClosed = closedTournament?.status === "finished";
@@ -33,6 +34,7 @@ export function MatchSheetForm({
   );
   const [saved, setSaved] = useState(false);
   const [confirmClosed, setConfirmClosed] = useState(false);
+  const [askDone, setAskDone] = useState(false);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
   const sumGoals = rows.reduce((n, row) => n + row.goals, 0);
   const result = outcome(gf, ga);
@@ -69,7 +71,7 @@ export function MatchSheetForm({
           tournamentClosed ? { confirmClosed: true } : undefined,
         );
         setSaved(true);
-        window.setTimeout(onDone, 700);
+        setAskDone(true);
       }}
     >
       <div>
@@ -174,6 +176,34 @@ export function MatchSheetForm({
         </p>
       ) : null}
 
+      {askDone ? (
+        <div className="space-y-3">
+          <p className="text-sm">
+            Planilla guardada. ¿Cargaste todas las estadísticas? Si confirmás, este partido baja al final de la agenda y el inicio pasa al próximo.
+          </p>
+          <Button
+            type="button"
+            className="h-14 w-full"
+            onClick={() => {
+              markMatchResult(event.id, true);
+              onDone();
+            }}
+          >
+            Sí, está completa
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-14 w-full"
+            onClick={() => {
+              markMatchResult(event.id, false);
+              onDone();
+            }}
+          >
+            Todavía me falta
+          </Button>
+        </div>
+      ) : (
       <div className="flex gap-2">
         <Button type="button" variant="outline" className="h-14 flex-1" onClick={onDone}>
           Cancelar
@@ -182,6 +212,7 @@ export function MatchSheetForm({
           {saved ? "Planilla guardada" : confirmClosed ? "Corregir igual" : "Guardar planilla"}
         </Button>
       </div>
+      )}
     </form>
   );
 }

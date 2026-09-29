@@ -259,14 +259,26 @@ function mergeEvents(kept: ClubEvent[], incoming: ClubEvent[]): ClubEvent[] {
     const incomingSpots = Object.keys(event.lineup ?? {}).length;
     const boardChanged =
       previous.modality !== event.modality || (previous.formacion ?? "") !== (event.formacion ?? "");
-    map.set(
-      event.id,
+    const merged =
       boardChanged || incomingSpots >= previousSpots
         ? { ...previous, ...event }
-        : { ...event, ...previous, lineup: previous.lineup },
-    );
+        : { ...event, ...previous, lineup: previous.lineup };
+    map.set(event.id, keepResultMark(previous, event, merged));
   }
   return [...map.values()];
+}
+
+function keepResultMark(previous: ClubEvent, incoming: ClubEvent, merged: ClubEvent): ClubEvent {
+  const prevTime = previous.resultUpdatedAt ? +new Date(previous.resultUpdatedAt) : 0;
+  const nextTime = incoming.resultUpdatedAt ? +new Date(incoming.resultUpdatedAt) : 0;
+  const source =
+    nextTime > prevTime ? incoming : nextTime < prevTime ? previous : incoming.resultClosedAt || incoming.resultPending ? incoming : previous;
+  return {
+    ...merged,
+    resultClosedAt: source.resultClosedAt ?? null,
+    resultPending: Boolean(source.resultPending),
+    resultUpdatedAt: source.resultUpdatedAt,
+  };
 }
 
 function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {

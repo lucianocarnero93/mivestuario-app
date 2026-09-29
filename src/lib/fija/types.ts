@@ -102,6 +102,12 @@ export type ClubEvent = {
   equipamiento?: Partial<Record<ItemEquipamiento, string>>;
   /** ID de la formación elegida (ej: "4-4-2", "clasica"). */
   formacion?: string;
+  /** Cuándo el DT confirmó que la planilla está completa. */
+  resultClosedAt?: string | null;
+  /** La planilla se guardó, pero el DT dijo que todavía falta. */
+  resultPending?: boolean;
+  /** Para que al mezclar gane la respuesta más nueva. */
+  resultUpdatedAt?: string;
 };
 
 

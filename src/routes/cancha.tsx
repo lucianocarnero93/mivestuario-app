@@ -18,6 +18,7 @@ function CanchaPage() {
   const staff = useIsStaff();
   const events = useFija((s) => s.events);
   const tournaments = useFija((s) => s.tournaments);
+  const sheets = useFija((s) => s.matchSheets);
   const members = useFija((s) => s.members);
   const setSpot = useFija((s) => s.setSpot);
   const setTactics = useFija((s) => s.setTactics);
@@ -28,7 +29,7 @@ function CanchaPage() {
   const matchEvents = events
     .filter((e) => e.kind !== "reunion")
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
-  const fallback = nextEvent(matchEvents) ?? matchEvents[0];
+  const fallback = nextEvent(matchEvents, { tournaments, sheets }) ?? matchEvents[matchEvents.length - 1];
   const [eventId, setEventId] = useState(fallback?.id ?? "");
   const event = events.find((e) => e.id === eventId) ?? fallback;
   const [slot, setSlot] = useState<string | null>(null);

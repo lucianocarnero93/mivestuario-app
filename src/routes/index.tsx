@@ -25,10 +25,11 @@ function HomePage() {
   const members = useFija((s) => s.members);
   const setRsvp = useFija((s) => s.setRsvp);
   const sheets = useFija((s) => s.matchSheets);
+  const tournaments = useFija((s) => s.tournaments);
   const club = useFija((s) => s.club);
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
-  const event = nextEvent(events);
+  const event = nextEvent(events, { tournaments, sheets });
   const players = members.filter((m) => m.role === "jugador");
   const record = teamRecord(sheets);
   const inviteOk = Boolean(
@@ -38,7 +39,10 @@ function HomePage() {
   if (!event) {
     return (
       <main className="px-4 py-6">
-        <h1 className="text-3xl font-semibold">El vestuario está vacío</h1>
+        <h1 className="text-3xl font-semibold">No hay un próximo partido</h1>
+        <p className="mt-2 text-sm text-muted">
+          {staff ? "Cargá la próxima fecha en la agenda." : "Cuando el DT cargue una fecha, aparece acá."}
+        </p>
         {staff ? (
           <Button asChild className="mt-4 h-14 w-full text-base">
             <Link to="/agenda">Crear fecha</Link>
