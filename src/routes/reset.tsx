@@ -1,18 +1,24 @@
-import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth/client";
 import { LogoMark } from "@/components/fija/logo";
 
-export const Route = createFileRoute("/reset")({ component: ResetPage });
+export const Route = createFileRoute("/reset")({
+  component: ResetPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    token: typeof search.token === "string" ? search.token : "",
+    error: typeof search.error === "string" ? search.error : "",
+  }),
+});
 
 function ResetPage() {
-  const search = useSearch({ from: "/reset" }) as { token?: string; error?: string };
+  const search = Route.useSearch();
+  const token = search.token;
+  const linkBroken = !token || search.error === "INVALID_TOKEN";
   const [password, setPassword] = useState("");
   const [errorText, setErrorText] = useState("");
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
-
-  const token = search.token;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -47,6 +53,15 @@ function ResetPage() {
           <p className="mt-2 text-sm text-muted">Listo. Ya podés entrar con tu nueva contraseña.</p>
           <Link to="/login" className="mt-6 text-sm text-accent">
             Ir al login
+          </Link>
+        </>
+      ) : linkBroken ? (
+        <>
+          <p className="mt-2 text-sm text-muted">
+            Este enlace no sirve o ya venció. Pedí uno nuevo. Dura una hora.
+          </p>
+          <Link to="/olvide" className="mt-6 text-sm text-accent">
+            Pedir otro enlace
           </Link>
         </>
       ) : (

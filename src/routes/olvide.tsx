@@ -9,15 +9,21 @@ function OlvidePage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [errorText, setErrorText] = useState("");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
-    await authClient.requestPasswordReset({
+    setErrorText("");
+    const result = await authClient.requestPasswordReset({
       email: email.trim().toLowerCase(),
       redirectTo: "/reset",
     });
     setBusy(false);
+    if (result.error) {
+      setErrorText("No se pudo enviar. Probá de nuevo en un momento.");
+      return;
+    }
     setSent(true);
   }
 
@@ -49,6 +55,7 @@ function OlvidePage() {
                 onChange={(event) => setEmail(event.target.value)}
               />
             </label>
+            {errorText ? <p className="text-sm text-danger">{errorText}</p> : null}
             <button
               type="submit"
               className="h-14 w-full rounded-lg bg-accent text-base font-semibold text-accent-fg"

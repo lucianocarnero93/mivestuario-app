@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { fromDatetimeLocal, KIND_LABEL, toDatetimeLocal } from "@/lib/fija/format";
+import { fromDatetimeLocal, KIND_LABEL, toDatetimeLocal, defaultKickoff } from "@/lib/fija/format";
 import { MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
 import { parseMapsInput } from "@/lib/fija/maps";
 import { activeTournament, useFija } from "@/lib/fija/store";
@@ -25,7 +25,7 @@ export function CreateEventButton() {
         title: "",
         place: "",
         mapsQuery: "",
-        when: "2026-09-27T20:30",
+        when: defaultKickoff(),
         tournamentId: current?.id ?? "",
       }}
       onSubmit={(data) => {

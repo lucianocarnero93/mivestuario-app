@@ -70,6 +70,7 @@ export function MatchSheetForm({
           },
           tournamentClosed ? { confirmClosed: true } : undefined,
         );
+        markMatchResult(event.id, false);
         setSaved(true);
         setAskDone(true);
       }}

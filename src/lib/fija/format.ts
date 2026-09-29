@@ -60,6 +60,18 @@ export function fromDatetimeLocal(value: string): string {
   return `${v}-03:00`;
 }
 
+export function defaultKickoff(): string {
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(tomorrow);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}T21:00`;
+}
+
 export function initials(name: string): string {
   const parts = name.split(" ").filter(Boolean);
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();

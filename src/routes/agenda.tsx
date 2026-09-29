@@ -117,7 +117,7 @@ function bySoonest(a: ClubEvent, b: ClubEvent) {
   const now = Date.now();
   const aPast = +new Date(a.startsAt) < now;
   const bPast = +new Date(b.startsAt) < now;
-  if (aPast !== bPast) return aPast ? -1 : 1;
+  if (aPast !== bPast) return aPast ? 1 : -1;
   if (aPast) return +new Date(b.startsAt) - +new Date(a.startsAt);
   return +new Date(a.startsAt) - +new Date(b.startsAt);
 }

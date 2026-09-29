@@ -2021,6 +2021,12 @@ export function nextEvent(
   const sheets = options?.sheets ?? [];
   const visible = events.filter((event) => !eventOfClosedTournament(event, tournaments));
   const now = Date.now();
+  const upcoming = visible
+    .filter((event) => +new Date(event.startsAt) >= now - 3_600_000)
+    .filter((event) => event.kind !== "partido" || !matchSettled(event, sheetFor(event.id, sheets)))
+    .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
+  const next = upcoming.find((event) => event.kind === "partido") ?? upcoming[0];
+  if (next) return next;
   const pending = visible
     .filter(
       (event) =>
@@ -2029,12 +2035,7 @@ export function nextEvent(
         +new Date(event.startsAt) < now,
     )
     .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
-  if (pending[0]) return pending[0];
-  const upcoming = visible
-    .filter((event) => +new Date(event.startsAt) >= now - 3_600_000)
-    .filter((event) => event.kind !== "partido" || !matchSettled(event, sheetFor(event.id, sheets)))
-    .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
-  return upcoming.find((event) => event.kind === "partido") ?? upcoming[0];
+  return pending[0];
 }
 
 export function sheetFor(eventId: string, sheets: MatchSheet[]): MatchSheet | undefined {
