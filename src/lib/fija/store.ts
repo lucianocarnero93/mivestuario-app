@@ -709,8 +709,12 @@ export const useFija = create<State>()(
         if (!members.some((person) => person.id === memberId)) return;
         set({
           members: members.map((person) => {
-            if (person.id === memberId) return { ...person, role };
-            if (role !== "jugador" && person.role === role) return { ...person, role: "jugador" };
+            if (person.id === memberId) {
+              return { ...person, role, juega: role === "jugador" ? true : person.juega };
+            }
+            if (role !== "jugador" && person.role === role) {
+              return { ...person, role: "jugador", juega: true };
+            }
             return person;
           }),
         });
@@ -719,11 +723,21 @@ export const useFija = create<State>()(
       // Puede ser cualquiera del plantel: jugador, DT o ayudante.
       setJuega: (memberId, juega) => {
         if (!isStaffId(get()) && !isCreatorId(get())) return;
-        set({
-          members: get().members.map((person) =>
-            person.id === memberId ? { ...person, juega } : person,
-          ),
-        });
+        const members = get().members.map((person) =>
+          person.id === memberId ? { ...person, juega } : person,
+        );
+        const now = Date.now();
+        const rsvps = juega
+          ? [
+              ...get().rsvps,
+              ...missingPlayingRsvps({ ...get(), members }).filter((row) => row.memberId === memberId),
+            ]
+          : get().rsvps.filter((row) => {
+              if (row.memberId !== memberId || row.status !== "pendiente") return true;
+              const event = get().events.find((item) => item.id === row.eventId);
+              return !event || +new Date(event.startsAt) < now;
+            });
+        set({ members, rsvps });
       },
 
       // Guarda el resultado y los números de cada jugador en ese partido.
@@ -1334,9 +1348,11 @@ export const useFija = create<State>()(
               activeId: current.activeId,
               staff: isStaffId(current),
             });
+            const extras = isStaffId(current) ? missingPlayingRsvps(merged) : [];
             applyingCloud = true;
             set({
               ...merged,
+              rsvps: [...merged.rsvps, ...extras],
               otherClubs: current.otherClubs,
               activeClubId: merged.club.id,
               profile: current.profile,
@@ -1360,7 +1376,12 @@ export const useFija = create<State>()(
                   previous.status !== item.status
                 );
               });
-            if (localOnly || tournamentChanged || (isStaffId(current) && closedMatchStillHeavy(remoteTeam.bundle))) {
+            if (
+              extras.length > 0 ||
+              localOnly ||
+              tournamentChanged ||
+              (isStaffId(current) && closedMatchStillHeavy(remoteTeam.bundle))
+            ) {
               await get().flushCloud();
             }
           } else if (remoteTeam.reason === "missing") {
@@ -1965,6 +1986,26 @@ async function queueSync(tag: string) {
   } catch {
     /* Background Sync is optional */
   }
+}
+
+function missingPlayingRsvps(state: {
+  members: Member[];
+  events: ClubEvent[];
+  rsvps: { eventId: string; memberId: string }[];
+}): { eventId: string; memberId: string; status: "pendiente" }[] {
+  const players = state.members.filter((person) => person.juega ?? person.role === "jugador");
+  const open = state.events.filter(
+    (event) => event.kind !== "reunion" && +new Date(event.startsAt) >= Date.now() - 3_600_000,
+  );
+  const have = new Set(state.rsvps.map((row) => `${row.eventId}:${row.memberId}`));
+  const extra: { eventId: string; memberId: string; status: "pendiente" }[] = [];
+  for (const event of open) {
+    for (const player of players) {
+      if (have.has(`${event.id}:${player.id}`)) continue;
+      extra.push({ eventId: event.id, memberId: player.id, status: "pendiente" });
+    }
+  }
+  return extra;
 }
 
 // Dice si un aviso le corresponde a esta persona.

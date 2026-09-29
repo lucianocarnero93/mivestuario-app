@@ -134,6 +134,24 @@ function HomePage() {
       ) : (
         <>
           {event.kind === "partido" ? <StaffCallup event={event} /> : null}
+          {(me.juega ?? me.role === "jugador") && !alreadyPlayed ? (
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Button
+                className="h-12"
+                variant={mine?.status === "voy" ? "success" : "secondary"}
+                onClick={() => setRsvp(event.id, "voy")}
+              >
+                {mine?.status === "voy" ? "Voy ✓" : "Yo voy"}
+              </Button>
+              <Button
+                className="h-12"
+                variant={mine?.status === "no" ? "danger" : "secondary"}
+                onClick={() => setRsvp(event.id, "no")}
+              >
+                {mine?.status === "no" ? "No voy ✕" : "Yo no voy"}
+              </Button>
+            </div>
+          ) : null}
           <section className="mt-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">

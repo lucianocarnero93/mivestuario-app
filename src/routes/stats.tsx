@@ -9,6 +9,7 @@ import { formatDay } from "@/lib/fija/format";
 import { outcome, playerRows, rankedBy, resultLabel, teamRecord } from "@/lib/fija/stats";
 import {
   activeTournament,
+  eventOfClosedTournament,
   sheetFor,
   sheetsForScope,
   useFija,
@@ -80,7 +81,12 @@ function StatsPage() {
   const byId = new Map(members.map((m) => [m.id, m]));
   const mine = rows.find((row) => row.memberId === me.id);
   const pending = staff
-    ? partidos.filter((e) => !sheetFor(e.id, sheets) && +new Date(e.startsAt) < Date.now())
+    ? partidos.filter(
+        (e) =>
+          !eventOfClosedTournament(e, tournaments) &&
+          !sheetFor(e.id, sheets) &&
+          +new Date(e.startsAt) < Date.now(),
+      )
     : [];
   const currentLabel = scope === "general" ? "General del equipo" : tournaments.find((t) => t.id === scope)?.name;
 
@@ -200,7 +206,7 @@ function StatsPage() {
         <RecordStrip record={record} />
       </div>
 
-      {me.role === "jugador" ? (
+      {(me.juega ?? me.role === "jugador") ? (
         <div className="mt-4">
           <MyNumbers member={me} row={mine} />
         </div>
