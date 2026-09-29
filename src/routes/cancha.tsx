@@ -9,7 +9,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
 import { formatWhen } from "@/lib/fija/format";
-import { nextEvent, useFija, useIsStaff } from "@/lib/fija/store";
+import { activeTournament, nextEvent, useFija, useIsStaff } from "@/lib/fija/store";
 import type { Modality } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/cancha")({ component: CanchaPage });
@@ -26,12 +26,13 @@ function CanchaPage() {
   const publishLineup = useFija((s) => s.publishLineup);
     const setJuega = useFija((s) => s.setJuega);
   const me = useFija((s) => s.members.find((m) => m.id === s.activeId));
+  const current = activeTournament(tournaments);
   const matchEvents = events
-    .filter((e) => e.kind !== "reunion")
+    .filter((e) => e.kind === "partido" && current && e.tournamentId === current.id)
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
   const fallback = nextEvent(matchEvents, { tournaments, sheets }) ?? matchEvents[matchEvents.length - 1];
   const [eventId, setEventId] = useState(fallback?.id ?? "");
-  const event = events.find((e) => e.id === eventId) ?? fallback;
+  const event = matchEvents.find((e) => e.id === eventId) ?? fallback;
   const [slot, setSlot] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
    const players = members.filter((m) => m.juega ?? m.role === "jugador");
@@ -67,7 +68,11 @@ function CanchaPage() {
     return (
       <main className="px-4 py-6">
         <h1 className="text-3xl font-semibold">Sin pizarra</h1>
-        <p className="mt-2 text-sm text-muted">Agendá un partido o un entreno para armar la formación.</p>
+        <p className="mt-2 text-sm text-muted">
+          {current
+            ? "Agendá un partido de este torneo para armar la formación."
+            : "No hay un torneo activo. Las formaciones de los torneos cerrados no se guardan."}
+        </p>
       </main>
     );
   }
@@ -76,13 +81,6 @@ function CanchaPage() {
     <main className="px-4 py-5">
       <h1 className="text-3xl font-semibold">Pizarra</h1>
       <p className="text-sm text-muted">{formatWhen(event.startsAt)}</p>
-      {tournaments.some(
-        (tournament) => tournament.id === event.tournamentId && tournament.status === "finished",
-      ) ? (
-        <p className="mt-2 text-sm text-muted">
-          Este partido es de un torneo cerrado. La formación ya no se guarda. El resultado sigue en estadísticas.
-        </p>
-      ) : null}
 
       {matchEvents.length > 1 ? (
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">

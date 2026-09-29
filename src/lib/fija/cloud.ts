@@ -224,8 +224,8 @@ export function lightenClosedMatches(bundle: ClubBundle): ClubBundle {
     ...bundle,
     events: bundle.events.map((event) => {
       if (!ids.has(event.id)) return event;
-      if (Object.keys(event.lineup ?? {}).length === 0 && !event.tactics) return event;
-      return { ...event, lineup: {}, tactics: "" };
+      if (Object.keys(event.lineup ?? {}).length === 0 && !event.tactics && !event.formacion) return event;
+      return { ...event, lineup: {}, tactics: "", formacion: undefined };
     }),
     rsvps: (bundle.rsvps ?? []).filter((row) => !ids.has(row.eventId)),
     inbox: (bundle.inbox ?? []).filter((item) => !item.eventId || !ids.has(item.eventId)),
