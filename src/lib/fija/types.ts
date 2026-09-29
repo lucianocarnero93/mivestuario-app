@@ -102,6 +102,8 @@ export type ClubEvent = {
   equipamiento?: Partial<Record<ItemEquipamiento, string>>;
   /** ID de la formación elegida (ej: "4-4-2", "clasica"). */
   formacion?: string;
+  /** Cuándo se armó la formación. Gana la copia más nueva, aunque tenga menos jugadores. */
+  lineupUpdatedAt?: string;
   /** Cuándo el DT confirmó que la planilla está completa. */
   resultClosedAt?: string | null;
   /** La planilla se guardó, pero el DT dijo que todavía falta. */
@@ -181,6 +183,8 @@ export type ClubBundle = {
   tournaments: Tournament[];
   /** Jugadores que el DT sacó. No vuelven a aparecer al mezclar. */
   droppedIds?: string[];
+  /** Partidos que el DT sacó de la agenda. No vuelven al mezclar. */
+  droppedEventIds?: string[];
 };
 
 export type Profile = {
@@ -203,6 +207,7 @@ export type AppState = {
   reminderPolicy: ReminderPolicy;
   tournaments: Tournament[];
   droppedIds?: string[];
+  droppedEventIds?: string[];
   archivedClubs: ClubBundle[];
   profile: Profile;
   gpsConsent: GpsConsent;

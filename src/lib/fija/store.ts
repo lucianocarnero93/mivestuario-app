@@ -5,7 +5,7 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { clampHours, hoursSince } from "./share";
-import { claimMember, closedMatchStillHeavy, lightenClosedMatches, loadClubDoc, mergeTournaments, saveClubDoc, useMyName } from "./cloud";
+import { claimMember, closedMatchStillHeavy, lightenClosedMatches, loadClubDoc, mergeTournaments, pickEvent, pickSheet, saveClubDoc, useMyName, withoutDroppedEvents } from "./cloud";
 import { readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
@@ -262,20 +262,33 @@ export const useFija = create<State>()(
           const next = get().tournaments.find((tournament) => tournament.id === patch.tournamentId);
           if (!next || next.status === "finished") return;
         }
+        const touchesBoard =
+          "lineup" in patch || "formacion" in patch || "modality" in patch || "tactics" in patch;
         set({
-          events: get().events.map((event) => (event.id === id ? { ...event, ...patch } : event)),
+          events: get().events.map((event) =>
+            event.id === id
+              ? {
+                  ...event,
+                  ...patch,
+                  lineupUpdatedAt: touchesBoard ? new Date().toISOString() : event.lineupUpdatedAt,
+                }
+              : event,
+          ),
         });
       },
 
       // Borra el evento y todo lo que colgaba de él: respuestas, planilla y avisos.
       deleteEvent: (id) => {
         if (!isStaffId(get())) return;
+        const droppedEventIds = [...new Set([...(get().droppedEventIds ?? []), id])];
         set({
+          droppedEventIds,
           events: get().events.filter((event) => event.id !== id),
           rsvps: get().rsvps.filter((answer) => answer.eventId !== id),
           matchSheets: get().matchSheets.filter((sheet) => sheet.eventId !== id),
           convocatorias: get().convocatorias.filter((callup) => callup.eventId !== id),
           alertLog: get().alertLog.filter((alert) => alert.eventId !== id),
+          inbox: get().inbox.filter((item) => item.eventId !== id),
         });
       },
 
@@ -297,7 +310,7 @@ export const useFija = create<State>()(
               }
               lineup[slot] = memberId;
             }
-            return { ...event, lineup };
+            return { ...event, lineup, lineupUpdatedAt: new Date().toISOString() };
           }),
         });
       },
@@ -307,7 +320,11 @@ export const useFija = create<State>()(
         if (!isStaffId(get())) return;
         if (tournamentClosedFor(get(), eventId)) return;
         set({
-          events: get().events.map((event) => (event.id === eventId ? { ...event, tactics } : event)),
+          events: get().events.map((event) =>
+            event.id === eventId
+              ? { ...event, tactics, lineupUpdatedAt: new Date().toISOString() }
+              : event,
+          ),
         });
       },
 
@@ -673,10 +690,13 @@ export const useFija = create<State>()(
           members: state.members.filter((person) => person.id !== memberId),
           rsvps: state.rsvps.filter((row) => row.memberId !== memberId),
           invites: state.invites.filter((invite) => invite.memberId !== memberId),
-          events: state.events.map((event) => ({
-            ...event,
-            lineup: Object.fromEntries(Object.entries(event.lineup).filter(([, id]) => id !== memberId)),
-          })),
+          events: state.events.map((event) => {
+            const lineup = Object.fromEntries(
+              Object.entries(event.lineup).filter(([, id]) => id !== memberId),
+            );
+            const changed = Object.keys(lineup).length !== Object.keys(event.lineup).length;
+            return changed ? { ...event, lineup, lineupUpdatedAt: new Date().toISOString() } : event;
+          }),
         });
         void get().flushCloud();
       },
@@ -1492,6 +1512,7 @@ export const useFija = create<State>()(
         gpsConsent: s.gpsConsent,
         activeId: s.activeId,
         droppedIds: s.droppedIds ?? [],
+        droppedEventIds: s.droppedEventIds ?? [],
         reminder: s.reminder,
       }),
             onRehydrateStorage: () => (state) => {
@@ -1508,6 +1529,7 @@ export const useFija = create<State>()(
         if (!Array.isArray(state.otherClubs)) state.otherClubs = [];
         if (!state.activeClubId) state.activeClubId = state.club?.id ?? null;
         if (!Array.isArray(state.droppedIds)) state.droppedIds = [];
+        if (!Array.isArray(state.droppedEventIds)) state.droppedEventIds = [];
         if (!state.profile) {
           state.profile = createSeed().profile;
         }
@@ -1607,7 +1629,12 @@ function unionById<T extends { id: string }>(remote: T[], local: T[]): T[] {
 function mergeEvents(remote: ClubEvent[], local: ClubEvent[], staff: boolean): ClubEvent[] {
   if (!remote.length) return local;
   if (!staff) return remote;
-  return unionById(remote, local);
+  const map = new Map(remote.map((event) => [event.id, event]));
+  for (const event of local) {
+    const previous = map.get(event.id);
+    map.set(event.id, previous ? pickEvent(previous, event) : event);
+  }
+  return [...map.values()];
 }
 
 function mergeRsvps(remote: Rsvp[], local: Rsvp[], activeId: string): Rsvp[] {
@@ -1625,7 +1652,10 @@ function mergeRsvps(remote: Rsvp[], local: Rsvp[], activeId: string): Rsvp[] {
 function mergeSheets(remote: MatchSheet[], local: MatchSheet[], staff: boolean): MatchSheet[] {
   const map = new Map(remote.map((sheet) => [sheet.eventId, sheet]));
   if (staff) {
-    for (const sheet of local) map.set(sheet.eventId, sheet);
+    for (const sheet of local) {
+      const previous = map.get(sheet.eventId);
+      map.set(sheet.eventId, previous ? pickSheet(previous, sheet) : sheet);
+    }
   }
   return [...map.values()];
 }
@@ -1638,7 +1668,13 @@ function mergeClubBundles(
   const club = who.staff ? { ...remote.club, ...local.club } : { ...local.club, ...remote.club };
   club.inviteCode = remote.club.inviteCode || local.club.inviteCode;
   if (!who.staff && local.club.crest) club.crest = local.club.crest;
-  return lightenClosedMatches({
+  const droppedEvents = new Set([
+    ...(remote.droppedEventIds ?? []),
+    ...(who.staff ? (local.droppedEventIds ?? []) : []),
+  ]);
+  return lightenClosedMatches(
+    withoutDroppedEvents(
+      {
     club,
     members: keepAccountOwner(
       remote.members,
@@ -1661,7 +1697,10 @@ function mergeClubBundles(
     reminderPolicy: who.staff ? local.reminderPolicy : remote.reminderPolicy,
     tournaments: mergeTournaments(remote.tournaments, who.staff ? local.tournaments : []),
     droppedIds: [...new Set([...(remote.droppedIds ?? []), ...(local.droppedIds ?? [])])],
-  });
+      },
+      droppedEvents,
+    ),
+  );
 }
 
 function freshNotice(
@@ -1723,6 +1762,8 @@ function snapshotShelf(state: {
   alertLog: AlertLog[];
   reminderPolicy: ReminderPolicy;
   tournaments: Tournament[];
+  droppedIds?: string[];
+  droppedEventIds?: string[];
   activeId: string;
 }): ShelfTeam | null {
   if (!state.club) return null;
@@ -1783,6 +1824,7 @@ function toBundle(state: {
   reminderPolicy: ReminderPolicy;
   tournaments: Tournament[];
   droppedIds?: string[];
+  droppedEventIds?: string[];
 }): ClubBundle {
   return {
     club: state.club,
@@ -1799,6 +1841,7 @@ function toBundle(state: {
     reminderPolicy: state.reminderPolicy,
     tournaments: state.tournaments,
     droppedIds: state.droppedIds ?? [],
+    droppedEventIds: state.droppedEventIds ?? [],
   };
 }
 

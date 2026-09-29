@@ -5,7 +5,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { sanitizeCode } from "./sanitize";
 import { vestuarioLog } from "@/lib/vestuario-log";
-import type { ClubBundle, ClubEvent, Member, Rsvp, Tournament } from "./types";
+import type { ClubBundle, ClubEvent, MatchSheet, Member, Rsvp, Tournament } from "./types";
 
 const COLLECTION = "clubs";
 const ATTEMPTS = "intentos";
@@ -246,24 +246,57 @@ export function closedMatchStillHeavy(bundle: ClubBundle): boolean {
   );
 }
 
+function boardStamp(value: string | undefined): number {
+  const time = value ? +new Date(value) : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
+  const previousSpots = Object.keys(previous.lineup ?? {}).length;
+  const incomingSpots = Object.keys(incoming.lineup ?? {}).length;
+  const boardChanged =
+    previous.modality !== incoming.modality || (previous.formacion ?? "") !== (incoming.formacion ?? "");
+  const prevBoard = boardStamp(previous.lineupUpdatedAt);
+  const nextBoard = boardStamp(incoming.lineupUpdatedAt);
+  const merged =
+    nextBoard > prevBoard
+      ? { ...previous, ...incoming }
+      : prevBoard > nextBoard
+        ? { ...incoming, ...previous }
+        : boardChanged || incomingSpots >= previousSpots
+          ? { ...previous, ...incoming }
+          : { ...incoming, ...previous, lineup: previous.lineup };
+  return keepResultMark(previous, incoming, merged);
+}
+
+function sheetTime(sheet: MatchSheet): number {
+  const time = sheet.recordedAt ? +new Date(sheet.recordedAt) : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function pickSheet(previous: MatchSheet, incoming: MatchSheet): MatchSheet {
+  return sheetTime(incoming) >= sheetTime(previous) ? incoming : previous;
+}
+
+export function withoutDroppedEvents(bundle: ClubBundle, dropped: Set<string>): ClubBundle {
+  if (dropped.size === 0) return { ...bundle, droppedEventIds: [...dropped] };
+  return {
+    ...bundle,
+    droppedEventIds: [...dropped],
+    events: bundle.events.filter((event) => !dropped.has(event.id)),
+    rsvps: (bundle.rsvps ?? []).filter((row) => !dropped.has(row.eventId)),
+    matchSheets: (bundle.matchSheets ?? []).filter((sheet) => !dropped.has(sheet.eventId)),
+    convocatorias: (bundle.convocatorias ?? []).filter((item) => !dropped.has(item.eventId)),
+    inbox: (bundle.inbox ?? []).filter((item) => !item.eventId || !dropped.has(item.eventId)),
+    alertLog: (bundle.alertLog ?? []).filter((item) => !dropped.has(item.eventId)),
+  };
+}
 function mergeEvents(kept: ClubEvent[], incoming: ClubEvent[]): ClubEvent[] {
   const map = new Map<string, ClubEvent>();
   for (const event of kept) map.set(event.id, event);
   for (const event of incoming) {
     const previous = map.get(event.id);
-    if (!previous) {
-      map.set(event.id, event);
-      continue;
-    }
-    const previousSpots = Object.keys(previous.lineup ?? {}).length;
-    const incomingSpots = Object.keys(event.lineup ?? {}).length;
-    const boardChanged =
-      previous.modality !== event.modality || (previous.formacion ?? "") !== (event.formacion ?? "");
-    const merged =
-      boardChanged || incomingSpots >= previousSpots
-        ? { ...previous, ...event }
-        : { ...event, ...previous, lineup: previous.lineup };
-    map.set(event.id, keepResultMark(previous, event, merged));
+    map.set(event.id, previous ? pickEvent(previous, event) : event);
   }
   return [...map.values()];
 }
@@ -281,6 +314,15 @@ function keepResultMark(previous: ClubEvent, incoming: ClubEvent, merged: ClubEv
   };
 }
 
+function mergeSheetsByTime(kept: MatchSheet[], incoming: MatchSheet[]): MatchSheet[] {
+  const map = new Map(kept.map((sheet) => [sheet.eventId, sheet]));
+  for (const sheet of incoming) {
+    const previous = map.get(sheet.eventId);
+    map.set(sheet.eventId, previous ? pickSheet(previous, sheet) : sheet);
+  }
+  return [...map.values()];
+}
+
 function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {
   const map = new Map<string, Rsvp>();
   for (const row of kept) map.set(`${row.eventId}:${row.memberId}`, row);
@@ -289,10 +331,19 @@ function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {
 }
 
 function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId: string): ClubBundle {
-  if (!existing) return lightenClosedMatches(incoming);
+  if (!existing) {
+    return lightenClosedMatches(
+      withoutDroppedEvents(incoming, new Set(incoming.droppedEventIds ?? [])),
+    );
+  }
   const me = memberFor(existing.members, userId);
   const staff = isStaffMember(me);
   const dropped = new Set(staff ? [...(existing.droppedIds ?? []), ...(incoming.droppedIds ?? [])] : (existing.droppedIds ?? []));
+  const droppedEvents = new Set(
+    staff
+      ? [...(existing.droppedEventIds ?? []), ...(incoming.droppedEventIds ?? [])]
+      : (existing.droppedEventIds ?? []),
+  );
   const previous = new Map(existing.members.map((person) => [person.id, person]));
   const members = staff
     ? unionById(existing.members, incoming.members)
@@ -327,19 +378,16 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     unique.push(person);
   }
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
-  return lightenClosedMatches({
+  return lightenClosedMatches(
+    withoutDroppedEvents(
+      {
     club: staff ? { ...existing.club, ...incoming.club, inviteCode: existing.club.inviteCode, createdBy: existing.club.createdBy } : existing.club,
     members: unique,
     events: staff ? mergeEvents(existing.events, incoming.events) : existing.events,
     rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => unique.some((person) => person.id === row.memberId)),
     messages: unionById(existing.messages, incoming.messages),
     charla: staff ? unionById(existing.charla, incoming.charla) : existing.charla,
-    matchSheets: staff
-      ? unionById(
-          existing.matchSheets.map((sheet) => ({ ...sheet, id: sheet.eventId })),
-          incoming.matchSheets.map((sheet) => ({ ...sheet, id: sheet.eventId })),
-        ).map(({ id: _id, ...sheet }) => sheet)
-      : existing.matchSheets,
+    matchSheets: staff ? mergeSheetsByTime(existing.matchSheets, incoming.matchSheets) : existing.matchSheets,
     invites: staff ? unionById(existing.invites, incoming.invites) : existing.invites,
     convocatorias: staff
       ? unionById(
@@ -354,7 +402,10 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       ? mergeTournaments(existing.tournaments, incoming.tournaments)
       : mergeTournaments(existing.tournaments, []),
     droppedIds: [...dropped],
-  });
+      },
+      droppedEvents,
+    ),
+  );
 }
 
 export const saveClubDoc = createServerFn({ method: "POST" })
