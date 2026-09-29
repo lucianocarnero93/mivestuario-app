@@ -88,7 +88,7 @@ function EquipoPage() {
 
       <section className="mt-5 space-y-5">
         <RecordStrip record={record} />
-        {me.role === "jugador" ? <MyNumbers member={me} row={mine} /> : null}
+        {(me.juega ?? me.role === "jugador") ? <MyNumbers member={me} row={mine} /> : null}
         <RankBlock title="Goleadores" empty="Todavía no hay goles cargados.">
           {scorers.map((row, i) => (
             <RankRow

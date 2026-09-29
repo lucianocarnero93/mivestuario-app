@@ -30,7 +30,7 @@ function HomePage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const event = nextEvent(events, { tournaments, sheets });
-  const players = members.filter((m) => m.role === "jugador");
+  const players = members.filter((m) => m.juega ?? m.role === "jugador");
   const record = teamRecord(sheets);
   const inviteOk = Boolean(
     club && search.invite && search.invite.toUpperCase() === club.inviteCode,
@@ -55,6 +55,7 @@ function HomePage() {
   const eventRsvps = rsvps.filter((r) => r.eventId === event.id);
   const mine = eventRsvps.find((r) => r.memberId === me.id);
   const sheet = sheetFor(event.id, sheets);
+  const alreadyPlayed = +new Date(event.startsAt) < Date.now() - 3_600_000;
 
   return (
     <main className="px-4 py-5">
@@ -102,6 +103,11 @@ function HomePage() {
       />
 
       {!staff ? (
+        alreadyPlayed ? (
+          <p className="mt-5 text-sm text-muted">
+            Este partido ya se jugó. Cuando el DT cargue el resultado, sale de acá.
+          </p>
+        ) : (
         <div className="mt-5 grid gap-3">
           <Button
             className="h-16 text-base font-semibold"
@@ -124,6 +130,7 @@ function HomePage() {
             <Link to="/cancha">Ver formación</Link>
           </Button>
         </div>
+        )
       ) : (
         <>
           {event.kind === "partido" ? <StaffCallup event={event} /> : null}

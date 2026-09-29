@@ -44,11 +44,16 @@ export const authEnabled = import.meta.env.VITE_AUTH_ENABLED !== "false";
 /**
  * Inicia sesión con Google (redirect normal, no popup).
  */
-export async function signInWithGoogle(callbackURL = "/"): Promise<void> {
-  await authClient.signIn.social({
+export async function signInWithGoogle(callbackURL = "/"): Promise<boolean> {
+  const result = await authClient.signIn.social({
     provider: "google",
     callbackURL,
   });
+  if (result.error) return false;
+  const url = result.data?.url;
+  if (!url || typeof window === "undefined") return false;
+  window.location.assign(url);
+  return true;
 }
 
 /**

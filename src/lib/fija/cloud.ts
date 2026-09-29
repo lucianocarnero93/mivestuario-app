@@ -326,7 +326,12 @@ function mergeSheetsByTime(kept: MatchSheet[], incoming: MatchSheet[]): MatchShe
 function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {
   const map = new Map<string, Rsvp>();
   for (const row of kept) map.set(`${row.eventId}:${row.memberId}`, row);
-  for (const row of incoming) map.set(`${row.eventId}:${row.memberId}`, row);
+  for (const row of incoming) {
+    const key = `${row.eventId}:${row.memberId}`;
+    const previous = map.get(key);
+    if (previous && previous.status !== "pendiente" && row.status === "pendiente") continue;
+    map.set(key, row);
+  }
   return [...map.values()];
 }
 

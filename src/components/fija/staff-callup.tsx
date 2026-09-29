@@ -25,7 +25,7 @@ export function StaffCallup({ event }: { event: ClubEvent }) {
   const eventRsvps = rsvps.filter((r) => r.eventId === event.id);
   const pending = eventRsvps.filter((r) => r.status === "pendiente");
   const ready = conv ? whatsappReady(event.id, convocatorias, policy) : false;
-  const players = members.filter((m) => m.role === "jugador");
+  const players = members.filter((m) => m.juega ?? m.role === "jugador");
   const overdue = ready
     ? players.filter(
         (p) => eventRsvps.find((r) => r.memberId === p.id)?.status === "pendiente",

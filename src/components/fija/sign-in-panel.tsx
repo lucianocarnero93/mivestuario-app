@@ -91,7 +91,11 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
     else clearPedirEdad();
     setGoogleBusy(true);
     try {
-      await signInWithGoogle(inviteCallbackPath());
+      const opened = await signInWithGoogle(inviteCallbackPath());
+      if (!opened) {
+        setGoogleBusy(false);
+        setErrorText("No se pudo abrir Google. Probá con mail y contraseña.");
+      }
     } catch {
       setGoogleBusy(false);
       setErrorText("No se pudo abrir Google. Probá con mail y contraseña.");

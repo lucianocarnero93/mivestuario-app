@@ -18,7 +18,7 @@ export function PushBanner() {
     ? rsvps.find((r) => r.eventId === reminderEvent.id && r.memberId === me.id)
     : undefined;
   const showLegacy =
-    Boolean(reminderEvent) && me.role === "jugador" && (!mine || mine.status === "pendiente");
+    Boolean(reminderEvent) && (me.juega ?? me.role === "jugador") && (!mine || mine.status === "pendiente");
 
   if (showLegacy && reminderEvent) {
     return (
