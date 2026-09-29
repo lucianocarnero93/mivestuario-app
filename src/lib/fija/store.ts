@@ -5,7 +5,7 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { clampHours, hoursSince } from "./share";
-import { claimMember, loadClubDoc, mergeTournaments, saveClubDoc, useMyName } from "./cloud";
+import { claimMember, closedMatchStillHeavy, lightenClosedMatches, loadClubDoc, mergeTournaments, saveClubDoc, useMyName } from "./cloud";
 import { readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
@@ -187,6 +187,7 @@ export const useFija = create<State>()(
 
       // El jugador actual dice si va, no va, o todavía no contestó.
       setRsvp: (eventId, status) => {
+        if (tournamentClosedFor(get(), eventId)) return;
         const currentPersonId = get().activeId;
         const updatedAnswers = upsertRsvp(get().rsvps, eventId, currentPersonId, status);
         const someoneStillPending = updatedAnswers.some(
@@ -200,11 +201,13 @@ export const useFija = create<State>()(
 
       // El DT anota la respuesta de otro jugador.
       setMemberRsvp: (eventId, memberId, status) => {
+        if (tournamentClosedFor(get(), eventId)) return;
         set({ rsvps: upsertRsvp(get().rsvps, eventId, memberId, status) });
       },
 
       // Manda el aviso de "confirmá si vas" para un partido.
       sendReminder: (eventId) => {
+        if (tournamentClosedFor(get(), eventId)) return;
         const event = get().events.find((item) => item.id === eventId);
         set({ reminder: { eventId, sentAt: new Date().toISOString() } });
         void notifyReminder(event);
@@ -280,6 +283,7 @@ export const useFija = create<State>()(
       // Un jugador no puede estar en dos puestos a la vez.
       setSpot: (eventId, slot, memberId) => {
         if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
         set({
           events: get().events.map((event) => {
             if (event.id !== eventId) return event;
@@ -300,6 +304,7 @@ export const useFija = create<State>()(
       // Guarda la nota táctica que escribe el DT debajo de la cancha.
       setTactics: (eventId, tactics) => {
         if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
         set({
           events: get().events.map((event) => (event.id === eventId ? { ...event, tactics } : event)),
         });
@@ -308,6 +313,7 @@ export const useFija = create<State>()(
       // Avisa a todo el plantel que la formación ya está publicada.
       publishLineup: (eventId) => {
         if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
         const event = get().events.find((item) => item.id === eventId);
         if (!event) return;
         const moment = new Date().toISOString();
@@ -422,7 +428,7 @@ export const useFija = create<State>()(
 
         for (const callup of state.convocatorias) {
           const event = state.events.find((item) => item.id === callup.eventId);
-          if (!event) continue;
+          if (!event || tournamentClosedFor(state, event.id)) continue;
           const peopleWhoDidNotAnswer = state.rsvps.filter(
             (answer) => answer.eventId === callup.eventId && answer.status === "pendiente",
           );
@@ -496,6 +502,7 @@ export const useFija = create<State>()(
         const MS_PER_HOUR = 3_600_000;
         for (const event of state.events) {
           if (event.kind !== "partido") continue;
+          if (tournamentClosedFor(state, event.id)) continue;
           if (!event.equipamiento) continue;
           const hoursUntil = (+new Date(event.startsAt) - now) / MS_PER_HOUR;
           if (hoursUntil > HOURS_BEFORE || hoursUntil < 0) continue;
@@ -798,17 +805,27 @@ export const useFija = create<State>()(
       // Cierra el torneo. Los partidos viejos siguen contando en el total del equipo.
       finishTournament: (id) => {
         if (!isStaffId(get())) return;
+        const current = get();
+        if (!current.club) return;
+        const tournament = current.tournaments.find((item) => item.id === id);
+        if (!tournament || tournament.status !== "active") return;
+        const now = new Date().toISOString();
+        const tournaments = current.tournaments.map((item) =>
+          item.id === id
+            ? { ...item, status: "finished" as const, endedAt: now, updatedAt: now }
+            : item,
+        );
+        const light = lightenClosedMatches({
+          ...toBundle({ ...current, club: current.club, tournaments }),
+          tournaments,
+        });
         set({
-          tournaments: get().tournaments.map((tournament) =>
-            tournament.id === id && tournament.status === "active"
-              ? {
-                  ...tournament,
-                  status: "finished",
-                  endedAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                }
-              : tournament,
-          ),
+          tournaments,
+          events: light.events,
+          rsvps: light.rsvps,
+          inbox: light.inbox,
+          alertLog: light.alertLog,
+          convocatorias: light.convocatorias,
         });
       },
 
@@ -1305,7 +1322,9 @@ export const useFija = create<State>()(
                   previous.status !== item.status
                 );
               });
-            if (localOnly || tournamentChanged) await get().flushCloud();
+            if (localOnly || tournamentChanged || (isStaffId(current) && closedMatchStillHeavy(remoteTeam.bundle))) {
+              await get().flushCloud();
+            }
           } else if (remoteTeam.reason === "missing") {
             const published = await get().publishClub();
             if (!published && !quiet) set({ cloudStatus: "off" });
@@ -1527,6 +1546,17 @@ function cloudFailureMessage(error: unknown): string {
   return "No se pudo guardar el equipo. Probá de nuevo.";
 }
 
+function tournamentClosedFor(
+  state: { events: ClubEvent[]; tournaments: Tournament[] },
+  eventId: string,
+): boolean {
+  const event = state.events.find((item) => item.id === eventId);
+  if (!event?.tournamentId) return false;
+  return state.tournaments.some(
+    (tournament) => tournament.id === event.tournamentId && tournament.status === "finished",
+  );
+}
+
 // True si la persona actual es DT o ayudante. Ellos editan cancha y planilla.
 function isStaffId(state: { members: Member[]; activeId: string }): boolean {
   const me = state.members.find((m) => m.id === state.activeId);
@@ -1590,7 +1620,7 @@ function mergeClubBundles(
   const club = who.staff ? { ...remote.club, ...local.club } : { ...local.club, ...remote.club };
   club.inviteCode = remote.club.inviteCode || local.club.inviteCode;
   if (!who.staff && local.club.crest) club.crest = local.club.crest;
-  return {
+  return lightenClosedMatches({
     club,
     members: keepAccountOwner(
       remote.members,
@@ -1613,7 +1643,7 @@ function mergeClubBundles(
     reminderPolicy: who.staff ? local.reminderPolicy : remote.reminderPolicy,
     tournaments: mergeTournaments(remote.tournaments, who.staff ? local.tournaments : []),
     droppedIds: [...new Set([...(remote.droppedIds ?? []), ...(local.droppedIds ?? [])])],
-  };
+  });
 }
 
 function freshNotice(

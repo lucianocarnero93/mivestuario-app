@@ -144,8 +144,9 @@ function StatsPage() {
           {scope !== "general" && selected?.status === "active" ? (
             <div className="mt-2">
               <p className="text-sm">
-                Estás viendo <span className="font-semibold">{currentLabel}</span>. Al finalizarlo, estos
-                números quedan cerrados y el próximo torneo arranca de cero.
+                Estás viendo <span className="font-semibold">{currentLabel}</span>. Al finalizarlo, los
+                resultados quedan y el próximo torneo arranca de cero. Se borran las confirmaciones, la
+                formación y los avisos de esos partidos.
               </p>
               <Button
                 variant="secondary"

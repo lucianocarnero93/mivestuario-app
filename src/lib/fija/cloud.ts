@@ -205,6 +205,47 @@ export function mergeTournaments(
   return [...map.values()];
 }
 
+// Un torneo cerrado no necesita la convocatoria ni la pizarra.
+// Quedan el partido y la planilla, que son los que arman las estadísticas.
+export function lightenClosedMatches(bundle: ClubBundle): ClubBundle {
+  const closed = new Set(
+    (bundle.tournaments ?? [])
+      .filter((tournament) => tournament.status === "finished")
+      .map((tournament) => tournament.id),
+  );
+  if (closed.size === 0) return bundle;
+  const ids = new Set(
+    (bundle.events ?? [])
+      .filter((event) => event.tournamentId && closed.has(event.tournamentId))
+      .map((event) => event.id),
+  );
+  if (ids.size === 0) return bundle;
+  return {
+    ...bundle,
+    events: bundle.events.map((event) => {
+      if (!ids.has(event.id)) return event;
+      if (Object.keys(event.lineup ?? {}).length === 0 && !event.tactics) return event;
+      return { ...event, lineup: {}, tactics: "" };
+    }),
+    rsvps: (bundle.rsvps ?? []).filter((row) => !ids.has(row.eventId)),
+    inbox: (bundle.inbox ?? []).filter((item) => !item.eventId || !ids.has(item.eventId)),
+    alertLog: (bundle.alertLog ?? []).filter((item) => !ids.has(item.eventId)),
+    convocatorias: (bundle.convocatorias ?? []).filter((item) => !ids.has(item.eventId)),
+  };
+}
+
+export function closedMatchStillHeavy(bundle: ClubBundle): boolean {
+  const light = lightenClosedMatches(bundle);
+  if (light === bundle) return false;
+  return (
+    light.rsvps.length !== (bundle.rsvps ?? []).length ||
+    light.inbox.length !== (bundle.inbox ?? []).length ||
+    light.alertLog.length !== (bundle.alertLog ?? []).length ||
+    light.convocatorias.length !== (bundle.convocatorias ?? []).length ||
+    light.events.some((event, index) => event !== bundle.events[index])
+  );
+}
+
 function mergeEvents(kept: ClubEvent[], incoming: ClubEvent[]): ClubEvent[] {
   const map = new Map<string, ClubEvent>();
   for (const event of kept) map.set(event.id, event);
@@ -236,7 +277,7 @@ function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {
 }
 
 function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId: string): ClubBundle {
-  if (!existing) return incoming;
+  if (!existing) return lightenClosedMatches(incoming);
   const me = memberFor(existing.members, userId);
   const staff = isStaffMember(me);
   const dropped = new Set(staff ? [...(existing.droppedIds ?? []), ...(incoming.droppedIds ?? [])] : (existing.droppedIds ?? []));
@@ -274,7 +315,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     unique.push(person);
   }
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
-  return {
+  return lightenClosedMatches({
     club: staff ? { ...existing.club, ...incoming.club, inviteCode: existing.club.inviteCode, createdBy: existing.club.createdBy } : existing.club,
     members: unique,
     events: staff ? mergeEvents(existing.events, incoming.events) : existing.events,
@@ -301,7 +342,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       ? mergeTournaments(existing.tournaments, incoming.tournaments)
       : mergeTournaments(existing.tournaments, []),
     droppedIds: [...dropped],
-  };
+  });
 }
 
 export const saveClubDoc = createServerFn({ method: "POST" })

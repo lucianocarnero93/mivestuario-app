@@ -17,6 +17,7 @@ export const Route = createFileRoute("/cancha")({ component: CanchaPage });
 function CanchaPage() {
   const staff = useIsStaff();
   const events = useFija((s) => s.events);
+  const tournaments = useFija((s) => s.tournaments);
   const members = useFija((s) => s.members);
   const setSpot = useFija((s) => s.setSpot);
   const setTactics = useFija((s) => s.setTactics);
@@ -74,6 +75,13 @@ function CanchaPage() {
     <main className="px-4 py-5">
       <h1 className="text-3xl font-semibold">Pizarra</h1>
       <p className="text-sm text-muted">{formatWhen(event.startsAt)}</p>
+      {tournaments.some(
+        (tournament) => tournament.id === event.tournamentId && tournament.status === "finished",
+      ) ? (
+        <p className="mt-2 text-sm text-muted">
+          Este partido es de un torneo cerrado. La formación ya no se guarda. El resultado sigue en estadísticas.
+        </p>
+      ) : null}
 
       {matchEvents.length > 1 ? (
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
