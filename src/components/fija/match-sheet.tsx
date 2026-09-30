@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { resultIsOpen } from "@/lib/fija/club-rules";
 import { formatWhen } from "@/lib/fija/format";
 import { alumniMember, clampStat, outcome, resultLabel } from "@/lib/fija/stats";
 import { defaultSheetPlayers, sheetFor, useFija } from "@/lib/fija/store";
@@ -53,6 +54,10 @@ export function MatchSheetForm({
       className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
+        if (!resultIsOpen(event.startsAt)) {
+          setSheetError("El resultado se carga cuando llega el horario del partido.");
+          return;
+        }
         if (tournamentClosed && !confirmClosed) {
           setConfirmClosed(true);
           return;

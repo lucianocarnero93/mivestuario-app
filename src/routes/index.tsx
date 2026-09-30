@@ -2,6 +2,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Chalkboard } from "@/components/fija/chalkboard";
 import { EventCard } from "@/components/fija/event-card";
+import { resultIsOpen } from "@/lib/fija/club-rules";
 import { InviteShareButton } from "@/components/fija/invite-share";
 import { ConfirmGroups, StaffCallup } from "@/components/fija/staff-callup";
 import { Button } from "@/components/ui/button";
@@ -204,12 +205,14 @@ function HomePage() {
               </span>
             </div>
             <ConfirmGroups players={players} eventRsvps={eventRsvps} eventId={event.id} staff />
-            {event.kind === "partido" ? (
+            {event.kind === "partido" && resultIsOpen(event.startsAt) ? (
               <Button asChild className="mt-3 h-14 w-full text-base" variant="outline">
                 <Link to="/stats" search={{ partido: event.id, torneo: "general" }}>
                   {sheet ? "Editar planilla" : "Cargar resultado y stats"}
                 </Link>
               </Button>
+            ) : event.kind === "partido" ? (
+              <p className="mt-3 text-sm text-muted">El resultado se carga cuando llega el horario del partido.</p>
             ) : null}
           </section>
         </>

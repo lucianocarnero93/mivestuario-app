@@ -37,6 +37,8 @@ export type Member = {
   accountId?: string | null;
   /** True si al crear la cuenta dijo que es menor de 18. No guardamos la fecha. */
   menor?: boolean;
+  /** Cuándo se cambió el apodo, el nombre o el número. Gana la copia más nueva. */
+  profileAt?: string;
 };
 
 export type Club = {

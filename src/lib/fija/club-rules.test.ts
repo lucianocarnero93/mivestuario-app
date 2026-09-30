@@ -14,6 +14,8 @@ import {
   detachAccount,
   mergeAlumni,
   noticeFits,
+  pickMemberIdentity,
+  resultIsOpen,
   playerNoticeAllowed,
   removeMemberEverywhere,
   sanitizeSheet,
@@ -482,6 +484,25 @@ test("la planilla no deja más goles individuales que el resultado", () => {
   });
   assert.equal(sheet.goalsFor, 1);
   assert.equal(sheet.players.reduce((sum, row) => sum + row.goals, 0), 1);
+});
+
+test("el apodo del DT no lo pisa el celular del jugador", () => {
+  const existing = person({ id: "j", name: "Juan Pérez", nick: "Juancito", profileAt: "2026-09-30T12:00:00.000Z" });
+  const incoming = person({ id: "j", name: "Juan Pérez", nick: "Juan" });
+  assert.equal(pickMemberIdentity(existing, incoming, false).nick, "Juancito");
+  const edited = person({
+    id: "j",
+    name: "Juan Pérez",
+    nick: "Juancho",
+    profileAt: "2026-09-30T15:00:00.000Z",
+  });
+  assert.equal(pickMemberIdentity(existing, edited, false).nick, "Juancho");
+});
+
+test("el resultado no se carga antes del horario", () => {
+  const kickoff = "2026-10-02T21:00:00.000Z";
+  assert.equal(resultIsOpen(kickoff, Date.parse("2026-10-02T20:00:00.000Z")), false);
+  assert.equal(resultIsOpen(kickoff, Date.parse("2026-10-02T21:00:00.000Z")), true);
 });
 
 test("dos Enzo no se confunden", () => {

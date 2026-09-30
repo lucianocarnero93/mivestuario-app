@@ -311,6 +311,42 @@ export function guardMember(person: Member, previous?: Member): Member {
   return { ...person, menor: true, photo: null };
 }
 
+/** El resultado se puede cargar recién cuando llega el horario del partido. */
+export function resultIsOpen(startsAt: string, now = Date.now()): boolean {
+  const start = Date.parse(startsAt);
+  return Number.isFinite(start) && start <= now;
+}
+
+/**
+ * El apodo que puso el DT no lo pisa un celular viejo.
+ * Sin marca de hora, un jugador no cambia el nombre que ya está en el equipo.
+ */
+export function pickMemberIdentity(
+  existing: Member,
+  incoming: Member,
+  staff: boolean,
+): Pick<Member, "name" | "nick" | "number" | "profileAt"> {
+  const existingAt = Date.parse(existing.profileAt ?? "");
+  const incomingAt = Date.parse(incoming.profileAt ?? "");
+  const existingHas = Number.isFinite(existingAt);
+  const incomingHas = Number.isFinite(incomingAt);
+  const takeIncoming = (incomingHas && (!existingHas || incomingAt >= existingAt)) || (!incomingHas && !existingHas && staff);
+  if (!takeIncoming) {
+    return {
+      name: existing.name,
+      nick: existing.nick,
+      number: existing.number,
+      profileAt: existing.profileAt,
+    };
+  }
+  return {
+    name: incoming.name || existing.name,
+    nick: incoming.nick || existing.nick,
+    number: incoming.number === undefined ? existing.number : incoming.number,
+    profileAt: incoming.profileAt ?? existing.profileAt,
+  };
+}
+
 /** El DT con cuenta, o quien creó el equipo, puede designar puestos y el nombre. */
 export function canAssignRoles(members: Member[], createdBy: string, userId: string): boolean {
   if (!userId) return false;

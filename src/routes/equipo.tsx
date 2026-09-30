@@ -188,6 +188,7 @@ function EquipoPage() {
                   </p>
                   <p className="text-xs text-muted">{p.name}</p>
                   {staff ? <MemberEdit memberId={p.id} nick={p.nick} number={p.number} /> : null}
+                  {p.id === me.id && !staff ? <OwnNick memberId={p.id} nick={p.nick} /> : null}
                 </div>
                 <PlayerMarks row={byMember.get(p.id)} />
                 {(creator || (staff && p.menor)) && p.id !== me.id && pendingRemoveId !== p.id ? (
@@ -411,6 +412,25 @@ function DesignateDialog() {
         </ul>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function OwnNick({ memberId, nick }: { memberId: string; nick: string }) {
+  const updateMember = useFija((s) => s.updateMember);
+  const [draftNick, setDraftNick] = useState(nick);
+  return (
+    <div className="mt-2">
+      <label className="text-xs text-muted" htmlFor={`nick-${memberId}`}>
+        Tu apodo en este equipo
+      </label>
+      <Input
+        id={`nick-${memberId}`}
+        className="mt-1 h-10"
+        value={draftNick}
+        onChange={(e) => setDraftNick(e.target.value)}
+        onBlur={() => updateMember(memberId, { nick: draftNick })}
+      />
+    </div>
   );
 }
 

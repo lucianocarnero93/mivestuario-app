@@ -5,6 +5,7 @@ import { MatchSheetForm, MatchSheetRead } from "@/components/fija/match-sheet";
 import { CardRow, MyNumbers, RankBlock, RankRow, RecordStrip } from "@/components/fija/stat-blocks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { resultIsOpen } from "@/lib/fija/club-rules";
 import { formatDay } from "@/lib/fija/format";
 import { alumniMember, outcome, playerRows, rankedBy, resultLabel, teamRecord } from "@/lib/fija/stats";
 import {
@@ -67,8 +68,15 @@ function StatsPage() {
         <p className="text-sm text-muted">{staff ? "Planilla del DT" : club?.name}</p>
         <h1 className="text-2xl font-semibold">{staff ? "Cargar partido" : "Ficha del partido"}</h1>
         <div className="mt-4">
-          {staff ? (
+          {staff && resultIsOpen(focused.startsAt) ? (
             <MatchSheetForm event={focused} onDone={back} />
+          ) : staff ? (
+            <div>
+              <p className="text-sm text-muted">El resultado se carga cuando llega el horario del partido.</p>
+              <Button type="button" variant="outline" className="mt-4 h-12 w-full" onClick={back}>
+                Volver
+              </Button>
+            </div>
           ) : (
             <MatchSheetRead event={focused} onBack={back} />
           )}

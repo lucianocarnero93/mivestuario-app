@@ -6,7 +6,7 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
-import { alertsDue, preferRsvp } from "./club-rules";
+import { alertsDue, pickMemberIdentity, preferRsvp, resultIsOpen } from "./club-rules";
 import { pruneBundle } from "./prune";
 import { clampHours } from "./share";
 import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
@@ -670,9 +670,14 @@ export const useFija = create<State>()(
       },
 
       updateMember: (memberId, patch) => {
-        if (!isStaffId(get())) return;
-        const name = patch.name != null ? sanitizeName(patch.name) : undefined;
+        const self = memberId === get().activeId;
+        const staff = isStaffId(get());
+        if (!staff && !self) return;
+        const name = staff && patch.name != null ? sanitizeName(patch.name) : undefined;
         const nick = patch.nick != null ? sanitizeName(patch.nick) : undefined;
+        const number = staff ? patch.number : undefined;
+        if (!name && nick == null && number === undefined) return;
+        const profileAt = new Date().toISOString();
         set({
           members: get().members.map((person) => {
             if (person.id !== memberId) return person;
@@ -680,9 +685,14 @@ export const useFija = create<State>()(
               ...person,
               name: name || person.name,
               nick: nick || person.nick,
-              number: patch.number === undefined ? person.number : patch.number,
+              number: number === undefined ? person.number : number,
+              profileAt,
             };
           }),
+          profile:
+            self && nick
+              ? { name: get().profile.name, nick }
+              : get().profile,
         });
       },
 
@@ -947,6 +957,7 @@ export const useFija = create<State>()(
         const goalsFor = clampStat(input.goalsFor);
         const scored = playerStats.reduce((sum, row) => sum + row.goals, 0);
         if (scored > goalsFor) return;
+        if (!event || !resultIsOpen(event.startsAt)) return;
         const sheet: MatchSheet = {
           eventId: input.eventId,
           opponent: sanitizeName(input.opponent),
@@ -1353,8 +1364,8 @@ export const useFija = create<State>()(
         const me: Member = existing
           ? {
               ...existing,
-              name: state.profile.name || existing.name,
-              nick: state.profile.nick || existing.nick,
+              name: existing.name || state.profile.name,
+              nick: existing.nick || state.profile.nick,
               accountId: account || existing.accountId || null,
               menor: Boolean(existing.menor || readMenor()) || undefined,
             }
@@ -2177,13 +2188,35 @@ function isStaffId(state: { members: Member[]; activeId: string }): boolean {
   return me?.role === "dt" || me?.role === "ayudante";
 }
 
-function withRemoteRoles(merged: Member[], remote: Member[], trustLocal: boolean): Member[] {
-  if (trustLocal) return merged;
-  const roles = new Map(remote.map((person) => [person.id, person.role]));
-  return merged.map((person) => {
-    const role = roles.get(person.id);
-    return role ? { ...person, role } : person;
+function mergeMembers(
+  remote: Member[],
+  local: Member[],
+  who: { activeId: string; staff: boolean; dirty?: boolean },
+): Member[] {
+  const trustStaff = Boolean(who.staff && who.dirty);
+  const localById = new Map(local.map((person) => [person.id, person]));
+  const merged = remote.map((person) => {
+    const mine = localById.get(person.id);
+    if (!mine) return person;
+    const identity = pickMemberIdentity(person, mine, trustStaff);
+    const own = person.id === who.activeId;
+    return {
+      ...person,
+      name: identity.name,
+      nick: identity.nick,
+      number: identity.number,
+      profileAt: identity.profileAt,
+      photo: own && mine.photo ? mine.photo : person.photo,
+      role: trustStaff ? mine.role : person.role,
+      juega: trustStaff ? mine.juega : person.juega,
+      menor: person.menor || mine.menor ? true : person.menor,
+    };
   });
+  if (!trustStaff) return merged;
+  for (const person of local) {
+    if (!remote.some((item) => item.id === person.id)) merged.push(person);
+  }
+  return merged;
 }
 
 function keepAccountOwner(remote: Member[], merged: Member[]): Member[] {
@@ -2268,17 +2301,13 @@ function mergeClubBundles(
     withoutDroppedEvents(
       {
     club,
-    members: withRemoteRoles(
-      keepAccountOwner(
-        remote.members,
-        unionById(remote.members, local.members).filter(
-          (person) =>
-            person.id === creatorId ||
-            (!(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id)),
-        ),
-      ),
+    members: keepAccountOwner(
       remote.members,
-      trustLocal,
+      mergeMembers(remote.members, local.members, who).filter(
+        (person) =>
+          person.id === creatorId ||
+          (!(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id)),
+      ),
     ),
     events: mergeEvents(remote.events, local.events, who.staff),
     rsvps: mergeRsvps(remote.rsvps, local.rsvps),

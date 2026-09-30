@@ -13,6 +13,8 @@ import {
   decideClaim,
   freshMemberId,
   guardMember,
+  pickMemberIdentity,
+  resultIsOpen,
   HARD_BYTES,
   mergeAlumni,
   mergePlayerAlerts,
@@ -509,9 +511,12 @@ function keepResultMark(previous: ClubEvent, incoming: ClubEvent, merged: ClubEv
   };
 }
 
-function mergeSheetsByTime(kept: MatchSheet[], incoming: MatchSheet[]): MatchSheet[] {
+function mergeSheetsByTime(kept: MatchSheet[], incoming: MatchSheet[], events: ClubEvent[]): MatchSheet[] {
+  const starts = new Map(events.map((event) => [event.id, event.startsAt]));
   const map = new Map(kept.map((sheet) => [sheet.eventId, sheet]));
   for (const sheet of incoming) {
+    const start = starts.get(sheet.eventId);
+    if (!start || !resultIsOpen(start)) continue;
     const previous = map.get(sheet.eventId);
     map.set(sheet.eventId, sanitizeSheet(previous ? pickSheet(previous, sheet) : sheet));
   }
@@ -568,7 +573,12 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           messages: clipTextList(incoming.messages ?? []),
           charla: clipTextList(incoming.charla ?? []),
           inbox: clipInbox(incoming.inbox ?? []),
-          matchSheets: (incoming.matchSheets ?? []).map(sanitizeSheet),
+          matchSheets: (incoming.matchSheets ?? [])
+            .filter((sheet) => {
+              const event = incoming.events.find((item) => item.id === sheet.eventId);
+              return Boolean(event && resultIsOpen(event.startsAt));
+            })
+            .map(sanitizeSheet),
           alumni: mergeAlumni([], incoming.alumni),
         },
           new Set(incoming.droppedEventIds ?? []),
@@ -603,19 +613,25 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           .filter((person) => !dropped.has(person.id))
           .map((person) => {
             const old = previous.get(person.id);
-            const kept = guardMember(old?.accountId ? { ...person, accountId: old.accountId } : person, old);
+            const identity = old ? pickMemberIdentity(old, person, true) : null;
+            const next = identity
+              ? { ...person, name: identity.name, nick: identity.nick, number: identity.number, profileAt: identity.profileAt }
+              : person;
+            const kept = guardMember(old?.accountId ? { ...next, accountId: old.accountId } : next, old);
             return kept;
           })
       : existing.members.map((person) => {
         if (person.accountId !== userId && person.id !== userId) return person;
         const mine = incoming.members.find((item) => item.id === person.id || item.accountId === userId);
         if (!mine) return person;
+        const identity = pickMemberIdentity(person, mine, false);
         return guardMember(
           {
             ...person,
-            name: mine.name || person.name,
-            nick: mine.nick || person.nick,
-            number: mine.number ?? person.number,
+            name: identity.name,
+            nick: identity.nick,
+            number: identity.number,
+            profileAt: identity.profileAt,
             photo: mine.photo && mine.photo.length > 40_000 ? person.photo : mine.photo,
           },
           person,
@@ -663,7 +679,16 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => listed.some((person) => person.id === row.memberId)),
     messages: clipTextList(unionById(existing.messages, incoming.messages)),
     charla: clipTextList(staff ? unionById(existing.charla, incoming.charla) : existing.charla),
-    matchSheets: staff ? mergeSheetsByTime(existing.matchSheets, incoming.matchSheets) : existing.matchSheets,
+    matchSheets: staff
+      ? mergeSheetsByTime(
+          existing.matchSheets,
+          incoming.matchSheets,
+          [
+            ...existing.events.map((event) => incoming.events.find((item) => item.id === event.id) ?? event),
+            ...incoming.events.filter((event) => !existing.events.some((item) => item.id === event.id)),
+          ],
+        )
+      : existing.matchSheets,
     invites: staff ? unionById(existing.invites, incoming.invites) : existing.invites,
     convocatorias: staff
       ? unionById(

@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CreateEventButton, EditEventButton } from "@/components/fija/event-editor";
 import { EventCard } from "@/components/fija/event-card";
 import { Button } from "@/components/ui/button";
+import { resultIsOpen } from "@/lib/fija/club-rules";
 import {
   eventOfClosedTournament,
   matchSettled,
@@ -134,7 +135,7 @@ function AgendaItem({
       ) : null}
       {staff ? (
         <div className="mt-2 flex justify-end gap-2">
-          {event.kind === "partido" ? (
+          {event.kind === "partido" && resultIsOpen(event.startsAt) ? (
             <Link
               to="/stats"
               search={{ partido: event.id, torneo: event.tournamentId ?? "general" }}
