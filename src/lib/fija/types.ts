@@ -121,6 +121,8 @@ export type Rsvp = {
   eventId: string;
   memberId: string;
   status: RsvpStatus;
+  /** Cuándo se contestó. Gana la más nueva, en cualquier celular. */
+  at?: string;
 };
 
 export type ChatMessage = {
@@ -159,6 +161,8 @@ export type InboxItem = {
   title: string;
   body: string;
   eventId?: string;
+  /** Si el aviso es para una sola persona (equipamiento). */
+  memberId?: string;
   audience: InboxAudience;
   at: string;
   readBy: string[];

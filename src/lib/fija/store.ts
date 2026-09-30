@@ -1,15 +1,15 @@
 import { create } from "zustand";
 import { useMemo } from "react";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { uid } from "./format";
+import { formatWhen, uid } from "./format";
 import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
-import { alertsDue } from "./club-rules";
+import { alertsDue, preferRsvp } from "./club-rules";
 import { pruneBundle } from "./prune";
 import { clampHours } from "./share";
-import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, loadClubDoc, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, useMyName, withoutDroppedEvents } from "./cloud";
+import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, savePortrait, useMyName, withoutDroppedEvents } from "./cloud";
 import { clearPedirEdad, readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
@@ -126,7 +126,9 @@ type State = ReturnType<typeof createSeed> & {
   setMyPhoto: (photo: string | null) => void;
   applyMyEdad: (menor: boolean) => void;
   syncFromCloud: () => Promise<void>;
+  restoreMyClubs: () => Promise<void>;
   ensureMySpot: () => Promise<void>;
+  applySharedPhoto: () => Promise<void>;
   useThisName: (memberId: string) => Promise<boolean>;
   flushCloud: () => Promise<boolean>;
   publishClub: () => Promise<boolean>;
@@ -294,7 +296,12 @@ export const useFija = create<State>()(
           memberId: player.id,
           status: "pendiente" as const,
         }));
-        set({ events: [...get().events, event], rsvps: [...get().rsvps, ...pendingAnswers] });
+        const notice = fechaNotice(get().activeId, event, "Nueva fecha", `${event.title} · ${formatWhen(event.startsAt)} · ${event.place}`);
+        set({
+          events: [...get().events, event],
+          rsvps: [...get().rsvps, ...pendingAnswers],
+          inbox: notice ? [...get().inbox, notice] : get().inbox,
+        });
       },
 
       // Cambia datos de un evento ya creado. Solo DT o ayudante.
@@ -313,6 +320,21 @@ export const useFija = create<State>()(
           "tactics" in patch ||
           "convocados" in patch ||
           "suplentes" in patch;
+        const nextStart = patch.startsAt ?? current.startsAt;
+        const scheduleChanged =
+          (patch.startsAt != null && patch.startsAt !== current.startsAt) ||
+          (patch.place != null && patch.place !== current.place) ||
+          (patch.title != null && patch.title !== current.title);
+        const upcoming = Date.parse(nextStart) >= Date.now() - 3_600_000;
+        const notice =
+          scheduleChanged && upcoming
+            ? fechaNotice(
+                get().activeId,
+                { ...current, ...patch, startsAt: nextStart },
+                "Cambió una fecha",
+                `${patch.title || current.title} · ${formatWhen(nextStart)} · ${patch.place || current.place}`,
+              )
+            : null;
         set({
           events: get().events.map((event) =>
             event.id === id
@@ -323,6 +345,7 @@ export const useFija = create<State>()(
                 }
               : event,
           ),
+          inbox: notice ? [...get().inbox, notice] : get().inbox,
         });
       },
 
@@ -698,7 +721,10 @@ export const useFija = create<State>()(
         );
         if (due.inbox === state.inbox && due.alertLog === state.alertLog) return;
         set({ inbox: due.inbox, alertLog: due.alertLog });
+        const me = state.members.find((person) => person.id === state.activeId);
+        if (!me) return;
         for (const push of due.pushes) {
+          if (!pushReaches(me, push, state.rsvps, state.events)) continue;
           void notifyApp({ body: push.body, tag: push.tag, eventId: push.eventId });
         }
       },
@@ -1058,6 +1084,7 @@ export const useFija = create<State>()(
             person.id === personId ? { ...person, photo: safe } : person,
           ),
         });
+        void savePortrait({ data: safe }).catch(() => undefined);
         void get().flushCloud();
       },
 
@@ -1494,7 +1521,7 @@ export const useFija = create<State>()(
           hydrated: true,
           cloudStatus: "syncing",
         });
-        void get().syncFromCloud();
+        void get().syncFromCloud().then(() => get().applySharedPhoto());
       },
 
       removeClub: (clubId) => {
@@ -1590,6 +1617,102 @@ export const useFija = create<State>()(
         applyingCloud = false;
         localRev += 1;
         return true;
+      },
+
+      // En un celular nuevo, trae los equipos donde esta cuenta ya está.
+      restoreMyClubs: async () => {
+        let listed: { code: string; name: string }[] = [];
+        try {
+          listed = await listMyClubs();
+        } catch {
+          return;
+        }
+        if (!listed.length) return;
+        const account = await currentAccount();
+        const accountId = account?.id ?? null;
+        const state = get();
+        const known = new Set<string>();
+        if (state.club) known.add(state.club.inviteCode.toUpperCase());
+        for (const item of state.otherClubs) known.add(item.bundle.club.inviteCode.toUpperCase());
+        const missing = listed.filter((item) => !known.has(item.code.toUpperCase()));
+        if (!missing.length) return;
+        const loaded: ClubBundle[] = [];
+        for (const item of missing.slice(0, 12)) {
+          try {
+            const remote = await loadClubDoc({ data: item.code });
+            if (remote.ok) loaded.push(remote.bundle);
+          } catch {
+            // El siguiente equipo puede estar bien.
+          }
+        }
+        if (!loaded.length) return;
+        const current = get();
+        if (!current.club) {
+          const [first, ...rest] = loaded;
+          if (!first) return;
+          const activeId = memberOnBundle(first, accountId);
+          applyingCloud = true;
+          set({
+            ...first,
+            otherClubs: rest.map((bundle) => ({ bundle, activeId: memberOnBundle(bundle, accountId) })),
+            activeClubId: first.club.id,
+            activeId,
+            profile: current.profile,
+            gpsConsent: current.gpsConsent,
+            archivedClubs: current.archivedClubs,
+            ownerAccountId: accountId ?? current.ownerAccountId,
+            hydrated: true,
+            cloudStatus: "ok",
+            dirty: false,
+            savedMine: mineSaved(first.rsvps, activeId),
+            reminder: null,
+          });
+          applyingCloud = false;
+          return;
+        }
+        const shelf = loaded.reduce<ShelfTeam[]>(
+          (list, bundle) => upsertShelf(list, { bundle, activeId: memberOnBundle(bundle, accountId) }),
+          current.otherClubs,
+        );
+        applyingCloud = true;
+        set({ otherClubs: shelf });
+        applyingCloud = false;
+      },
+
+      applySharedPhoto: async () => {
+        const state = get();
+        const me = state.members.find((person) => person.id === state.activeId);
+        if (!me || me.menor) return;
+        if (me.photo && me.photo.startsWith("data:image/") && me.photo.length < 30_000) {
+          void savePortrait({ data: me.photo }).catch(() => undefined);
+          return;
+        }
+        const account = await currentAccount();
+        const accountId = account?.id ?? state.ownerAccountId;
+        let photo: string | null = null;
+        if (accountId) {
+          for (const team of state.otherClubs) {
+            const person = team.bundle.members.find(
+              (item) => (item.accountId === accountId || item.id === accountId) && item.photo && !item.menor,
+            );
+            if (person?.photo) {
+              photo = person.photo;
+              break;
+            }
+          }
+        }
+        if (!photo) {
+          try {
+            const remote = await loadPortrait();
+            photo = remote.photo;
+          } catch {
+            photo = null;
+          }
+        }
+        if (!photo || !photo.startsWith("data:image/") || photo.length > 30_000) return;
+        const still = get().members.find((person) => person.id === get().activeId);
+        if (!still || still.menor || still.photo) return;
+        get().setMyPhoto(photo);
       },
 
       // Baja de la nube la última copia del equipo en el que ya estoy.
@@ -2026,17 +2149,13 @@ function mergeEvents(remote: ClubEvent[], local: ClubEvent[], staff: boolean): C
   return [...map.values()];
 }
 
-function mergeRsvps(remote: Rsvp[], local: Rsvp[], activeId: string, staff: boolean): Rsvp[] {
+function mergeRsvps(remote: Rsvp[], local: Rsvp[]): Rsvp[] {
   const key = (row: Rsvp) => `${row.eventId}:${row.memberId}`;
   const map = new Map<string, Rsvp>();
   for (const row of remote) map.set(key(row), row);
   for (const row of local) {
     const previous = map.get(key(row));
-    if (!previous || row.memberId === activeId || (staff && row.status !== "pendiente")) {
-      map.set(key(row), row);
-      continue;
-    }
-    if (previous.status === "pendiente" && row.status !== "pendiente") map.set(key(row), row);
+    map.set(key(row), previous ? preferRsvp(previous, row) : row);
   }
   return [...map.values()];
 }
@@ -2076,7 +2195,7 @@ function mergeClubBundles(
       ),
     ),
     events: mergeEvents(remote.events, local.events, who.staff),
-    rsvps: mergeRsvps(remote.rsvps, local.rsvps, who.activeId, who.staff),
+    rsvps: mergeRsvps(remote.rsvps, local.rsvps),
     messages: unionById(remote.messages, local.messages),
     charla: unionById(remote.charla, local.charla),
     matchSheets: mergeSheets(remote.matchSheets, local.matchSheets, who.staff),
@@ -2258,6 +2377,52 @@ function toBundle(state: {
 }
 
 // Cambia la respuesta de una persona en un evento, o la crea si no existía.
+function fechaNotice(activeId: string, event: ClubEvent, title: string, body: string): InboxItem | null {
+  if (Date.parse(event.startsAt) < Date.now() - 3_600_000) return null;
+  return {
+    id: uid("in"),
+    kind: "convocatoria",
+    title,
+    body: body.slice(0, 180),
+    eventId: event.id,
+    audience: "all",
+    at: new Date().toISOString(),
+    readBy: activeId ? [activeId] : [],
+  };
+}
+
+function memberOnBundle(bundle: ClubBundle, accountId: string | null): string {
+  const me = accountId
+    ? bundle.members.find((person) => person.accountId === accountId || person.id === accountId)
+    : undefined;
+  return me?.id ?? bundle.members[0]?.id ?? GUEST_ID;
+}
+
+function equipmentTarget(item: InboxItem): string | null {
+  if (item.memberId) return item.memberId;
+  if (!item.eventId) return null;
+  const prefix = `in-eq-${item.eventId}-`;
+  return item.id.startsWith(prefix) ? item.id.slice(prefix.length) : null;
+}
+
+function pushReaches(
+  me: Member,
+  push: { audience: "all" | "pending" | "staff" | "miembro"; eventId: string; memberId?: string },
+  rsvps: Rsvp[],
+  events: ClubEvent[],
+): boolean {
+  const event = events.find((entry) => entry.id === push.eventId);
+  const kickoff = event ? Date.parse(event.startsAt) : Number.NaN;
+  if (!event || Number.isNaN(kickoff) || kickoff < Date.now() - 3_600_000) return false;
+  if (push.audience === "staff") return me.role === "dt" || me.role === "ayudante";
+  if (push.audience === "pending") {
+    const row = rsvps.find((entry) => entry.eventId === push.eventId && entry.memberId === me.id);
+    return row?.status === "pendiente";
+  }
+  if (push.audience === "miembro") return Boolean(push.memberId) && push.memberId === me.id;
+  return true;
+}
+
 function upsertRsvp(
   rsvps: State["rsvps"],
   eventId: string,
@@ -2265,8 +2430,9 @@ function upsertRsvp(
   status: RsvpStatus,
 ) {
   const idx = rsvps.findIndex((r) => r.eventId === eventId && r.memberId === memberId);
-  if (idx < 0) return [...rsvps, { eventId, memberId, status }];
-  return rsvps.map((r, i) => (i === idx ? { ...r, status } : r));
+  const at = new Date().toISOString();
+  if (idx < 0) return [...rsvps, { eventId, memberId, status, at }];
+  return rsvps.map((r, i) => (i === idx ? { ...r, status, at } : r));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -2424,16 +2590,20 @@ export function inboxVisible(
   me: Member,
   rsvps: { eventId: string; memberId: string; status: RsvpStatus }[],
 ): boolean {
+  const events = useFija.getState().events;
+  const event = item.eventId ? events.find((entry) => entry.id === item.eventId) : undefined;
+  const kickoff = event ? Date.parse(event.startsAt) : Number.NaN;
+  const finished = !Number.isNaN(kickoff) && kickoff < Date.now() - 3_600_000;
+  if ((item.kind === "recordatorio" || item.kind === "equipamiento") && (finished || !event)) return false;
   if (item.audience === "staff") return me.role === "dt" || me.role === "ayudante";
   if (item.audience === "pending") {
+    if (finished) return false;
     const row = rsvps.find((r) => r.eventId === item.eventId && r.memberId === me.id);
     return row?.status === "pendiente";
   }
-  if (item.audience === "miembro") {
-    // Solo lo ve el miembro asignado al equipamiento de ese partido.
-    const event = useFija.getState().events.find((e) => e.id === item.eventId);
-    if (!event?.equipamiento) return false;
-    return Object.values(event.equipamiento).includes(me.id);
+  if (item.audience === "miembro" || item.kind === "equipamiento") {
+    const target = item.memberId || equipmentTarget(item);
+    return Boolean(target) && target === me.id;
   }
   return true;
 }
@@ -2513,8 +2683,7 @@ export function nextEvent(
     .filter((event) => +new Date(event.startsAt) >= now - 3_600_000)
     .filter((event) => event.kind !== "partido" || !matchSettled(event, sheetFor(event.id, sheets)))
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
-  const next = upcoming.find((event) => event.kind === "partido") ?? upcoming[0];
-  if (next) return next;
+  if (upcoming[0]) return upcoming[0];
   const pending = visible
     .filter(
       (event) =>

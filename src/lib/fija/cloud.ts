@@ -13,6 +13,7 @@ import {
   mergePlayerAlerts,
   mergePlayerInbox,
   nextBannedAccounts,
+  preferRsvp,
   readmitAccount,
   removeMemberEverywhere,
   sizeVerdict,
@@ -179,6 +180,99 @@ export const loadClubDoc = createServerFn({ method: "POST" })
     const me = memberFor(bundle.members, userId);
     if (!isStaffMember(me)) return { ok: true, bundle: { ...bundle, bannedAccounts: undefined } };
     return { ok: true, bundle };
+  });
+
+export const peekClubName = createServerFn({ method: "POST" })
+  .validator((code: string) => sanitizeCode(code))
+  .handler(async ({ data: code }): Promise<string | null> => {
+    if (!code) return null;
+    const bundle = await readClub(code);
+    const name = bundle?.club.name?.trim() ?? "";
+    return name ? name.slice(0, 80) : null;
+  });
+
+export const listMyClubs = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<{ code: string; name: string }[]> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId) return [];
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql.query<{ code: string | null; name: string | null }>(
+      `select coalesce(data->'club'->>'inviteCode', id) as code,
+              coalesce(data->'club'->>'name', 'Equipo') as name
+         from vestuario_docs
+        where collection = $1
+          and jsonb_typeof(data->'members') = 'array'
+          and exists (
+            select 1 from jsonb_array_elements(data->'members') as member
+            where member->>'accountId' = $2
+          )
+        limit 20`,
+      [COLLECTION, userId],
+    );
+    return rows
+      .map((row) => ({
+        code: sanitizeCode(String(row.code ?? "")),
+        name: String(row.name ?? "Equipo").slice(0, 80),
+      }))
+      .filter((row) => row.code);
+  });
+
+const PORTRAITS = "retratos";
+
+export const savePortrait = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((photo: string | null) => {
+    if (photo == null || photo === "") return null;
+    const value = String(photo);
+    if (!value.startsWith("data:image/") || value.length > 30_000) return null;
+    return value;
+  })
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId) return { ok: false };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    if (!data) {
+      await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [PORTRAITS, userId]);
+      return { ok: true };
+    }
+    await sql.query(
+      `insert into vestuario_docs (collection, id, data, updated_at)
+       values ($1, $2, $3::jsonb, now())
+       on conflict (collection, id)
+       do update set data = excluded.data, updated_at = now()`,
+      [PORTRAITS, userId, JSON.stringify({ photo: data })],
+    );
+    return { ok: true };
+  });
+
+export const loadPortrait = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }): Promise<{ photo: string | null }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId) return { photo: null };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql.query<{ data: { photo?: string } | string }>(
+      "select data from vestuario_docs where collection = $1 and id = $2",
+      [PORTRAITS, userId],
+    );
+    const raw = rows[0]?.data;
+    let parsed: { photo?: string } | null = null;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw) as { photo?: string };
+      } catch {
+        parsed = null;
+      }
+    } else if (raw && typeof raw === "object") {
+      parsed = raw;
+    }
+    const photo = parsed?.photo;
+    if (!photo || !photo.startsWith("data:image/") || photo.length > 30_000) return { photo: null };
+    return { photo };
   });
 
 function unionById<T extends { id: string }>(kept: T[], incoming: T[]): T[] {
@@ -409,8 +503,7 @@ function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {
   for (const row of incoming) {
     const key = `${row.eventId}:${row.memberId}`;
     const previous = map.get(key);
-    if (previous && previous.status !== "pendiente" && row.status === "pendiente") continue;
-    map.set(key, row);
+    map.set(key, previous ? preferRsvp(previous, row) : row);
   }
   return [...map.values()];
 }

@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
-import { formatTime } from "@/lib/fija/format";
+import { formatWhen } from "@/lib/fija/format";
 import { inboxVisible, useFija, useMe } from "@/lib/fija/store";
 import type { InboxItem } from "@/lib/fija/types";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ const KIND_LABEL = {
   recordatorio: "Recordatorio",
   formacion: "Pizarra",
   charla: "Charla técnica",
+  equipamiento: "Equipamiento",
 } as const;
 
 export function InboxBell() {
@@ -23,10 +24,16 @@ export function InboxBell() {
   const markAllRead = useFija((s) => s.markAllRead);
   const [open, setOpen] = useState(false);
   const items = useMemo(
-    () =>
-      inbox
-        .filter((item) => inboxVisible(item, me, rsvps))
-        .sort((a, b) => +new Date(b.at) - +new Date(a.at)),
+    () => {
+      const seen = new Set<string>();
+      return inbox
+        .filter((item) => {
+          if (seen.has(item.id)) return false;
+          seen.add(item.id);
+          return inboxVisible(item, me, rsvps);
+        })
+        .sort((a, b) => +new Date(b.at) - +new Date(a.at));
+    },
     [inbox, me, rsvps],
   );
   const unread = items.filter((item) => !item.readBy.includes(me.id));
@@ -106,7 +113,7 @@ function InboxRow({
       </p>
       <p className="mt-1 text-sm font-medium">{item.title}</p>
       <p className="mt-0.5 line-clamp-2 text-xs text-muted">{item.body}</p>
-      <p className="mt-1 text-xs text-subtle">{formatTime(item.at)}</p>
+      <p className="mt-1 text-xs text-subtle">{formatWhen(item.at)}</p>
     </Link>
   );
 }

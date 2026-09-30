@@ -2,12 +2,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CreateEventButton, EditEventButton } from "@/components/fija/event-editor";
 import { EventCard } from "@/components/fija/event-card";
+import { Button } from "@/components/ui/button";
 import {
   eventOfClosedTournament,
   matchSettled,
   sheetFor,
   useFija,
   useIsStaff,
+  useMe,
 } from "@/lib/fija/store";
 import type { ClubEvent, MatchSheet } from "@/lib/fija/types";
 
@@ -93,13 +95,40 @@ function AgendaItem({
   needsResult?: boolean;
 }) {
   const rsvps = useFija((s) => s.rsvps);
+  const me = useMe();
+  const setRsvp = useFija((s) => s.setRsvp);
   const sheet = sheetFor(event.id, useFija((s) => s.matchSheets));
+  const eventRsvps = rsvps.filter((row) => row.eventId === event.id);
+  const mine = eventRsvps.find((row) => row.memberId === me.id);
+  const plays = me.juega ?? me.role === "jugador";
+  const open =
+    plays &&
+    +new Date(event.startsAt) >= Date.now() - 3_600_000 &&
+    !(event.kind === "partido" && matchSettled(event, sheet));
   return (
     <EventCard
       event={event}
-      rsvps={rsvps.filter((row) => row.eventId === event.id)}
+      rsvps={eventRsvps}
       result={sheet ? { gf: sheet.goalsFor, ga: sheet.goalsAgainst } : undefined}
     >
+      {open ? (
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button
+            className="h-12"
+            variant={mine?.status === "voy" ? "success" : "secondary"}
+            onClick={() => setRsvp(event.id, "voy")}
+          >
+            {mine?.status === "voy" ? "Voy ✓" : "Voy"}
+          </Button>
+          <Button
+            className="h-12"
+            variant={mine?.status === "no" ? "danger" : "secondary"}
+            onClick={() => setRsvp(event.id, "no")}
+          >
+            {mine?.status === "no" ? "No voy ✕" : "No voy"}
+          </Button>
+        </div>
+      ) : null}
       {needsResult && staff ? (
         <p className="mt-2 text-sm font-medium text-warning">Falta cargar el resultado.</p>
       ) : null}

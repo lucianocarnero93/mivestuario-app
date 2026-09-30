@@ -27,6 +27,7 @@ function SeguridadPage() {
   const flushCloud = useFija((s) => s.flushCloud);
   const syncFromCloud = useFija((s) => s.syncFromCloud);
   const [gps, setGps] = useState<GpsPermission>("unknown");
+  const [avisos, setAvisos] = useState<NotificationPermission | "unsupported">("unsupported");
   const [leaving, setLeaving] = useState(false);
   const [leaveBusy, setLeaveBusy] = useState(false);
   const [leaveError, setLeaveError] = useState("");
@@ -43,6 +44,8 @@ function SeguridadPage() {
 
   useEffect(() => {
     void queryGpsPermission().then(setGps);
+    if (typeof Notification === "undefined") setAvisos("unsupported");
+    else setAvisos(Notification.permission);
   }, []);
 
   async function handleSaveName() {
@@ -128,6 +131,41 @@ function SeguridadPage() {
         </p>
           </>
         )}
+      </section>
+
+      <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Avisos</h2>
+        <p className="mt-2 text-sm">
+          {avisos === "granted"
+            ? "Los avisos están activados. Te llega la convocatoria al celular."
+            : avisos === "denied"
+              ? "Los avisos están bloqueados. Sin eso no te llega la convocatoria."
+              : avisos === "unsupported"
+                ? "Este navegador no muestra avisos."
+                : "Si no los activás, te perdés la convocatoria."}
+        </p>
+        {avisos === "default" ? (
+          <Button
+            className="mt-3 h-12 w-full"
+            onClick={() => {
+              void Notification.requestPermission()
+                .then((result) => {
+                  setAvisos(result);
+                  if (result === "granted") {
+                    window.dispatchEvent(new Event("vestuario-notifications-granted"));
+                  }
+                })
+                .catch(() => setAvisos("denied"));
+            }}
+          >
+            Activar avisos
+          </Button>
+        ) : null}
+        {avisos === "denied" ? (
+          <p className="mt-2 text-xs text-muted">
+            Habilitalos en el candado del navegador, en Ajustes del sitio, y recargá.
+          </p>
+        ) : null}
       </section>
 
       <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">

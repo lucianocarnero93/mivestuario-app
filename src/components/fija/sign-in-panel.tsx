@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { authClient, rememberSessionToken, signInWithGoogle } from "@/lib/auth/client";
 import { noteQuiet } from "@/lib/note";
 import { clearPedirEdad, esMenor, rememberMenor, rememberPedirEdad } from "@/lib/fija/edad";
-import { inviteCallbackPath } from "@/lib/fija/share";
+import { peekClubName } from "@/lib/fija/cloud";
+import { inviteCallbackPath, readRememberedInvite } from "@/lib/fija/share";
 import { LogoMark } from "./logo";
 
 // Pantalla de entrada.
@@ -17,7 +18,18 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [fecha, setFecha] = useState("");
   const [adultKnows, setAdultKnows] = useState(false);
+  const [teamName, setTeamName] = useState("");
   const menor = mode === "register" ? esMenor(fecha) : null;
+
+  useEffect(() => {
+    const code = readRememberedInvite();
+    if (!code) return;
+    void peekClubName({ data: code })
+      .then((name) => {
+        if (name) setTeamName(name);
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function submitAccount(event: FormEvent) {
     event.preventDefault();
@@ -111,7 +123,9 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
       ) : (
         <>
           <p className="mt-2 text-sm text-muted">
-            Entrá con tu mail o con Google.
+            {teamName
+              ? `Te invitaron a ${teamName}. Entrá o registrate para sumarte.`
+              : "Entrá con tu mail o con Google."}
           </p>
 
           <div className="mt-6 grid grid-cols-2 gap-2">

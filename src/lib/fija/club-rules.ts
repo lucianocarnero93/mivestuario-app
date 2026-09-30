@@ -20,7 +20,13 @@ export function reminderIds(eventId: string, sentAt: string) {
   };
 }
 
-export type AlertPush = { body: string; tag: string; eventId: string };
+export type AlertPush = {
+  body: string;
+  tag: string;
+  eventId: string;
+  audience: "all" | "pending" | "staff" | "miembro";
+  memberId?: string;
+};
 
 export type AlertsInput = {
   events: ClubEvent[];
@@ -31,6 +37,41 @@ export type AlertsInput = {
   reminderPolicy: { firstHours: number; secondHours: number };
   tournaments: Tournament[];
 };
+
+export function rsvpStamp(row: { at?: string } | undefined): number {
+  if (!row?.at) return 0;
+  const time = Date.parse(row.at);
+  return Number.isFinite(time) ? time : 0;
+}
+
+/** Gana la respuesta más nueva. Si no hay hora, se queda la que ya estaba. */
+export function preferRsvp(current: Rsvp, incoming: Rsvp): Rsvp {
+  const next = rsvpStamp(incoming);
+  const prev = rsvpStamp(current);
+  if (next > prev) return incoming;
+  if (prev > next) return current;
+  return current;
+}
+
+export function equipmentHeading(startsAt: string, now: number): string {
+  const day = calendarDay(startsAt);
+  const today = calendarDay(new Date(now).toISOString());
+  const tomorrow = calendarDay(new Date(now + 24 * 3_600_000).toISOString());
+  if (day && day === today) return "Hoy hay partido";
+  if (day && day === tomorrow) return "Mañana hay partido";
+  return "Te toca el equipamiento";
+}
+
+function calendarDay(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
 
 function tournamentClosed(tournaments: Tournament[], event: ClubEvent): boolean {
   if (!event.tournamentId) return false;
@@ -78,7 +119,7 @@ export function alertsDue(state: AlertsInput, now = Date.now()): {
         {
           id: ids.firstNotice,
           kind: "recordatorio",
-          title: "Segunda alerta de convocatoria",
+          title: "Falta tu confirmación",
           body,
           eventId: event.id,
           audience: "pending",
@@ -86,7 +127,7 @@ export function alertsDue(state: AlertsInput, now = Date.now()): {
           readBy: [],
         },
       ];
-      pushes.push({ body, tag: `vestuario-r1-${event.id}`, eventId: event.id });
+      pushes.push({ body, tag: `vestuario-r1-${event.id}`, eventId: event.id, audience: "pending" });
       changed = true;
     }
 
@@ -124,23 +165,33 @@ export function alertsDue(state: AlertsInput, now = Date.now()): {
     }
     if (byMember.size === 0) continue;
     const moment = new Date(now).toISOString();
+    const title = equipmentHeading(event.startsAt, now);
     for (const [memberId, items] of byMember) {
+      const id = `in-eq-${event.id}-${memberId}`;
+      if (notices.some((notice) => notice.id === id)) continue;
       const itemLabels = items.map((item) => (item === "remeras" ? "las remeras" : "las pelotas")).join(" y ");
       const body = `Te toca llevar ${itemLabels} para ${event.title}.`;
       notices = [
         ...notices,
         {
-          id: `in-eq-${event.id}-${memberId}`,
+          id,
           kind: "equipamiento",
-          title: "Mañana hay partido",
+          title,
           body,
           eventId: event.id,
+          memberId,
           audience: "miembro",
           at: moment,
           readBy: [],
         },
       ];
-      pushes.push({ body, tag: `vestuario-eq-${event.id}-${memberId}`, eventId: event.id });
+      pushes.push({
+        body,
+        tag: `vestuario-eq-${event.id}-${memberId}`,
+        eventId: event.id,
+        audience: "miembro",
+        memberId,
+      });
     }
     alertsSent = [...alertsSent, { id: `al-eq-${event.id}`, eventId: event.id, kind: "equipment", at: moment }];
     changed = true;

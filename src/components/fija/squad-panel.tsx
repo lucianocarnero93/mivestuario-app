@@ -120,7 +120,7 @@ export function SquadPanel({
         </ul>
       </section>
 
-      {afuera.length > 0 ? (
+      {event.convocados && afuera.length > 0 ? (
         <section>
           <p className="text-xs font-semibold uppercase tracking-widest text-muted">No convocados</p>
           <p className="mt-1 text-sm text-muted">

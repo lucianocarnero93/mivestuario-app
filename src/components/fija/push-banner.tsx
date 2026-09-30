@@ -1,5 +1,6 @@
 import { Bell } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { inboxVisible, useFija, useMe } from "@/lib/fija/store";
 
@@ -24,8 +25,9 @@ export function PushBanner() {
   const pending = !mine || mine.status === "pendiente";
   const waiting =
     Boolean(mine) && (mine?.status === "voy" || mine?.status === "no") && saved !== mine?.status;
+  const past = reminderEvent ? +new Date(reminderEvent.startsAt) < Date.now() - 3_600_000 : false;
   const showLegacy =
-    Boolean(reminderEvent) && (me.juega ?? me.role === "jugador") && (pending || waiting);
+    Boolean(reminderEvent) && !past && (me.juega ?? me.role === "jugador") && (pending || waiting);
 
   function answerLabel(status: "voy" | "no", on: string, off: string) {
     if (mine?.status !== status) return off;
@@ -69,6 +71,7 @@ export function PushBanner() {
   }
 
   const unread = inbox
+    .filter((item, index) => inbox.findIndex((other) => other.id === item.id) === index)
     .filter((item) => inboxVisible(item, me, rsvps) && !item.readBy.includes(me.id))
     .sort((a, b) => +new Date(b.at) - +new Date(a.at))[0];
 
@@ -105,6 +108,41 @@ export function PushBanner() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function AvisosPrompt() {
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+
+  useEffect(() => {
+    if (typeof Notification === "undefined") {
+      setPermission("unsupported");
+      return;
+    }
+    setPermission(Notification.permission);
+  }, []);
+
+  if (permission !== "default") return null;
+
+  return (
+    <div className="mx-3 mt-3 rounded-lg border border-border bg-surface px-3 py-3 shadow-card">
+      <p className="text-sm">Si no activás los avisos, no te llega la convocatoria al celular.</p>
+      <Button
+        className="mt-3 h-12 w-full"
+        onClick={() => {
+          void Notification.requestPermission()
+            .then((result) => {
+              setPermission(result);
+              if (result === "granted") {
+                window.dispatchEvent(new Event("vestuario-notifications-granted"));
+              }
+            })
+            .catch(() => setPermission("denied"));
+        }}
+      >
+        Activar avisos
+      </Button>
     </div>
   );
 }

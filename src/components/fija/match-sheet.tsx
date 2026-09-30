@@ -253,7 +253,9 @@ export function MatchSheetRead({
           {formatWhen(event.startsAt)}
         </p>
         <h2 className="text-xl font-semibold">{event.title}</h2>
-        <p className="text-sm text-muted">vs {sheet.opponent}</p>
+        {sheet.opponent && !event.title.toLowerCase().includes(sheet.opponent.trim().toLowerCase()) ? (
+          <p className="text-sm text-muted">vs {sheet.opponent}</p>
+        ) : null}
       </div>
 
       <p

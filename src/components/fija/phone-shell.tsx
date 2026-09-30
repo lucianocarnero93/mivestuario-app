@@ -12,7 +12,7 @@ import { authClient } from "@/lib/auth/client";
 import { ClubGate } from "./club-gate";
 import { InboxBell } from "./inbox-bell";
 import { BrandLockup } from "./logo";
-import { PushBanner } from "./push-banner";
+import { PushBanner, AvisosPrompt } from "./push-banner";
 import { PwaRegister } from "./pwa-register";
 import { SignInPanel } from "./sign-in-panel";
 import { EdadGate } from "./edad-gate";
@@ -65,7 +65,9 @@ export function PhoneShell() {
         }
       }
       await useFija.getState().syncFromCloud();
+      await useFija.getState().restoreMyClubs();
       await useFija.getState().ensureMySpot();
+      await useFija.getState().applySharedPhoto();
     });
     tickAlerts();
     const id = window.setInterval(() => tickAlerts(), 30_000);
@@ -115,6 +117,7 @@ export function PhoneShell() {
               <>
                 <AppBar />
                 <CloudBanner />
+                <AvisosPrompt />
                 <PushBanner />
                 <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2">
                   <Outlet />

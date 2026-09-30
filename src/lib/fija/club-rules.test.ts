@@ -4,9 +4,11 @@ import {
   alertsDue,
   claimExistingName,
   decideClaim,
+  equipmentHeading,
   mergePlayerAlerts,
   mergePlayerInbox,
   nextBannedAccounts,
+  preferRsvp,
   readmitAccount,
   removeMemberEverywhere,
   sizeVerdict,
@@ -234,6 +236,7 @@ test("alertsDue dos veces no inventa otro aviso", () => {
   const first = alertsDue(state, now);
   const second = alertsDue({ ...state, inbox: first.inbox, alertLog: first.alertLog }, now);
   assert.equal(first.inbox.length, 1);
+  assert.equal(first.inbox[0]?.title, "Falta tu confirmación");
   assert.equal(first.inbox[0]?.id.startsWith("in-r1-"), true);
   assert.equal(second.inbox, first.inbox);
   assert.equal(second.alertLog, first.alertLog);
@@ -278,6 +281,38 @@ test("un aviso viejo no se duplica", () => {
   const due = alertsDue(state, now);
   assert.equal(due.alertLog, state.alertLog);
   assert.equal(due.inbox, state.inbox);
+});
+
+test("la respuesta más nueva gana, aunque el otro celular diga que va", () => {
+  const viejo = { eventId: "e", memberId: "p", status: "voy" as const };
+  const nuevo = { eventId: "e", memberId: "p", status: "no" as const, at: "2026-09-30T18:00:00.000Z" };
+  assert.equal(preferRsvp(viejo, nuevo).status, "no");
+  assert.equal(preferRsvp(nuevo, viejo).status, "no");
+  assert.equal(preferRsvp(viejo, { ...viejo, status: "no" }).status, "voy");
+});
+
+test("el aviso de equipamiento nombra solo a quien lo lleva", () => {
+  const now = Date.parse("2026-09-30T15:00:00.000Z");
+  const starts = "2026-09-30T22:00:00.000Z";
+  const state = {
+    events: [{ ...match("e1", starts), equipamiento: { remeras: "a", pelotas: "b" } }],
+    rsvps: [],
+    convocatorias: [],
+    inbox: [],
+    alertLog: [],
+    reminderPolicy: { firstHours: 24, secondHours: 48 },
+    tournaments: [],
+  };
+  const due = alertsDue(state, now);
+  const shirts = due.inbox.find((item) => item.memberId === "a");
+  const balls = due.inbox.find((item) => item.memberId === "b");
+  assert.equal(shirts?.body.includes("remeras"), true);
+  assert.equal(shirts?.body.includes("pelotas"), false);
+  assert.equal(balls?.body.includes("pelotas"), true);
+  assert.equal(shirts?.title, "Hoy hay partido");
+  const again = alertsDue({ ...state, inbox: due.inbox, alertLog: [] }, now);
+  assert.equal(again.inbox.filter((item) => item.id === shirts?.id).length, 1);
+  assert.equal(equipmentHeading("2026-10-01T22:00:00.000Z", now), "Mañana hay partido");
 });
 
 test("el jugador solo suma avisos fijos y su propia lectura", () => {

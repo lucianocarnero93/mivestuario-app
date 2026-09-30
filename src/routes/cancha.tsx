@@ -139,16 +139,22 @@ function CanchaPage() {
       ) : null}
 
       <div className="mt-4">
+        {staff || event.lineupPublishedAt ? (
           <Pitch
-          modality={event.modality}
-          formacionId={event.formacion}
-          lineup={event.lineup}
-          members={members}
-          editable={staff}
-          onSlot={setSlot}
-        />
+            modality={event.modality}
+            formacionId={event.formacion}
+            lineup={event.lineup}
+            members={members}
+            editable={staff}
+            onSlot={setSlot}
+          />
+        ) : (
+          <p className="rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">
+            El DT todavía no publicó la formación.
+          </p>
+        )}
       </div>
-      <SquadPanel event={event} staff={staff} onNotice={setNote} />
+      {staff || event.lineupPublishedAt ? <SquadPanel event={event} staff={staff} onNotice={setNote} /> : null}
       {staff ? (
         <p className="mt-2 text-center text-xs text-muted">Tocá un puesto para poner o sacar a alguien.</p>
       ) : null}
@@ -182,11 +188,11 @@ function CanchaPage() {
             placeholder="Cómo vamos a jugar, quién presiona, un empujón al grupo…"
           />
         </section>
-      ) : (
+      ) : event.lineupPublishedAt ? (
         <Chalkboard title="Pauta del DT" className="mt-4">
           {event.tactics || "El DT todavía no dejó una pauta."}
         </Chalkboard>
-      )}
+      ) : null}
 
       <Dialog open={slot != null} onOpenChange={(o) => !o && setSlot(null)}>
         <DialogContent title="Elegí jugador">

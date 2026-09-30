@@ -3,6 +3,7 @@ import { MODALITY_LABEL } from "@/lib/fija/formations";
 import type { ClubEvent, Rsvp } from "@/lib/fija/types";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
+import { useFija } from "@/lib/fija/store";
 import { PlaceLink } from "./place-link";
 import { EquipmentCard } from "./equipment-card";
 
@@ -21,10 +22,15 @@ export function EventCard({
   result?: { gf: number; ga: number };
   showGear?: boolean;
 }) {
+  const members = useFija((s) => s.members);
   const voy = rsvps.filter((r) => r.status === "voy").length;
   const no = rsvps.filter((r) => r.status === "no").length;
   const pending = rsvps.filter((r) => r.status === "pendiente").length;
   const total = Math.max(rsvps.length, 1);
+  const van = rsvps
+    .filter((row) => row.status === "voy")
+    .map((row) => members.find((person) => person.id === row.memberId)?.nick)
+    .filter((nick): nick is string => Boolean(nick));
 
   return (
     <article className={cn("rounded-xl bg-surface p-4 shadow-card", className)}>
@@ -67,6 +73,7 @@ export function EventCard({
           · {pending} sin responder · {no} no
         </span>
       </p>
+      {van.length > 0 ? <p className="mt-1 text-sm text-muted">Van: {van.join(", ")}</p> : null}
          {showGear && event.kind === "partido" ? <EquipmentCard event={event} /> : null}
       {children}
     </article>

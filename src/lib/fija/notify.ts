@@ -13,10 +13,7 @@ export async function notifyApp(input: {
   if (!("Notification" in window)) return;
 
   try {
-    let permission = Notification.permission;
-    if (permission === "default") {
-      permission = await Notification.requestPermission();
-    }
+    const permission = Notification.permission;
     if (permission !== "granted") return;
 
     if (typeof window !== "undefined") {
