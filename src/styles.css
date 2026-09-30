@@ -150,8 +150,53 @@
 
   @media (min-width: 1024px) {
     .pitch-shell {
-      background-color: var(--color-void);
-      background-image: none;
+      background-color: #07140c;
+      background-image:
+        radial-gradient(920px 540px at 12% -8%, rgba(184, 242, 90, 0.16), transparent 58%),
+        radial-gradient(780px 560px at 100% 110%, rgba(20, 122, 58, 0.42), transparent 60%),
+        radial-gradient(circle at 74% 46%, transparent 210px, rgba(232, 243, 234, 0.07) 211px, rgba(232, 243, 234, 0.07) 212.5px, transparent 214px),
+        linear-gradient(165deg, #102418 0%, #07140c 42%, #0a1c12 100%);
+    }
+
+    .desk-rail {
+      background:
+        linear-gradient(180deg, rgba(184, 242, 90, 0.07), transparent 140px),
+        #0c1b13;
+      box-shadow: inset -1px 0 0 rgba(184, 242, 90, 0.08);
+    }
+
+    .desk-stage {
+      margin: 14px 14px 14px 0;
+      border: 1px solid rgba(184, 242, 90, 0.14);
+      border-radius: 28px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(184, 242, 90, 0.05), transparent 88px),
+        #0b1c12;
+      box-shadow:
+        0 24px 70px rgba(0, 0, 0, 0.38),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+
+    .desk-stage::before {
+      content: "";
+      display: block;
+      height: 7px;
+      flex: none;
+      background: repeating-linear-gradient(
+        90deg,
+        var(--color-pitch-deep) 0 18px,
+        var(--color-pitch) 18px 28px,
+        var(--color-pitch-top) 28px 40px
+      );
+    }
+
+    .desk-panel {
+      background-color: #102417;
+      background-image: linear-gradient(180deg, rgba(184, 242, 90, 0.08), transparent 120px);
+      box-shadow:
+        0 30px 80px rgba(0, 0, 0, 0.45),
+        inset 0 1px 0 rgba(184, 242, 90, 0.16);
     }
   }
 

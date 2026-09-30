@@ -78,7 +78,7 @@ export function ClubGate() {
 
   if (mode === "choose") {
     return (
-      <main className="flex min-h-dvh flex-col px-5 py-8">
+      <main className="desk-panel flex min-h-dvh flex-col px-5 py-8 desk:min-h-0 desk:w-full desk:rounded-[28px] desk:border desk:border-border desk:px-8 desk:py-10">
         <LogoMark className="mx-auto size-28 shadow-card" />
         <h1 className="mt-5 text-center text-3xl font-semibold">Mi Vestuario</h1>
         <p className="mt-2 text-center text-sm text-muted">
@@ -135,7 +135,7 @@ export function ClubGate() {
   if (mode === "preview") {
     const playersLabel = card?.players === 1 ? "1 jugador" : `${card?.players ?? 0} jugadores`;
     return (
-      <main className="flex min-h-dvh flex-col px-5 py-8">
+      <main className="desk-panel flex min-h-dvh flex-col px-5 py-8 desk:min-h-0 desk:w-full desk:rounded-[28px] desk:border desk:border-border desk:px-8 desk:py-10">
         {cardStatus === "ready" && card ? (
           <TeamCrest src={card.crest} name={card.name} className="mx-auto size-28 text-3xl shadow-card" />
         ) : (
@@ -203,7 +203,7 @@ export function ClubGate() {
 
   if (mode === "join") {
     return (
-      <main className="flex min-h-dvh flex-col px-5 py-8">
+      <main className="desk-panel flex min-h-dvh flex-col px-5 py-8 desk:min-h-0 desk:w-full desk:rounded-[28px] desk:border desk:border-border desk:px-8 desk:py-10">
         {fromCard && card ? (
           <TeamCrest src={card.crest} name={card.name} className="mx-auto size-28 text-3xl shadow-card" />
         ) : (
@@ -309,7 +309,7 @@ export function ClubGate() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col px-5 py-8">
+    <main className="desk-panel flex min-h-dvh flex-col px-5 py-8 desk:min-h-0 desk:w-full desk:rounded-[28px] desk:border desk:border-border desk:px-8 desk:py-10">
       <LogoMark className="mx-auto size-28 shadow-card" />
       <h1 className="mt-5 text-center text-3xl font-semibold">Crear un equipo</h1>
       <p className="mt-2 text-center text-sm text-muted">

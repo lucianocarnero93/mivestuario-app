@@ -115,7 +115,7 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col justify-center px-6 py-10 desk:mx-auto desk:w-full desk:max-w-md">
+    <main className="desk-panel flex min-h-dvh flex-col justify-center px-6 py-10 desk:mx-auto desk:my-auto desk:min-h-0 desk:w-full desk:max-w-md desk:self-center desk:rounded-[28px] desk:border desk:border-border desk:px-8">
       <LogoMark className="size-16" />
       <h1 className="mt-5 text-3xl font-semibold">Mi Vestuario</h1>
       {opening ? (

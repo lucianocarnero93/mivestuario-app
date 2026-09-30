@@ -40,7 +40,7 @@ export function EdadGate() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col justify-center px-6 py-10">
+    <main className="desk-panel flex min-h-dvh flex-col justify-center px-6 py-10 desk:mx-auto desk:min-h-0 desk:w-full desk:max-w-md desk:self-center desk:rounded-[28px] desk:border desk:border-border">
       <LogoMark className="size-16" />
       <h1 className="mt-5 text-3xl font-semibold">Antes de entrar</h1>
       <p className="mt-2 text-sm text-muted">

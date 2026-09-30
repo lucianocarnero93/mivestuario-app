@@ -120,7 +120,7 @@ export function PhoneShell() {
             ) : (
               <>
                 <SideNav />
-                <div className="contents desk:flex desk:h-dvh desk:min-w-0 desk:flex-1 desk:flex-col">
+                <div className="desk-stage contents desk:flex desk:min-h-0 desk:min-w-0 desk:flex-1 desk:flex-col">
                   <AppBar />
                   <CloudBanner />
                   <AvisosPrompt />
@@ -162,20 +162,21 @@ function SideNav() {
   const otherClubs = useFija((s) => s.otherClubs);
 
   return (
-    <aside className="hidden desk:flex desk:h-dvh desk:w-64 desk:shrink-0 desk:flex-col desk:border-r desk:border-border desk:bg-bg">
-      <div className="border-b border-border px-4 py-4">
+    <aside className="desk-rail hidden desk:flex desk:h-dvh desk:w-72 desk:shrink-0 desk:flex-col">
+      <div className="px-5 pb-4 pt-6">
         <BrandLockup />
-        <div className="mt-4 flex items-center gap-2">
-          <TeamCrest src={club?.crest} name={club?.name} className="size-10 text-sm" />
+        <div className="mt-5 flex items-center gap-3 rounded-2xl border border-border bg-surface px-3 py-3 shadow-card">
+          <TeamCrest src={club?.crest} name={club?.name} className="size-11 text-sm" />
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{club?.name ?? "Sin equipo"}</p>
-            <p className="truncate text-xs text-muted">
+            <p className="truncate font-display text-lg font-semibold leading-none">{club?.name ?? "Sin equipo"}</p>
+            <p className="mt-1 truncate text-xs text-muted">
               {me.nick} · {ROLE_LABEL[me.role]}
             </p>
           </div>
         </div>
       </div>
-      <nav className="flex-1 overflow-y-auto px-2 py-3">
+      <nav className="flex-1 overflow-y-auto px-3 pb-3">
+        <p className="px-3 pb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-subtle">Vestuario</p>
         <ul className="space-y-1">
           {NAV.map((item) => {
             const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
@@ -192,8 +193,10 @@ function SideNav() {
                         : undefined
                   }
                   className={cn(
-                    "flex h-12 items-center gap-3 rounded-lg px-3 text-sm font-semibold",
-                    active ? "bg-surface text-accent" : "text-muted hover:bg-surface hover:text-fg",
+                    "flex h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold",
+                    active
+                      ? "bg-[color-mix(in_oklab,var(--color-accent)_16%,transparent)] text-accent shadow-[inset_3px_0_0_var(--color-accent)]"
+                      : "text-muted hover:bg-surface hover:text-fg",
                   )}
                 >
                   <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
@@ -204,17 +207,19 @@ function SideNav() {
           })}
         </ul>
       </nav>
-      <div className="border-t border-border p-3">
+      <div className="p-3">
         {otherClubs.length > 0 ? (
-          <Link to="/equipo" className="mb-1 flex h-11 items-center px-3 text-sm font-semibold text-accent">
+          <Link to="/equipo" className="mb-1 flex h-11 items-center rounded-xl px-3 text-sm font-semibold text-accent">
             Cambiar de equipo
           </Link>
         ) : null}
         <Link
           to="/seguridad"
           className={cn(
-            "flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold",
-            pathname.startsWith("/seguridad") ? "bg-surface text-accent" : "text-muted hover:bg-surface hover:text-fg",
+            "flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold",
+            pathname.startsWith("/seguridad")
+              ? "bg-[color-mix(in_oklab,var(--color-accent)_16%,transparent)] text-accent"
+              : "text-muted hover:bg-surface hover:text-fg",
           )}
         >
           <Lock className="size-4" />
@@ -231,18 +236,20 @@ function AppBar() {
   const otherClubs = useFija((s) => s.otherClubs);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-bg/95 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-      <div className="flex items-center justify-between gap-2">
-        <BrandLockup />
-               <div className="flex items-center">
+    <header className="sticky top-0 z-30 border-b border-border bg-bg/95 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] desk:static desk:border-0 desk:bg-transparent desk:px-8 desk:pb-0 desk:pt-5">
+      <div className="flex items-center justify-between gap-2 desk:justify-end">
+        <div className="desk:hidden">
+          <BrandLockup />
+        </div>
+        <div className="flex items-center">
           <InboxBell />
-          <Link to="/seguridad" className="grid size-11 place-items-center text-muted">
+          <Link to="/seguridad" className="grid size-11 place-items-center text-muted desk:hidden">
             <Lock className="size-4" />
             <span className="sr-only">Seguridad</span>
           </Link>
         </div>
       </div>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex items-center gap-2 desk:hidden">
         <TeamCrest src={club?.crest} name={club?.name} className="size-8 text-xs" />
         <p className="min-w-0 flex-1 truncate text-xs text-muted">
           {club?.name ?? "Sin equipo"} · {me.nick} · {ROLE_LABEL[me.role]}
