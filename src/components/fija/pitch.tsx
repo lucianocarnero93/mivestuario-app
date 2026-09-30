@@ -25,7 +25,7 @@ export function Pitch({
   const dense = modality === "f11" || modality === "f9";
 
   return (
-    <div className="relative overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep shadow-pitch">
+    <div className="relative overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep shadow-pitch desk:shadow-[inset_0_0_40px_rgba(0,0,0,0.22),0_0_0_1px_rgba(255,255,255,0.28),0_22px_50px_rgba(0,0,0,0.55)]">
       <svg viewBox="0 0 100 140" className="block h-auto w-full text-line/55" aria-hidden>
         {Array.from({ length: 10 }, (_, i) => (
           <rect

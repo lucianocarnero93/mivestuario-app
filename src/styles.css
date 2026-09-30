@@ -150,23 +150,16 @@
 
   @media (min-width: 1024px) {
     .pitch-shell {
-      background-color: #0c5a2a;
+      background-color: #07140c;
       background-image:
-        radial-gradient(980px 420px at 62% -4%, rgba(184, 242, 90, 0.55), transparent 62%),
-        radial-gradient(circle at 62% 38%, transparent 150px, rgba(232, 243, 234, 0.85) 151px, rgba(232, 243, 234, 0.85) 154px, transparent 155px),
-        linear-gradient(
-          90deg,
-          transparent calc(62% - 1px),
-          rgba(232, 243, 234, 0.55) calc(62% - 1px),
-          rgba(232, 243, 234, 0.55) calc(62% + 1px),
-          transparent calc(62% + 1px)
-        ),
+        radial-gradient(780px 340px at 72% -6%, rgba(184, 242, 90, 0.22), transparent 68%),
+        radial-gradient(860px 300px at 30% 110%, rgba(120, 72, 32, 0.22), transparent 70%),
         repeating-linear-gradient(
           90deg,
-          rgba(12, 90, 42, 0.55) 0 72px,
-          rgba(26, 154, 74, 0.28) 72px 144px
+          transparent 0 112px,
+          rgba(232, 243, 234, 0.045) 112px 113px
         ),
-        linear-gradient(180deg, #1a9a4a 0%, #0c5a2a 46%, #07140c 100%);
+        linear-gradient(180deg, #12281c 0%, #07140c 58%, #140f0c 100%);
     }
 
     .desk-rail {
