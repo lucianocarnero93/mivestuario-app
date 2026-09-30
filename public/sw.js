@@ -1,7 +1,7 @@
 /* Mi Vestuario App service worker
  * Offline shell, network intercept, push, background sync.
  */
-const CACHE = "mi-vestuario-v6";
+const CACHE = "mi-vestuario-v7";
 const PRECACHE = [
   "/",
   "/offline.html",
@@ -57,6 +57,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (isViteInternal(url)) return;
   if (url.pathname.startsWith("/api/")) return;
+  if (url.pathname.startsWith("/_serverFn")) return;
   if (url.pathname.startsWith("/marketing")) return;
 
   if (request.mode === "navigate") {
@@ -81,7 +82,10 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(networkFirst(request));
     return;
   }
-  event.respondWith(staleWhileRevalidate(request));
+  const staticAsset =
+    PRECACHE.includes(url.pathname) ||
+    ["image", "font", "manifest"].includes(request.destination);
+  if (staticAsset) event.respondWith(staleWhileRevalidate(request));
 });
 
 async function networkFirst(request) {

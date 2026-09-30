@@ -112,7 +112,7 @@ export async function isClubMember(code: string, userId: string): Promise<boolea
   return Boolean(bundle && memberFor(bundle.members, userId));
 }
 
-export const loadClubCard = createServerFn({ method: "GET" })
+export const loadClubCard = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((code: string) => sanitizeCode(code))
   .handler(async ({ data: code, context }): Promise<ClubCard | null> => {
@@ -133,7 +133,7 @@ export const loadClubCard = createServerFn({ method: "GET" })
     };
   });
 
-export const loadClubDoc = createServerFn({ method: "GET" })
+export const loadClubDoc = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((code: string) => sanitizeCode(code))
   .handler(async ({ data: code, context }): Promise<ClubLoad> => {

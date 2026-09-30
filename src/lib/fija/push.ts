@@ -79,7 +79,7 @@ async function ensureVapid(): Promise<VapidKeys | null> {
   return keys;
 }
 
-export const pushPublicKey = createServerFn({ method: "GET" })
+export const pushPublicKey = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async (): Promise<string> => {
     const keys = await ensureVapid();
