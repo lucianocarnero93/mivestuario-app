@@ -150,57 +150,27 @@
 
   @media (min-width: 1024px) {
     .pitch-shell {
-      background-color: #0c5a2a;
+      background-color: #0c4e28;
       background-image:
-        radial-gradient(980px 420px at 62% -4%, rgba(184, 242, 90, 0.55), transparent 62%),
-        radial-gradient(circle at 62% 38%, transparent 150px, rgba(232, 243, 234, 0.85) 151px, rgba(232, 243, 234, 0.85) 154px, transparent 155px),
-        linear-gradient(
-          90deg,
-          transparent calc(62% - 1px),
-          rgba(232, 243, 234, 0.55) calc(62% - 1px),
-          rgba(232, 243, 234, 0.55) calc(62% + 1px),
-          transparent calc(62% + 1px)
-        ),
+        linear-gradient(180deg, rgba(7, 20, 12, 0.55), rgba(7, 20, 12, 0.78)),
+        radial-gradient(900px 420px at 70% -8%, rgba(184, 242, 90, 0.28), transparent 60%),
         repeating-linear-gradient(
           90deg,
-          rgba(12, 90, 42, 0.55) 0 72px,
-          rgba(26, 154, 74, 0.28) 72px 144px
+          rgba(6, 48, 26, 0.45) 0 88px,
+          rgba(20, 110, 52, 0.2) 88px 176px
         ),
-        linear-gradient(180deg, #1a9a4a 0%, #0c5a2a 46%, #07140c 100%);
-    }
-
-    .pitch-shell.en-pizarra {
-      background-color: #146b38;
-      background-image:
-        radial-gradient(720px 220px at 50% 0%, rgba(255, 226, 160, 0.62), transparent 70%),
-        linear-gradient(180deg, transparent 0 76%, #c48445 76%, #7a4a22 100%),
-        repeating-linear-gradient(
-          90deg,
-          #c6f56a 0 16px,
-          #f7fbf4 16px 28px,
-          transparent 28px 46px,
-          #0e5a30 46px 66px,
-          #f7fbf4 66px 78px,
-          transparent 78px 104px
-        );
-      background-size: auto, auto, 104px 210px;
-      background-repeat: no-repeat, no-repeat, repeat-x;
-      background-position: center top, center top, center top;
+        linear-gradient(180deg, #187a40 0%, #0c4e28 42%, #07140c 100%);
     }
 
     .desk-rail {
-      background:
-        linear-gradient(180deg, rgba(184, 242, 90, 0.08), transparent 140px),
-        rgba(8, 22, 14, 0.94);
-      box-shadow: inset -1px 0 0 rgba(184, 242, 90, 0.16);
-      backdrop-filter: blur(8px);
+      background: rgba(8, 22, 14, 0.92);
+      box-shadow: inset -1px 0 0 rgba(184, 242, 90, 0.14);
+      backdrop-filter: blur(16px);
     }
 
     .desk-stage {
       margin: 0;
       border: 0;
-      border-radius: 0;
-      overflow: visible;
       background: transparent;
       box-shadow: none;
     }
@@ -210,11 +180,8 @@
     }
 
     .desk-panel {
-      background-color: #102417;
-      background-image: linear-gradient(180deg, rgba(184, 242, 90, 0.08), transparent 120px);
-      box-shadow:
-        0 30px 80px rgba(0, 0, 0, 0.45),
-        inset 0 1px 0 rgba(184, 242, 90, 0.16);
+      background-color: rgba(16, 36, 23, 0.94);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
     }
   }
 

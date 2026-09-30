@@ -138,8 +138,8 @@ function CanchaPage() {
         </label>
       ) : null}
 
-      <div className="contents desk:mt-2 desk:grid desk:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] desk:items-start desk:gap-6">
-      <div className="mt-4">
+      <div className="contents desk:mt-4 desk:grid desk:grid-cols-[minmax(0,0.9fr)_minmax(280px,1fr)] desk:items-start desk:gap-6">
+      <div className="mt-4 desk:sticky desk:top-4 desk:rounded-3xl desk:bg-bg/80 desk:p-3">
         {staff || event.lineupPublishedAt ? (
           <Pitch
             modality={event.modality}
@@ -164,7 +164,7 @@ function CanchaPage() {
       {note ? <p className="mt-3 text-center text-sm font-semibold text-accent">{note}</p> : null}
       {staff ? (
         <Button
-          className="mt-3 h-14 w-full text-base"
+          className="mt-3 h-14 w-full text-base desk:mx-auto desk:block desk:max-w-sm"
           disabled={filled === 0}
           onClick={() => {
             publishLineup(event.id);

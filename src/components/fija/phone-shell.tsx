@@ -105,7 +105,7 @@ export function PhoneShell() {
     <div className="min-h-dvh bg-void text-fg">
       <div className="app-titlebar" aria-hidden="true" />
       <PwaRegister />
-      <div className={cn("pitch-shell mx-auto flex min-h-dvh w-full max-w-phone flex-col shadow-card desk:h-dvh desk:max-w-none desk:flex-row desk:shadow-none", pathname.startsWith("/cancha") && "en-pizarra")}>
+      <div className="pitch-shell mx-auto flex min-h-dvh w-full max-w-phone flex-col shadow-card desk:h-dvh desk:max-w-none desk:flex-row desk:shadow-none">
         <div className="grass-strip desk:hidden" aria-hidden="true" />
         {isBare ? (
           <div className="contents desk:mx-auto desk:flex desk:w-full desk:max-w-xl desk:flex-1 desk:flex-col">

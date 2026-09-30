@@ -29,7 +29,7 @@ export function SquadPanel({
   }
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="mt-4 space-y-4 desk:mt-0 desk:max-h-[calc(100dvh-8rem)] desk:overflow-y-auto desk:rounded-3xl desk:bg-bg/80 desk:p-4">
       <Bench names={banco.map((id) => byId.get(id)).filter((person): person is Member => Boolean(person))} staff={staff} onRemove={(id) => actuar(setSuplente(event.id, id, false))} />
 
       {sinAsignar.length > 0 ? (
