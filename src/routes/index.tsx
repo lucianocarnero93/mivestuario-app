@@ -114,6 +114,7 @@ function HomePage() {
         <span className="text-sm font-semibold text-accent">Stats</span>
       </Link>
 
+      <div className="contents desk:grid desk:grid-cols-2 desk:items-start desk:gap-6">
       <EventCard
         className="mt-4"
         event={event}
@@ -213,6 +214,7 @@ function HomePage() {
           </section>
         </>
       )}
+      </div>
 
       {event.tactics ? (
         <Chalkboard title="Pauta del DT" className="mt-6">

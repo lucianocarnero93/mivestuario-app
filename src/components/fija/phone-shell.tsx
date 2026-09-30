@@ -105,24 +105,33 @@ export function PhoneShell() {
     <div className="min-h-dvh bg-void text-fg">
       <div className="app-titlebar" aria-hidden="true" />
       <PwaRegister />
-      <div className="pitch-shell mx-auto flex min-h-dvh w-full max-w-phone flex-col shadow-card">
-        <div className="grass-strip" aria-hidden="true" />
+      <div className="pitch-shell mx-auto flex min-h-dvh w-full max-w-phone flex-col shadow-card desk:h-dvh desk:max-w-none desk:flex-row desk:shadow-none">
+        <div className="grass-strip desk:hidden" aria-hidden="true" />
         {isBare ? (
-          <Outlet />
+          <div className="contents desk:mx-auto desk:flex desk:w-full desk:max-w-xl desk:flex-1 desk:flex-col">
+            <Outlet />
+          </div>
         ) : (
           <AuthFrame>
             {hydrated && !club ? (
-              <ClubGate />
+              <div className="contents desk:mx-auto desk:flex desk:w-full desk:max-w-md desk:flex-1 desk:items-center">
+                <ClubGate />
+              </div>
             ) : (
               <>
-                <AppBar />
-                <CloudBanner />
-                <AvisosPrompt />
-                <PushBanner />
-                <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2">
-                  <Outlet />
+                <SideNav />
+                <div className="contents desk:flex desk:h-dvh desk:min-w-0 desk:flex-1 desk:flex-col">
+                  <AppBar />
+                  <CloudBanner />
+                  <AvisosPrompt />
+                  <PushBanner />
+                  <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2 desk:px-8 desk:pb-10">
+                    <div className="contents desk:mx-auto desk:block desk:w-full desk:max-w-6xl">
+                      <Outlet />
+                    </div>
+                  </div>
+                  <BottomNav />
                 </div>
-                <BottomNav />
               </>
             )}
           </AuthFrame>
@@ -144,6 +153,76 @@ function AuthFrame({ children }: { children: ReactNode }) {
   if (user && pedirEdad) return <EdadGate />;
   if (user) return children;
   return <SignInPanel />;
+}
+
+function SideNav() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const me = useMe();
+  const club = useFija((s) => s.club);
+  const otherClubs = useFija((s) => s.otherClubs);
+
+  return (
+    <aside className="hidden desk:flex desk:h-dvh desk:w-64 desk:shrink-0 desk:flex-col desk:border-r desk:border-border desk:bg-bg">
+      <div className="border-b border-border px-4 py-4">
+        <BrandLockup />
+        <div className="mt-4 flex items-center gap-2">
+          <TeamCrest src={club?.crest} name={club?.name} className="size-10 text-sm" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{club?.name ?? "Sin equipo"}</p>
+            <p className="truncate text-xs text-muted">
+              {me.nick} · {ROLE_LABEL[me.role]}
+            </p>
+          </div>
+        </div>
+      </div>
+      <nav className="flex-1 overflow-y-auto px-2 py-3">
+        <ul className="space-y-1">
+          {NAV.map((item) => {
+            const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
+            const Icon = item.icon;
+            return (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  search={
+                    item.to === "/stats"
+                      ? { partido: undefined, torneo: "general" }
+                      : item.to === "/chat"
+                        ? { title: undefined, text: undefined, url: undefined }
+                        : undefined
+                  }
+                  className={cn(
+                    "flex h-12 items-center gap-3 rounded-lg px-3 text-sm font-semibold",
+                    active ? "bg-surface text-accent" : "text-muted hover:bg-surface hover:text-fg",
+                  )}
+                >
+                  <Icon className="size-5" strokeWidth={active ? 2.4 : 1.8} />
+                  {item.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+      <div className="border-t border-border p-3">
+        {otherClubs.length > 0 ? (
+          <Link to="/equipo" className="mb-1 flex h-11 items-center px-3 text-sm font-semibold text-accent">
+            Cambiar de equipo
+          </Link>
+        ) : null}
+        <Link
+          to="/seguridad"
+          className={cn(
+            "flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold",
+            pathname.startsWith("/seguridad") ? "bg-surface text-accent" : "text-muted hover:bg-surface hover:text-fg",
+          )}
+        >
+          <Lock className="size-4" />
+          Seguridad
+        </Link>
+      </div>
+    </aside>
+  );
 }
 
 function AppBar() {
@@ -221,7 +300,7 @@ function CloudBanner() {
 function BottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <nav className="sticky bottom-0 z-30 border-t border-border bg-bg/95 pb-[env(safe-area-inset-bottom)]">
+    <nav className="sticky bottom-0 z-30 border-t border-border bg-bg/95 pb-[env(safe-area-inset-bottom)] desk:hidden">
       <ul className="grid grid-cols-6">
         {NAV.map((item) => {
           const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);

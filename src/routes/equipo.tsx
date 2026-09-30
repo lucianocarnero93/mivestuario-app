@@ -94,7 +94,7 @@ function EquipoPage() {
         </div>
       ) : null}
 
-      <section className="mt-5 space-y-5">
+      <section className="mt-5 space-y-5 desk:grid desk:grid-cols-2 desk:items-start desk:gap-4 desk:space-y-0">
         <RecordStrip record={record} />
         {(me.juega ?? me.role === "jugador") ? <MyNumbers member={me} row={mine} /> : null}
         <RankBlock title="Goleadores" empty="Todavía no hay goles cargados.">

@@ -138,6 +138,7 @@ function CanchaPage() {
         </label>
       ) : null}
 
+      <div className="contents desk:mt-2 desk:grid desk:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] desk:items-start desk:gap-6">
       <div className="mt-4">
         {staff || event.lineupPublishedAt ? (
           <Pitch
@@ -155,6 +156,7 @@ function CanchaPage() {
         )}
       </div>
       {staff || event.lineupPublishedAt ? <SquadPanel event={event} staff={staff} onNotice={setNote} /> : null}
+      </div>
       {staff ? (
         <p className="mt-2 text-center text-xs text-muted">Tocá un puesto para poner o sacar a alguien.</p>
       ) : null}

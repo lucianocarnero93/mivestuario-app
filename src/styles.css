@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@custom-variant desk (@media (min-width: 1024px));
+
 @theme {
   --color-void: #061109;
   --color-bg: #0b1c12;
@@ -144,6 +146,13 @@
       var(--color-pitch) 18px 28px,
       var(--color-pitch-top) 28px 40px
     );
+  }
+
+  @media (min-width: 1024px) {
+    .pitch-shell {
+      background-color: var(--color-void);
+      background-image: none;
+    }
   }
 
   .metal-card {

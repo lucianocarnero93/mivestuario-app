@@ -49,7 +49,7 @@ function AgendaPage() {
         </p>
       ) : null}
       {upcoming.length > 0 ? (
-        <ul className="mt-4 space-y-3">
+        <ul className="mt-4 space-y-3 desk:grid desk:grid-cols-2 desk:gap-3 desk:space-y-0">
           {upcoming.map((event) => (
             <li key={event.id}>
               <AgendaItem event={event} staff={staff} needsResult={needsResult(event, sheetFor(event.id, sheets), now)} />
@@ -60,7 +60,7 @@ function AgendaPage() {
       {pendingResult.length > 0 ? (
         <section className="mt-8">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-warning">Falta el resultado</h2>
-          <ul className="mt-3 space-y-3">
+          <ul className="mt-3 space-y-3 desk:grid desk:grid-cols-2 desk:gap-3 desk:space-y-0">
             {pendingResult.map((event) => (
               <li key={event.id}>
                 <AgendaItem event={event} staff={staff} needsResult />
@@ -72,7 +72,7 @@ function AgendaPage() {
       {played.length > 0 ? (
         <section className="mt-8">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Ya jugados</h2>
-          <ul className="mt-3 space-y-3">
+          <ul className="mt-3 space-y-3 desk:grid desk:grid-cols-2 desk:gap-3 desk:space-y-0">
             {played.map((event) => (
               <li key={event.id}>
                 <AgendaItem event={event} staff={staff} />
