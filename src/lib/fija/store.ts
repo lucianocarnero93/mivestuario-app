@@ -895,6 +895,7 @@ export const useFija = create<State>()(
             return person;
           }),
         });
+        void get().flushCloud();
       },
             // Marca o desmarca si alguien juega (aparece en la cancha, planilla y convocatorias).
       // Puede ser cualquiera del plantel: jugador, DT o ayudante.
@@ -1860,7 +1861,7 @@ export const useFija = create<State>()(
             const merged = remote
               ? mergeClubBundles(local, remote, {
                   activeId: current.activeId,
-                  staff: isStaffId(current),
+                  staff: isStaffId(current) || isCreatorId(current),
                   dirty: true,
                 })
               : local;

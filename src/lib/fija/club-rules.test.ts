@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   alertsDue,
+  canAssignRoles,
   claimExistingName,
   decideClaim,
   equipmentHeading,
@@ -142,6 +143,16 @@ test("un miembro tachado no se reescribe", () => {
     freshId: "m-nuevo",
   });
   assert.equal(result.kind, "keep");
+});
+
+test("el DT con cuenta puede designar aunque el creado apunte a otro", () => {
+  const members = [
+    person({ id: "viejo", name: "Viejo", role: "jugador" }),
+    person({ id: "lucho", name: "Lucho", role: "dt", accountId: "acc-l" }),
+    person({ id: "ayu", name: "Ayuda", role: "ayudante", accountId: "acc-a" }),
+  ];
+  assert.equal(canAssignRoles(members, "viejo", "acc-l"), true);
+  assert.equal(canAssignRoles(members, "viejo", "acc-a"), false);
 });
 
 test("sacar a alguien banea su cuenta y un jugador no banea", () => {

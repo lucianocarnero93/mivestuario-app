@@ -6,6 +6,7 @@ import { withTransaction } from "@/lib/db";
 import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
+  canAssignRoles,
   decideClaim,
   freshMemberId,
   guardMember,
@@ -479,8 +480,7 @@ function mergeSheetsByTime(kept: MatchSheet[], incoming: MatchSheet[]): MatchShe
 }
 
 function callerIsCreator(existing: ClubBundle, userId: string): boolean {
-  const creator = existing.members.find((person) => person.id === existing.club.createdBy);
-  return Boolean(creator && (creator.accountId === userId || creator.id === userId));
+  return canAssignRoles(existing.members, existing.club.createdBy, userId);
 }
 
 function lockStaffRoles(existing: ClubBundle, members: Member[], userId: string): Member[] {

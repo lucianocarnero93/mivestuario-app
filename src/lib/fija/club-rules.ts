@@ -248,6 +248,15 @@ export function guardMember(person: Member, previous?: Member): Member {
   return { ...person, menor: true, photo: null };
 }
 
+/** El DT con cuenta, o quien creó el equipo, puede designar puestos y el nombre. */
+export function canAssignRoles(members: Member[], createdBy: string, userId: string): boolean {
+  if (!userId) return false;
+  const me = members.find((person) => person.accountId === userId || person.id === userId);
+  if (me?.role === "dt") return true;
+  const creator = members.find((person) => person.id === createdBy);
+  return Boolean(creator && (creator.accountId === userId || creator.id === userId));
+}
+
 export function dedupeBanned(list: BannedAccount[]): BannedAccount[] {
   const map = new Map<string, BannedAccount>();
   for (const item of list) {
