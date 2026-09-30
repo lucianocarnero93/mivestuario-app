@@ -59,6 +59,11 @@ export function PwaRegister() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    try {
+      sessionStorage.removeItem("vestuario-reload");
+    } catch {
+      /* ignore */
+    }
     if (!("serviceWorker" in navigator)) return;
 
     let cancelled = false;

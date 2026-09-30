@@ -1,7 +1,7 @@
 /* Mi Vestuario App service worker
  * Offline shell, network intercept, push, background sync.
  */
-const CACHE = "mi-vestuario-v7";
+const CACHE = "mi-vestuario-v8";
 const PRECACHE = [
   "/",
   "/offline.html",
@@ -91,19 +91,14 @@ self.addEventListener("fetch", (event) => {
 async function networkFirst(request) {
   try {
     const fresh = await fetch(request);
-    const copy = fresh.clone();
+    if (!fresh.ok) return fresh;
     const cache = await caches.open(CACHE);
-    cache.put(request, copy);
+    cache.put(request, fresh.clone());
     return fresh;
   } catch {
     const cached = await caches.match(request);
     if (cached) return cached;
-    const offline = await caches.match("/offline.html");
-    if (offline) return offline;
-    return new Response("Mi Vestuario App está sin conexión.", {
-      status: 503,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
+    return new Response("", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 }
 

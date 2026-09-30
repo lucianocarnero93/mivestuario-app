@@ -37,6 +37,11 @@ function RootDocument() {
   return (
     <html lang="es-AR" className="antialiased" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){function recargar(){try{if(sessionStorage.getItem("vestuario-reload")==="1"){aviso();return}sessionStorage.setItem("vestuario-reload","1")}catch(e){}location.reload()}function aviso(){if(document.getElementById("vestuario-roto"))return;var nodo=document.createElement("p");nodo.id="vestuario-roto";nodo.textContent="La página quedó en una versión vieja. Recargá con el botón del navegador.";nodo.setAttribute("style","position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:24px;background:#0b1c12;color:#eef6ef;text-align:center;font:16px/1.4 sans-serif");(document.body||document.documentElement).appendChild(nodo)}window.addEventListener("vite:preloadError",function(event){event.preventDefault();recargar()});window.addEventListener("unhandledrejection",function(event){var reason=event.reason;var message=reason&&(reason.message||String(reason))||"";if(message.indexOf("dynamically imported module")===-1&&message.indexOf("module script failed")===-1)return;event.preventDefault();recargar()})})();`,
+          }}
+        />
         <HeadContent />
       </head>
       <body>
