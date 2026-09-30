@@ -40,10 +40,16 @@ function ContactoPage() {
       </section>
 
       <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Redes</h2>
-        <p className="mt-2 text-sm text-muted">
-          Pronto vamos a tener Instagram y X. Por ahora, solo email.
-        </p>
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Instagram</h2>
+        <a
+          href="https://www.instagram.com/mivestuario.app"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 block text-base font-semibold text-accent"
+        >
+          @mivestuario.app
+        </a>
+        <p className="mt-2 text-xs text-muted">Es el contacto de la app. Escribinos por mensaje directo.</p>
       </section>
 
       <Link to="/seguridad" className="mt-6 flex h-12 items-center font-semibold text-accent">

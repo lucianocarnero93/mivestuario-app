@@ -105,6 +105,15 @@ function PrivacidadPage() {
             Si tenés dudas sobre esta política, escribinos a{" "}
             <a href="mailto:contacto@mivestuario.com.ar" className="text-accent underline">
               contacto@mivestuario.com.ar
+            </a>{" "}
+            o por Instagram en{" "}
+            <a
+              href="https://www.instagram.com/mivestuario.app"
+              target="_blank"
+              rel="noreferrer"
+              className="text-accent underline"
+            >
+              @mivestuario.app
             </a>
             .
           </p>
