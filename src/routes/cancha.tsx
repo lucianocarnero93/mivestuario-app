@@ -10,7 +10,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
 import { formatWhen } from "@/lib/fija/format";
-import { activeTournament, nextEvent, useFija, useIsStaff } from "@/lib/fija/store";
+import { matchSettled, nextEvent, sheetFor, useFija, useIsStaff } from "@/lib/fija/store";
 import type { Modality } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/cancha")({ component: CanchaPage });
@@ -28,9 +28,15 @@ function CanchaPage() {
   const publishLineup = useFija((s) => s.publishLineup);
     const setJuega = useFija((s) => s.setJuega);
   const me = useFija((s) => s.members.find((m) => m.id === s.activeId));
-  const current = activeTournament(tournaments);
   const matchEvents = events
-    .filter((e) => e.kind === "partido" && current && e.tournamentId === current.id)
+    .filter((event) => event.kind === "partido")
+    .filter((event) => {
+      const closed = tournaments.some(
+        (tournament) => tournament.id === event.tournamentId && tournament.status === "finished",
+      );
+      if (!closed) return true;
+      return !matchSettled(event, sheetFor(event.id, sheets));
+    })
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
   const fallback = nextEvent(matchEvents, { tournaments, sheets }) ?? matchEvents[matchEvents.length - 1];
   const [eventId, setEventId] = useState(fallback?.id ?? "");
@@ -57,9 +63,7 @@ function CanchaPage() {
       <main className="px-4 py-6">
         <h1 className="text-3xl font-semibold">Sin pizarra</h1>
         <p className="mt-2 text-sm text-muted">
-          {current
-            ? "Agendá un partido de este torneo para armar la formación."
-            : "No hay un torneo activo. Las formaciones de los torneos cerrados no se guardan."}
+          Agendá un partido para armar la formación. También entran los amistosos.
         </p>
       </main>
     );
@@ -149,6 +153,7 @@ function CanchaPage() {
         <p className="mt-2 text-center text-xs text-muted">Tocá un puesto para poner o sacar a alguien.</p>
       ) : null}
 
+      {note ? <p className="mt-3 text-center text-sm font-semibold text-accent">{note}</p> : null}
       {staff ? (
         <Button
           className="mt-3 h-14 w-full text-base"
@@ -161,7 +166,6 @@ function CanchaPage() {
           {event.lineupPublishedAt ? "Actualizar formación y avisar" : "Publicar formación"}
         </Button>
       ) : null}
-      {note ? <p className="mt-3 text-center text-sm font-semibold text-accent">{note}</p> : null}
       {event.lineupPublishedAt && !staff ? (
         <p className="mt-2 text-center text-xs text-muted">Formación publicada.</p>
       ) : null}
@@ -202,12 +206,16 @@ function CanchaPage() {
                 </Button>
               </li>
             ) : null}
-            <li className="px-3 py-2 text-sm text-muted">Solo aparecen los convocados que confirmaron que van.</li>
+            <li className="px-3 py-2 text-sm text-muted">
+              Entran los convocados que no dijeron que no van. Si todavía no contestaron, podés ponerlos igual.
+            </li>
             {players
               .filter((p) => {
                 const llamado = event.convocados ? event.convocados.includes(p.id) : true;
-                const va = rsvps.some((row) => row.eventId === event.id && row.memberId === p.id && row.status === "voy");
-                return llamado && va;
+                const noVa = rsvps.some(
+                  (row) => row.eventId === event.id && row.memberId === p.id && row.status === "no",
+                );
+                return llamado && !noVa;
               })
               .map((p) => (
               <li key={p.id}>

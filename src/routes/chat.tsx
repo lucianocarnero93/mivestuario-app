@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Chalkboard } from "@/components/fija/chalkboard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { formatTime } from "@/lib/fija/format";
+import { formatWhen } from "@/lib/fija/format";
 import { useFija, useIsStaff } from "@/lib/fija/store";
 
 type ShareSearch = {
@@ -37,8 +37,11 @@ function CharlaWall() {
   const members = useFija((s) => s.members);
   const charla = useFija((s) => s.charla);
   const postCharla = useFija((s) => s.postCharla);
+  const deleteCharla = useFija((s) => s.deleteCharla);
+  const updateCharla = useFija((s) => s.updateCharla);
   const [text, setText] = useState("");
   const [posted, setPosted] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const byId = new Map(members.map((m) => [m.id, m]));
   const ordered = [...charla].sort((a, b) => +new Date(b.at) - +new Date(a.at));
   const latest = ordered[0];
@@ -52,9 +55,38 @@ function CharlaWall() {
         ) : (
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-chalk/70">
-              {byId.get(latest.memberId)?.nick ?? "Cuerpo técnico"} · {formatTime(latest.at)}
+              {byId.get(latest.memberId)?.nick ?? "Cuerpo técnico"} · {formatWhen(latest.at)}
             </p>
             <p className="mt-1 text-lg leading-relaxed">{latest.text}</p>
+            {staff ? (
+              <div className="mt-2 flex gap-3">
+                <button
+                  type="button"
+                  className="h-10 text-xs text-chalk/70 underline"
+                  onClick={() => {
+                    setEditingId(latest.id);
+                    setText(latest.text);
+                    setPosted(false);
+                  }}
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  className="h-10 text-xs text-chalk/70 underline"
+                  onClick={() => {
+                    if (!window.confirm("¿Borrar esta indicación?")) return;
+                    deleteCharla(latest.id);
+                    if (editingId === latest.id) {
+                      setEditingId(null);
+                      setText("");
+                    }
+                  }}
+                >
+                  Borrar
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
       </Chalkboard>
@@ -64,9 +96,34 @@ function CharlaWall() {
             {older.map((post) => (
               <li key={post.id}>
                 <p className="text-xs font-semibold uppercase tracking-widest text-chalk/70">
-                  {byId.get(post.memberId)?.nick ?? "Cuerpo técnico"} · {formatTime(post.at)}
+                  {byId.get(post.memberId)?.nick ?? "Cuerpo técnico"} · {formatWhen(post.at)}
                 </p>
                 <p className="mt-1 leading-relaxed">{post.text}</p>
+                {staff ? (
+                  <div className="mt-1 flex gap-3">
+                    <button
+                      type="button"
+                      className="h-10 text-xs text-chalk/70 underline"
+                      onClick={() => {
+                        setEditingId(post.id);
+                        setText(post.text);
+                        setPosted(false);
+                      }}
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      className="h-10 text-xs text-chalk/70 underline"
+                      onClick={() => {
+                        if (!window.confirm("¿Borrar esta indicación?")) return;
+                        deleteCharla(post.id);
+                      }}
+                    >
+                      Borrar
+                    </button>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -77,8 +134,10 @@ function CharlaWall() {
           className="mt-4 space-y-2"
           onSubmit={(e) => {
             e.preventDefault();
-            postCharla(text);
+            if (editingId) updateCharla(editingId, text);
+            else postCharla(text);
             setText("");
+            setEditingId(null);
             setPosted(true);
           }}
         >
@@ -89,7 +148,7 @@ function CharlaWall() {
             className="min-h-24"
           />
           <Button type="submit" className="h-14 w-full" disabled={!text.trim()}>
-            {posted && !text.trim() ? "Publicado" : "Publicar y avisar"}
+            {editingId ? "Guardar corrección" : posted && !text.trim() ? "Publicado" : "Publicar y avisar"}
           </Button>
           <p className="text-xs text-muted">
             {posted && !text.trim() ? "El plantel ya puede leerlo." : "Lo ven todos los del equipo."}

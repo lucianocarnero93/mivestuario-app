@@ -62,7 +62,7 @@ export function inviteSharePayload(club: Club) {
   const url = inviteUrl(club.inviteCode);
   return {
     title: "Mi Vestuario App",
-    text: `Te invito al vestuario de ${club.name}. Código ${club.inviteCode}. ${url}`,
+    text: `Te invito al vestuario de ${club.name}. Código ${club.inviteCode}.`,
     url,
   };
 }
@@ -90,12 +90,6 @@ export async function shareOrCopy(payload: {
 export function whatsAppClaimUrl(player: Member, event: ClubEvent, club: Club): string {
   const text = `Che ${player.nick}, el DT te está esperando. Confirmá si vas a ${event.title} el ${formatWhen(event.startsAt)}. — ${club.name}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
-}
-
-export function hoursSince(iso: string, now = Date.now()): number {
-  const t = +new Date(iso);
-  if (Number.isNaN(t)) return 0;
-  return Math.max(0, (now - t) / 3_600_000);
 }
 
 export function clampHours(value: number, min = 1, max = 168): number {

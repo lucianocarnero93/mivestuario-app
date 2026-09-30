@@ -125,17 +125,15 @@ function EventDialog({
   const [tournamentId, setTournamentId] = useState(initial.tournamentId);
   const [saved, setSaved] = useState(false);
   const [newTournamentName, setNewTournamentName] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const tournaments = useFija((s) => s.tournaments);
   const createTournament = useFija((s) => s.createTournament);
   const matchNeedsTournament = kind === "partido";
-  const activeOne = tournaments.find((tournament) => tournament.status === "active");
   const listed = tournaments.filter(
     (tournament) => tournament.status === "active" || tournament.id === keepTournamentId,
   );
   const chosen = listed.find((tournament) => tournament.id === tournamentId);
-  const canSaveMatch =
-    !matchNeedsTournament ||
-    Boolean(chosen && (chosen.status === "active" || chosen.id === keepTournamentId));
+  const canSaveMatch = !matchNeedsTournament || tournamentId === "" || Boolean(chosen);
 
   function reset() {
     setKind(initial.kind);
@@ -146,6 +144,7 @@ function EventDialog({
     setWhen(initial.when);
     setTournamentId(initial.tournamentId);
     setSaved(false);
+    setConfirmDelete(false);
   }
 
   return (
@@ -167,6 +166,7 @@ function EventDialog({
               label: KIND_LABEL[id],
             }))}
           />
+          {kind === "partido" ? (
           <Segmented
             value={modality}
             onChange={setModality}
@@ -175,6 +175,7 @@ function EventDialog({
               label: MODALITY_SHORT[id],
             }))}
           />
+          ) : null}
           <div className="space-y-1.5">
             <Label>Título</Label>
             <Input
@@ -214,9 +215,10 @@ function EventDialog({
               {listed.length > 0 ? (
                 <select
                   className="h-12 w-full rounded-md border border-border bg-bg px-3 text-sm"
-                  value={chosen ? tournamentId : ""}
+                  value={tournamentId}
                   onChange={(e) => setTournamentId(e.target.value)}
                 >
+                  <option value="">Amistoso, sin torneo</option>
                   {listed.map((tournament) => (
                     <option key={tournament.id} value={tournament.id}>
                       {tournament.name}
@@ -225,10 +227,9 @@ function EventDialog({
                   ))}
                 </select>
               ) : (
-                <p className="text-sm text-muted">Todavía no hay un torneo. Creá uno para poder subir este partido.</p>
+                <p className="text-sm text-muted">Sin torneo queda como amistoso. O creá uno ahora.</p>
               )}
-              {!activeOne ? (
-                <div className="space-y-2 pt-1">
+              <div className="space-y-2 pt-1">
                   <Input
                     value={newTournamentName}
                     onChange={(e) => setNewTournamentName(e.target.value)}
@@ -248,8 +249,7 @@ function EventDialog({
                   >
                     Crear torneo y usarlo en este partido
                   </Button>
-                </div>
-              ) : null}
+              </div>
             </div>
           ) : null}
           <Button
@@ -265,16 +265,30 @@ function EventDialog({
             {saved ? "Guardado" : submitLabel}
           </Button>
           {onDelete ? (
-            <Button
-              variant="ghost"
-              className="h-11 w-full text-danger"
-              onClick={() => {
-                onDelete();
-                setOpen(false);
-              }}
-            >
-              Quitar de la agenda
-            </Button>
+            confirmDelete ? (
+              <div className="rounded-lg bg-bg p-3">
+                <p className="text-sm">¿Sacar esta fecha? También se van la planilla, las respuestas y los avisos.</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Button
+                    variant="danger"
+                    className="h-11"
+                    onClick={() => {
+                      onDelete();
+                      setOpen(false);
+                    }}
+                  >
+                    Sacar
+                  </Button>
+                  <Button variant="ghost" className="h-11" onClick={() => setConfirmDelete(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="ghost" className="h-11 w-full text-danger" onClick={() => setConfirmDelete(true)}>
+                Quitar de la agenda
+              </Button>
+            )
           ) : null}
         </div>
       </DialogContent>

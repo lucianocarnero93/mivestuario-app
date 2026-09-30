@@ -8,7 +8,7 @@ import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
 import { alertsDue } from "./club-rules";
 import { pruneBundle } from "./prune";
-import { clampHours, hoursSince } from "./share";
+import { clampHours } from "./share";
 import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, loadClubDoc, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, useMyName, withoutDroppedEvents } from "./cloud";
 import { clearPedirEdad, readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
@@ -89,6 +89,10 @@ type State = ReturnType<typeof createSeed> & {
   publishLineup: (eventId: string) => void;
   sendChat: (text: string) => void;
   postCharla: (text: string) => void;
+  deleteCharla: (id: string) => void;
+  updateCharla: (id: string, text: string) => void;
+  updateMember: (memberId: string, patch: { name?: string; nick?: string; number?: number | null }) => void;
+  reopenTournament: (id: string) => void;
   sendConvocatoria: (eventId: string) => void;
   setReminderPolicy: (policy: ReminderPolicy) => void;
   tickAlerts: () => void;
@@ -227,15 +231,31 @@ export const useFija = create<State>()(
 
       // El DT anota la respuesta de otro jugador.
       setMemberRsvp: (eventId, memberId, status) => {
+        if (!isStaffId(get())) return;
         if (tournamentClosedFor(get(), eventId)) return;
         set({ rsvps: upsertRsvp(get().rsvps, eventId, memberId, status) });
       },
 
-      // Manda el aviso de "confirmá si vas" para un partido.
       sendReminder: (eventId) => {
+        if (!isStaffId(get())) return;
         if (tournamentClosedFor(get(), eventId)) return;
         const event = get().events.find((item) => item.id === eventId);
-        set({ reminder: { eventId, sentAt: new Date().toISOString() } });
+        if (!event) return;
+        const moment = new Date().toISOString();
+        const notice: InboxItem = {
+          id: `in-now-${eventId}-${Date.parse(moment)}`,
+          kind: "recordatorio",
+          title: "El DT te está esperando",
+          body: `Confirmá si vas a ${event.title}.`,
+          eventId,
+          audience: "pending",
+          at: moment,
+          readBy: [get().activeId],
+        };
+        set({
+          inbox: [...get().inbox, notice],
+          reminder: { eventId, sentAt: moment },
+        });
         void notifyReminder(event);
       },
 
@@ -247,11 +267,10 @@ export const useFija = create<State>()(
       createEvent: (input) => {
         if (!isStaffId(get())) return;
         const tournaments = get().tournaments;
-        const chosen = tournaments.find((tournament) => tournament.id === input.tournamentId);
-        const activeTournament = tournaments.find((tournament) => tournament.status === "active");
-        if (input.kind === "partido" && chosen?.status === "finished") return;
-        const tournamentForMatch = chosen ?? activeTournament;
-        if (input.kind === "partido" && tournamentForMatch?.status !== "active") return;
+        const chosen = input.tournamentId
+          ? tournaments.find((tournament) => tournament.id === input.tournamentId)
+          : undefined;
+        if (input.kind === "partido" && input.tournamentId && (!chosen || chosen.status === "finished")) return;
         const event: ClubEvent = {
           id: uid("ev"),
           kind: input.kind,
@@ -265,7 +284,7 @@ export const useFija = create<State>()(
           lineup: {},
           tactics: "",
           lineupPublishedAt: null,
-          tournamentId: input.kind === "partido" ? (tournamentForMatch?.id ?? null) : null,
+          tournamentId: input.kind === "partido" ? input.tournamentId || null : null,
         };
                 const players = get().members.filter(
           (person) => person.juega ?? person.role === "jugador",
@@ -406,8 +425,8 @@ export const useFija = create<State>()(
         if (tournamentClosedFor(get(), eventId)) return "El torneo está cerrado.";
         const event = get().events.find((item) => item.id === eventId);
         if (!event) return "Ese partido no está.";
-        if (on && rsvpDe(get(), eventId, memberId) !== "voy") {
-          return "No confirmó que va. No se puede convocar.";
+        if (on && rsvpDe(get(), eventId, memberId) === "no") {
+          return "Dijo que no va.";
         }
         set({
           events: get().events.map((item) => {
@@ -593,6 +612,42 @@ export const useFija = create<State>()(
         });
       },
 
+      deleteCharla: (id) => {
+        if (!isStaffId(get())) return;
+        const post = get().charla.find((item) => item.id === id);
+        if (!post) return;
+        set({
+          charla: get().charla.filter((item) => item.id !== id),
+          inbox: get().inbox.filter((item) => !(item.kind === "charla" && item.at === post.at && item.body === post.text)),
+        });
+      },
+
+      updateCharla: (id, text) => {
+        if (!isStaffId(get())) return;
+        const cleanText = sanitizeText(text, 400);
+        if (!cleanText) return;
+        set({
+          charla: get().charla.map((post) => (post.id === id ? { ...post, text: cleanText } : post)),
+        });
+      },
+
+      updateMember: (memberId, patch) => {
+        if (!isStaffId(get())) return;
+        const name = patch.name != null ? sanitizeName(patch.name) : undefined;
+        const nick = patch.nick != null ? sanitizeName(patch.nick) : undefined;
+        set({
+          members: get().members.map((person) => {
+            if (person.id !== memberId) return person;
+            return {
+              ...person,
+              name: name || person.name,
+              nick: nick || person.nick,
+              number: patch.number === undefined ? person.number : patch.number,
+            };
+          }),
+        });
+      },
+
       // El DT convoca al partido. Reinicia las alertas de ese partido.
       sendConvocatoria: (eventId) => {
         if (!isStaffId(get())) return;
@@ -623,7 +678,7 @@ export const useFija = create<State>()(
       setReminderPolicy: (policy) => {
         if (!isStaffId(get())) return;
         const firstHours = clampHours(policy.firstHours);
-        const secondHours = clampHours(Math.max(policy.secondHours, firstHours));
+        const secondHours = clampHours(policy.secondHours);
         set({ reminderPolicy: { firstHours, secondHours } });
       },
       // Cada tanto revisa si ya pasó el plazo y hay que recordar a los que no contestaron.
@@ -683,11 +738,12 @@ export const useFija = create<State>()(
 
       // El DT o el ayudante cambia de puesto con otra persona.
       cederMando: (otherPersonId) => {
-        const { members, activeId } = get();
+        if (!isCreatorId(get())) return;
+        const { members, activeId, club } = get();
         const currentPerson = members.find((person) => person.id === activeId);
         const otherPerson = members.find((person) => person.id === otherPersonId);
-        if (!currentPerson || !otherPerson) return;
-        if (currentPerson.role === "jugador") return;
+        if (!currentPerson || !otherPerson || !club) return;
+        if (currentPerson.id === otherPerson.id) return;
         const roleIHaveNow = currentPerson.role;
         set({
           members: members.map((person) => {
@@ -695,6 +751,7 @@ export const useFija = create<State>()(
             if (person.id === otherPerson.id) return { ...person, role: roleIHaveNow };
             return person;
           }),
+          club: { ...club, createdBy: otherPerson.id },
           activeId: currentPerson.id,
         });
       },
@@ -889,11 +946,10 @@ export const useFija = create<State>()(
         return null;
       },
 
-      // Abre un torneo. No puede haber dos abiertos al mismo tiempo.
+      // Abre un torneo. Puede haber más de uno abierto (liga y copa).
       // Devuelve el id del torneo nuevo para poder asociarle el partido enseguida.
       createTournament: (name) => {
         if (!isStaffId(get())) return null;
-        if (get().tournaments.some((tournament) => tournament.status === "active")) return null;
         const tournamentName = sanitizeName(name);
         if (!tournamentName) return null;
         const tournament: Tournament = {
@@ -945,6 +1001,16 @@ export const useFija = create<State>()(
           inbox: light.inbox,
           alertLog: light.alertLog,
           convocatorias: light.convocatorias,
+        });
+      },
+
+      reopenTournament: (id) => {
+        if (!isStaffId(get())) return;
+        const now = new Date().toISOString();
+        set({
+          tournaments: get().tournaments.map((item) =>
+            item.id === id ? { ...item, status: "active" as const, endedAt: null, updatedAt: now } : item,
+          ),
         });
       },
 
@@ -1522,6 +1588,7 @@ export const useFija = create<State>()(
           cloudError: get().dirty ? get().cloudError : null,
         });
         applyingCloud = false;
+        localRev += 1;
         return true;
       },
 
@@ -1619,12 +1686,12 @@ export const useFija = create<State>()(
         let lastError = "No se pudo guardar el equipo.";
         for (let attempt = 0; attempt < 3; attempt += 1) {
           if (epoch !== cloudEpoch) return false;
-          const current = get();
-          if (!current.club) return false;
+          const clubNow = get().club;
+          if (!clubNow) return false;
           try {
             let remote: ClubBundle | null = null;
             try {
-              const loaded = await loadClubDoc({ data: current.club.inviteCode });
+              const loaded = await loadClubDoc({ data: clubNow.inviteCode });
               if (loaded.ok) remote = loaded.bundle;
               else if (loaded.reason === "forbidden") {
                 lastError = "No estás en este equipo.";
@@ -1636,6 +1703,10 @@ export const useFija = create<State>()(
             } catch {
               remote = null;
             }
+            if (epoch !== cloudEpoch) return false;
+            const revAtSend = localRev;
+            const current = get();
+            if (!current.club) return false;
             const local = toBundle({ ...current, club: current.club });
             const merged = remote
               ? mergeClubBundles(local, remote, { activeId: current.activeId, staff: isStaffId(current) })
@@ -1648,9 +1719,36 @@ export const useFija = create<State>()(
             });
             if (result.ok && result.bundle) {
               if (epoch !== cloudEpoch) return false;
-              const savedBundle = result.bundle;
-              const rev = localRev;
               flushFailStreak = 0;
+              const notice = freshNotice(current.activeId, remote, merged);
+              const pushNotice = () => {
+                if (!notice) return;
+                void notifyClub({
+                  data: {
+                    code: merged.club.inviteCode,
+                    exceptMemberId: current.activeId,
+                    title: notice.title,
+                    body: notice.body,
+                    url: notice.url,
+                    tag: notice.tag,
+                  },
+                });
+              };
+              if (localRev !== revAtSend) {
+                pushNotice();
+                applyingCloud = true;
+                set({
+                  cloudStatus: "syncing",
+                  dirty: true,
+                  lastFlushErrorAt: null,
+                  cloudWeight: result.weight ?? get().cloudWeight,
+                });
+                applyingCloud = false;
+                if (flushTimer) window.clearTimeout(flushTimer);
+                flushTimer = window.setTimeout(() => void useFija.getState().flushCloud(), 800) as unknown as ReturnType<typeof setTimeout>;
+                return true;
+              }
+              const savedBundle = result.bundle;
               applyingCloud = true;
               set({
                 ...savedBundle,
@@ -1663,7 +1761,7 @@ export const useFija = create<State>()(
                 hydrated: true,
                 cloudStatus: "ok",
                 cloudError: null,
-                dirty: localRev !== rev,
+                dirty: false,
                 lastFlushErrorAt: null,
                 cloudWeight: result.weight ?? null,
                 savedMine: mineSaved(savedBundle.rsvps, get().activeId),
@@ -1671,23 +1769,7 @@ export const useFija = create<State>()(
                 bannedAccounts: savedBundle.bannedAccounts ?? get().bannedAccounts,
               });
               applyingCloud = false;
-              if (localRev !== rev) {
-                if (flushTimer) window.clearTimeout(flushTimer);
-                flushTimer = window.setTimeout(() => void useFija.getState().flushCloud(), 800) as unknown as ReturnType<typeof setTimeout>;
-              }
-              const notice = freshNotice(current.activeId, remote, merged);
-              if (notice) {
-                void notifyClub({
-                  data: {
-                    code: merged.club.inviteCode,
-                    exceptMemberId: current.activeId,
-                    title: notice.title,
-                    body: notice.body,
-                    url: notice.url,
-                    tag: notice.tag,
-                  },
-                });
-              }
+              pushNotice();
               return true;
             }
             lastError = result.error || lastError;
@@ -1895,9 +1977,13 @@ function tournamentClosedFor(
 ): boolean {
   const event = state.events.find((item) => item.id === eventId);
   if (!event?.tournamentId) return false;
-  return state.tournaments.some(
+  const finished = state.tournaments.some(
     (tournament) => tournament.id === event.tournamentId && tournament.status === "finished",
   );
+  if (!finished) return false;
+  const start = Date.parse(event.startsAt);
+  if (!Number.isNaN(start) && start >= Date.now() - 3_600_000) return false;
+  return true;
 }
 
 // True si la persona actual es DT o ayudante. Ellos editan cancha y planilla.
@@ -1940,14 +2026,17 @@ function mergeEvents(remote: ClubEvent[], local: ClubEvent[], staff: boolean): C
   return [...map.values()];
 }
 
-function mergeRsvps(remote: Rsvp[], local: Rsvp[], activeId: string): Rsvp[] {
+function mergeRsvps(remote: Rsvp[], local: Rsvp[], activeId: string, staff: boolean): Rsvp[] {
   const key = (row: Rsvp) => `${row.eventId}:${row.memberId}`;
   const map = new Map<string, Rsvp>();
   for (const row of remote) map.set(key(row), row);
   for (const row of local) {
     const previous = map.get(key(row));
-    if (!previous || row.memberId === activeId) map.set(key(row), row);
-    else if (previous.status === "pendiente" && row.status !== "pendiente") map.set(key(row), row);
+    if (!previous || row.memberId === activeId || (staff && row.status !== "pendiente")) {
+      map.set(key(row), row);
+      continue;
+    }
+    if (previous.status === "pendiente" && row.status !== "pendiente") map.set(key(row), row);
   }
   return [...map.values()];
 }
@@ -1987,7 +2076,7 @@ function mergeClubBundles(
       ),
     ),
     events: mergeEvents(remote.events, local.events, who.staff),
-    rsvps: mergeRsvps(remote.rsvps, local.rsvps, who.activeId),
+    rsvps: mergeRsvps(remote.rsvps, local.rsvps, who.activeId, who.staff),
     messages: unionById(remote.messages, local.messages),
     charla: unionById(remote.charla, local.charla),
     matchSheets: mergeSheets(remote.matchSheets, local.matchSheets, who.staff),
@@ -2305,7 +2394,7 @@ function avisoParaCancha(
   const person = state.members.find((item) => item.id === memberId);
   if (!person || !(person.juega ?? person.role === "jugador")) return "No está en el plantel que juega.";
   if (event.convocados && !event.convocados.includes(memberId)) return "No está convocado.";
-  if (rsvpDe(state, event.id, memberId) !== "voy") return "No confirmó que va. No se puede convocar.";
+  if (rsvpDe(state, event.id, memberId) === "no") return "Dijo que no va.";
   return null;
 }
 
@@ -2415,7 +2504,10 @@ export function nextEvent(
 ): ClubEvent | undefined {
   const tournaments = options?.tournaments ?? [];
   const sheets = options?.sheets ?? [];
-  const visible = events.filter((event) => !eventOfClosedTournament(event, tournaments));
+  const visible = events.filter((event) => {
+    if (!eventOfClosedTournament(event, tournaments)) return true;
+    return !matchSettled(event, sheetFor(event.id, sheets));
+  });
   const now = Date.now();
   const upcoming = visible
     .filter((event) => +new Date(event.startsAt) >= now - 3_600_000)
@@ -2463,9 +2555,12 @@ export function whatsappReady(
   eventId: string,
   convocatorias: Convocatoria[],
   policy: ReminderPolicy,
+  startsAt: string,
   now = Date.now(),
 ): boolean {
   const conv = convocatoriaFor(eventId, convocatorias);
-  if (!conv) return false;
-  return hoursSince(conv.sentAt, now) >= policy.secondHours;
+  if (!conv || !startsAt) return false;
+  const kickoff = Date.parse(startsAt);
+  if (Number.isNaN(kickoff)) return false;
+  return (kickoff - now) / 3_600_000 <= policy.secondHours;
 }

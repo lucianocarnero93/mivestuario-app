@@ -14,6 +14,7 @@ export function SquadPanel({
   const rsvps = useFija((s) => s.rsvps);
   const setConvocado = useFija((s) => s.setConvocado);
   const setSuplente = useFija((s) => s.setSuplente);
+  const setMemberRsvp = useFija((s) => s.setMemberRsvp);
   const convocarLosQueVan = useFija((s) => s.convocarLosQueVan);
   const byId = new Map(members.map((person) => [person.id, person]));
   const plantel = members.filter((person) => person.juega ?? person.role === "jugador");
@@ -77,23 +78,41 @@ export function SquadPanel({
           {plantel.map((person) => {
             const respuesta = rsvps.find((row) => row.eventId === event.id && row.memberId === person.id)?.status;
             const va = respuesta === "voy";
+            const noVa = respuesta === "no";
             const llamado = convocados.has(person.id);
             const donde = titulares.has(person.id) ? "Titular" : banco.includes(person.id) ? "Suplente" : llamado ? "Sin puesto" : "";
+            const estado = va ? "Confirmó" : noVa ? "No va" : "No confirmó";
             if (!staff && !llamado) return null;
             return (
-              <li key={person.id} className="flex items-center justify-between gap-2 py-1">
-                <span className="min-w-0 truncate text-sm">
-                  {person.nick}
-                  <span className="ml-2 text-xs text-muted">{donde || (va ? "Confirmó" : "No confirmó")}</span>
-                </span>
+              <li key={person.id} className="py-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 truncate text-sm">
+                    {person.number != null ? `${person.number} ` : ""}
+                    {person.nick}
+                    <span className="ml-2 text-xs text-muted">{donde ? `${donde} · ${estado}` : estado}</span>
+                  </span>
+                  {staff ? (
+                    <button
+                      type="button"
+                      className="h-10 shrink-0 rounded-md bg-bg px-3 text-xs font-semibold"
+                      onClick={() => actuar(setConvocado(event.id, person.id, !llamado))}
+                    >
+                      {llamado ? "Sacar" : "Convocar"}
+                    </button>
+                  ) : null}
+                </div>
                 {staff ? (
-                  <button
-                    type="button"
-                    className="h-10 shrink-0 rounded-md bg-bg px-3 text-xs font-semibold"
-                    onClick={() => actuar(setConvocado(event.id, person.id, !llamado))}
-                  >
-                    {llamado ? "Sacar" : "Convocar"}
-                  </button>
+                  <div className="mt-1 grid grid-cols-3 gap-1">
+                    <button type="button" className="h-10 rounded-md bg-bg text-xs font-semibold" onClick={() => setMemberRsvp(event.id, person.id, "voy")}>
+                      Va
+                    </button>
+                    <button type="button" className="h-10 rounded-md bg-bg text-xs font-semibold" onClick={() => setMemberRsvp(event.id, person.id, "no")}>
+                      No va
+                    </button>
+                    <button type="button" className="h-10 rounded-md bg-bg text-xs font-semibold" onClick={() => setMemberRsvp(event.id, person.id, "pendiente")}>
+                      Pendiente
+                    </button>
+                  </div>
                 ) : null}
               </li>
             );

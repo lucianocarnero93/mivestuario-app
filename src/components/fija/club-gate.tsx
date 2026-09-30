@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loadClubCard } from "@/lib/fija/cloud";
 import { clearRememberedInvite, readRememberedInvite } from "@/lib/fija/share";
-import { useFija } from "@/lib/fija/store";
+import { currentAccount, useFija } from "@/lib/fija/store";
 import { LogoMark } from "./logo";
 import { CrestPicker, TeamCrest } from "./team-crest";
 
@@ -36,6 +36,17 @@ export function ClubGate() {
   const [card, setCard] = useState<TeamCard | null>(null);
   const [cardStatus, setCardStatus] = useState<CardStatus>("loading");
   const [retry, setRetry] = useState(0);
+  const [accountName, setAccountName] = useState("");
+
+  useEffect(() => {
+    void currentAccount().then((account) => {
+      const name = account?.name?.trim() ?? "";
+      if (name.length < 2) return;
+      setAccountName(name);
+      setFullName((prev) => prev.trim() || name);
+      setNick((prev) => prev.trim() || name.split(" ")[0] || "");
+    });
+  }, []);
   const clubNotice = useFija((s) => s.clubNotice);
   const clearClubNotice = useFija((s) => s.clearClubNotice);
 
@@ -202,10 +213,16 @@ export function ClubGate() {
           {fromCard && card ? `Unirme a ${card.name}` : "Unirme a un equipo"}
         </h1>
         <p className="mt-2 text-center text-sm text-muted">
-          {fromCard ? "Poné tu nombre y tu apodo." : "Poné tu nombre y el código que te pasó el DT."}
+          {accountName
+            ? `Entrás como ${fullName || accountName}.`
+            : fromCard
+              ? "Poné tu nombre y tu apodo."
+              : "Poné tu nombre y el código que te pasó el DT."}
         </p>
 
         <div className="mt-6 space-y-3">
+          {accountName ? null : (
+            <>
           <div>
             <Label htmlFor="gate-name">Tu nombre</Label>
             <Input
@@ -226,6 +243,8 @@ export function ClubGate() {
               placeholder="Ej: Juanchi"
             />
           </div>
+            </>
+          )}
           {fromCard ? null : (
             <div>
               <Label htmlFor="gate-code">Código del vestuario</Label>

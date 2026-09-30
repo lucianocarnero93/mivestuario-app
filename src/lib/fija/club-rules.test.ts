@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   alertsDue,
+  claimExistingName,
   decideClaim,
   mergePlayerAlerts,
   mergePlayerInbox,
@@ -109,6 +110,26 @@ test("join normal usa la cuenta como id", () => {
   assert.equal(result.members.find((item) => item.accountId === "acc-p")?.id, "acc-p");
 });
 
+test("join usa el nombre cargado a mano si se lo pedís", () => {
+  const result = decideClaim({
+    members: [
+      person({ id: "dt", name: "Lucho", role: "dt" }),
+      person({ id: "j-enzo", name: "Enzo", nick: "8 Enzo", number: 8 }),
+    ],
+    accountId: "acc-p",
+    mode: "join",
+    draft: { name: "Enzo", nick: "Enzo", number: null, menor: false },
+    freshId: "m-nuevo",
+    claimId: "j-enzo",
+  });
+  assert.equal(result.kind, "join");
+  if (result.kind !== "join") return;
+  const mine = result.members.find((item) => item.accountId === "acc-p");
+  assert.equal(mine?.id, "j-enzo");
+  assert.equal(mine?.number, 8);
+  assert.equal(result.members.filter((item) => item.name === "Enzo").length, 1);
+});
+
 test("un miembro tachado no se reescribe", () => {
   const result = decideClaim({
     members: [person({ id: "j1", name: "Pibe", accountId: "acc-p" })],
@@ -166,7 +187,21 @@ test("dejar volver saca la cuenta de la lista de sacados", () => {
   assert.equal(next.bannedAccounts?.length, 0);
 });
 
-function match(id = "e1"): ClubEvent {
+test("unir la cuenta saca el duplicado y no banea", () => {
+  const team = bundle([
+    person({ id: "j-enzo", name: "Enzo", number: 8 }),
+    person({ id: "acc-p", name: "Enzo", accountId: "acc-p" }),
+  ]);
+  const joined = claimExistingName(team, "acc-p", "j-enzo");
+  assert.equal(joined.ok, true);
+  if (!joined.ok) return;
+  assert.equal(joined.bundle.members.length, 1);
+  assert.equal(joined.bundle.members[0]?.id, "j-enzo");
+  assert.equal(joined.bundle.members[0]?.accountId, "acc-p");
+  assert.equal(joined.bundle.bannedAccounts?.length ?? 0, 0);
+});
+
+function match(id = "e1", startsAt = "2026-04-01T21:00:00.000Z"): ClubEvent {
   return {
     id,
     kind: "partido",
@@ -175,7 +210,7 @@ function match(id = "e1"): ClubEvent {
     mapsQuery: "Cancha",
     lat: null,
     lng: null,
-    startsAt: "2026-04-01T21:00:00.000Z",
+    startsAt,
     modality: "f5",
     lineup: {},
     tactics: "",
@@ -188,12 +223,12 @@ test("alertsDue dos veces no inventa otro aviso", () => {
   const sentAt = "2026-03-01T00:00:00.000Z";
   const now = Date.parse(sentAt) + 5 * 3_600_000;
   const state = {
-    events: [match()],
+    events: [match("e1", new Date(now + 30 * 60_000).toISOString())],
     rsvps: [{ eventId: "e1", memberId: "p", status: "pendiente" as const }],
     convocatorias: [{ eventId: "e1", sentAt }],
     inbox: [],
     alertLog: [],
-    reminderPolicy: { firstHours: 1, secondHours: 48 },
+    reminderPolicy: { firstHours: 1, secondHours: 0.01 },
     tournaments: [],
   };
   const first = alertsDue(state, now);
@@ -209,19 +244,19 @@ test("reenviar la convocatoria vuelve a avisar", () => {
   const sentAt = "2026-03-01T00:00:00.000Z";
   const now = Date.parse(sentAt) + 5 * 3_600_000;
   const state = {
-    events: [match()],
+    events: [match("e1", new Date(now + 10 * 3_600_000).toISOString())],
     rsvps: [{ eventId: "e1", memberId: "p", status: "pendiente" as const }],
     convocatorias: [{ eventId: "e1", sentAt }],
     inbox: [],
     alertLog: [],
-    reminderPolicy: { firstHours: 1, secondHours: 48 },
+    reminderPolicy: { firstHours: 24, secondHours: 0.01 },
     tournaments: [],
   };
   const first = alertsDue(state, now);
   const resentAt = new Date(now + 60_000).toISOString();
   const again = alertsDue(
     { ...state, inbox: first.inbox, alertLog: first.alertLog, convocatorias: [{ eventId: "e1", sentAt: resentAt }] },
-    now + 5 * 3_600_000,
+    now + 2 * 3_600_000,
   );
   assert.equal(again.alertLog.length, first.alertLog.length + 1);
   assert.notEqual(again.inbox.at(-1)?.id, first.inbox[0]?.id);
@@ -230,16 +265,17 @@ test("reenviar la convocatoria vuelve a avisar", () => {
 test("un aviso viejo no se duplica", () => {
   const sentAt = "2026-03-01T00:00:00.000Z";
   const scope = Date.parse(sentAt);
+  const now = scope + 5 * 3_600_000;
   const state = {
-    events: [match()],
+    events: [match("e1", new Date(now + 30 * 60_000).toISOString())],
     rsvps: [{ eventId: "e1", memberId: "p", status: "pendiente" as const }],
     convocatorias: [{ eventId: "e1", sentAt }],
     inbox: [],
     alertLog: [{ id: "viejo", eventId: "e1", kind: "first" as const, at: new Date(scope + 1000).toISOString() }],
-    reminderPolicy: { firstHours: 1, secondHours: 100 },
+    reminderPolicy: { firstHours: 1, secondHours: 0.01 },
     tournaments: [],
   };
-  const due = alertsDue(state, scope + 5 * 3_600_000);
+  const due = alertsDue(state, now);
   assert.equal(due.alertLog, state.alertLog);
   assert.equal(due.inbox, state.inbox);
 });

@@ -5,6 +5,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { sanitizeCode } from "./sanitize";
 import {
+  claimExistingName,
   decideClaim,
   freshMemberId,
   guardMember,
@@ -237,7 +238,13 @@ export function lightenClosedMatches(bundle: ClubBundle): ClubBundle {
   if (closed.size === 0) return bundle;
   const ids = new Set(
     (bundle.events ?? [])
-      .filter((event) => event.tournamentId && closed.has(event.tournamentId))
+      .filter((event) => {
+        if (!event.tournamentId || !closed.has(event.tournamentId) || event.kind !== "partido") return false;
+        const start = Date.parse(event.startsAt);
+        const alreadyPlayed = !Number.isNaN(start) && start < Date.now() - 3_600_000;
+        const hasResult = (bundle.matchSheets ?? []).some((sheet) => sheet.eventId === event.id) || Boolean(event.resultClosedAt);
+        return alreadyPlayed && hasResult;
+      })
       .map((event) => event.id),
   );
   if (ids.size === 0) return bundle;
@@ -367,6 +374,20 @@ function mergeSheetsByTime(kept: MatchSheet[], incoming: MatchSheet[]): MatchShe
   return [...map.values()];
 }
 
+function callerIsCreator(existing: ClubBundle, userId: string): boolean {
+  const creator = existing.members.find((person) => person.id === existing.club.createdBy);
+  return Boolean(creator && (creator.accountId === userId || creator.id === userId));
+}
+
+function lockStaffRoles(existing: ClubBundle, members: Member[], userId: string): Member[] {
+  if (callerIsCreator(existing, userId)) return members;
+  const roles = new Map(existing.members.map((person) => [person.id, person.role]));
+  return members.map((person) => {
+    const role = roles.get(person.id);
+    return role ? { ...person, role } : person;
+  });
+}
+
 function capOversizedPhotos(previous: Member[], next: Member[]): Member[] {
   const oldById = new Map(previous.map((person) => [person.id, person]));
   return next.map((person) => {
@@ -451,14 +472,22 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     unique.push(person);
   }
   const capped = capOversizedPhotos(existing.members, unique);
+  const listed = lockStaffRoles(existing, capped, userId);
   const eventIds = new Set(existing.events.map((event) => event.id));
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
   return pruneBundle(
     lightenClosedMatches(
     withoutDroppedEvents(
       {
-    club: staff ? { ...existing.club, ...incoming.club, inviteCode: existing.club.inviteCode, createdBy: existing.club.createdBy } : existing.club,
-    members: capped,
+    club: staff
+      ? {
+          ...existing.club,
+          ...incoming.club,
+          inviteCode: existing.club.inviteCode,
+          createdBy: callerIsCreator(existing, userId) ? incoming.club.createdBy || existing.club.createdBy : existing.club.createdBy,
+        }
+      : existing.club,
+    members: listed,
     events: staff ? mergeEvents(existing.events, incoming.events) : existing.events,
     rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => unique.some((person) => person.id === row.memberId)),
     messages: unionById(existing.messages, incoming.messages),
@@ -608,6 +637,7 @@ export const claimMember = createServerFn({ method: "POST" })
           mode: data.mode,
           draft: { name: data.name, nick: data.nick, number: data.number, menor },
           freshId: freshMemberId(),
+          claimId: data.id,
         });
         if (decision.kind === "removed") return { removed: true as const, members: existing.members };
         if (decision.kind === "notMember") return { notMember: true as const, members: existing.members };
@@ -749,19 +779,9 @@ export const useMyName = createServerFn({ method: "POST" })
           existing = asBundle(raw);
         }
         if (!existing) throw new Error("Ese equipo no está en la nube.");
-        const caller = memberFor(existing.members, accountId);
-        if (!isStaffMember(caller)) throw new Error("No podés cambiar de nombre.");
-        const target = existing.members.find((person) => person.id === data.memberId);
-        if (!target) throw new Error("Ese nombre no está en el plantel.");
-        if (target.accountId && target.accountId !== accountId) {
-          throw new Error("Ese nombre ya tiene otra cuenta.");
-        }
-        const list = existing.members.map((person) => {
-          if (person.id === target.id) return { ...person, accountId };
-          if (person.accountId === accountId) return { ...person, accountId: null };
-          return person;
-        });
-        const next = pruneBundle({ ...existing, members: list });
+        const claimed = claimExistingName(existing, accountId, data.memberId);
+        if (!claimed.ok) throw new Error(claimed.error);
+        const next = pruneBundle(claimed.bundle);
         if (!withinHardLimit(next)) throw new Error("El equipo pesa demasiado para subirlo.");
         await query(
           `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,

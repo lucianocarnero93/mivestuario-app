@@ -13,7 +13,7 @@ import {
   RecordStrip,
 } from "@/components/fija/stat-blocks";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABEL } from "@/lib/fija/format";
@@ -104,7 +104,7 @@ function EquipoPage() {
               rank={i + 1}
               member={byId.get(row.memberId)}
               value={row.goals}
-              unit="goles"
+              unit={row.goals === 1 ? "gol" : "goles"}
             />
           ))}
         </RankBlock>
@@ -183,6 +183,7 @@ function EquipoPage() {
                     {staff && p.menor ? <span className="ml-2 text-xs font-semibold text-muted">Menor</span> : null}
                   </p>
                   <p className="text-xs text-muted">{p.name}</p>
+                  {staff ? <MemberEdit memberId={p.id} nick={p.nick} number={p.number} /> : null}
                 </div>
                 <PlayerMarks row={byMember.get(p.id)} />
                 {(creator || (staff && p.menor)) && p.id !== me.id && pendingRemoveId !== p.id ? (
@@ -213,14 +214,15 @@ function EquipoPage() {
         </ul>
       </section>
 
+      <SoyEste />
       {creator ? (
         <div className="mt-6 grid gap-3">
           <CreateTeamDialog />
           <InviteDialog />
           <DesignateDialog />
+          <CederMando />
         </div>
       ) : null}
-      {staff ? <CederMando /> : null}
       <MisEquipos />
       <Sacados />
       <LeaveTeam />
@@ -305,9 +307,11 @@ function InviteDialog() {
             <p className="rounded-lg bg-bg py-4 text-center font-display text-2xl font-semibold tracking-widest text-accent">
               {code}
             </p>
-            <Button className="h-12 w-full" onClick={() => setOpen(false)}>
-              Listo
-            </Button>
+            <DialogClose asChild>
+              <Button className="h-12 w-full" type="button">
+                Listo
+              </Button>
+            </DialogClose>
           </div>
         ) : (
           <form
@@ -368,13 +372,13 @@ function DesignateDialog() {
       </DialogTrigger>
       <DialogContent title="Designar roles">
         <p className="mb-3 text-sm text-muted">
-          El rol anterior de esa persona pasa a jugador. Solo el creador del equipo puede hacerlo.
+          Si le das DT o ayudante, quien lo tenía pasa a jugador. Confirmá antes de cambiar.
         </p>
         <ul className="max-h-72 space-y-2 overflow-auto">
           {others.map((m) => (
             <li key={m.id} className="rounded-lg bg-bg px-3 py-2">
               <p className="text-sm font-medium">
-                {m.nick}{" "}
+                {etiqueta(m, members)}{" "}
                 <span className="text-xs font-normal text-muted">{ROLE_LABEL[m.role]}</span>
               </p>
               <div className="mt-2 flex gap-2">
@@ -385,6 +389,11 @@ function DesignateDialog() {
                     disabled={m.role === role}
                     className="h-11 flex-1 rounded-md bg-surface-2 text-xs font-semibold disabled:opacity-40"
                     onClick={() => {
+                      const aviso =
+                        role === "dt" || role === "ayudante"
+                          ? `¿${m.nick} pasa a ${ROLE_LABEL[role]}? Quien lo era pasa a jugador.`
+                          : `¿${m.nick} pasa a jugador?`;
+                      if (!window.confirm(aviso)) return;
                       assignRole(m.id, role);
                       setOpen(false);
                     }}
@@ -401,48 +410,131 @@ function DesignateDialog() {
   );
 }
 
+function MemberEdit({
+  memberId,
+  nick,
+  number,
+}: {
+  memberId: string;
+  nick: string;
+  number: number | null;
+}) {
+  const updateMember = useFija((s) => s.updateMember);
+  const [draftNick, setDraftNick] = useState(nick);
+  const [draftNumber, setDraftNumber] = useState(number == null ? "" : String(number));
+  return (
+    <div className="mt-2 flex gap-2">
+      <Input
+        aria-label="Apodo"
+        className="h-10"
+        value={draftNick}
+        onChange={(e) => setDraftNick(e.target.value)}
+        onBlur={() => updateMember(memberId, { nick: draftNick })}
+      />
+      <Input
+        aria-label="Número"
+        className="h-10 w-16"
+        inputMode="numeric"
+        value={draftNumber}
+        onChange={(e) => setDraftNumber(e.target.value)}
+        onBlur={() => {
+          const parsed = draftNumber.trim() ? Number(draftNumber) : null;
+          updateMember(memberId, { number: parsed != null && Number.isFinite(parsed) ? parsed : null });
+        }}
+      />
+    </div>
+  );
+}
+
+function SoyEste() {
+  const me = useMe();
+  const members = useFija((s) => s.members);
+  const claimName = useFija((s) => s.useThisName);
+  const [error, setError] = useState("");
+  const libres = members.filter((person) => !person.accountId && person.id !== me.id);
+  if (!me.accountId || libres.length === 0) return null;
+  return (
+    <section className="mt-5 rounded-xl bg-surface p-4 shadow-card">
+      <p className="text-sm">Si el DT ya te cargó a mano, elegí ese nombre para no quedar dos veces.</p>
+      <ul className="mt-2 space-y-2">
+        {libres.map((person) => (
+          <li key={person.id}>
+            <Button
+              variant="secondary"
+              className="h-11 w-full"
+              onClick={() => {
+                setError("");
+                void claimName(person.id).then((ok) => {
+                  if (!ok) setError("No se pudo unir ese nombre. Probá de nuevo.");
+                });
+              }}
+            >
+              Soy {etiqueta(person, members)}
+            </Button>
+          </li>
+        ))}
+      </ul>
+      {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
+    </section>
+  );
+}
+
+function etiqueta(person: { id: string; nick: string; name: string; number: number | null }, members: { nick: string; number: number | null; name: string }[]) {
+  const same = members.filter((item) => item.nick === person.nick).length > 1;
+  const number = person.number != null ? `${person.number} ` : "";
+  return same ? `${number}${person.nick} (${person.name})` : `${number}${person.nick}`;
+}
+
 function CederMando() {
   const me = useMe();
   const members = useFija((s) => s.members);
   const cederMando = useFija((s) => s.cederMando);
   const [open, setOpen] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
   const others = members.filter((m) => m.id !== me.id);
 
   return (
-    <>
-      {note ? <p className="mt-4 text-sm text-accent">{note}</p> : null}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger asChild>
-          <Button variant="outline" className="mt-3 h-14 w-full text-base">
-            Ceder mando
-          </Button>
-        </DialogTrigger>
-        <DialogContent title="Ceder mando">
-          <p className="mb-3 text-sm text-muted">
-            Tu rol de {ROLE_LABEL[me.role]} pasa a otra persona. Vos te quedás con el rol de esa persona.
-          </p>
-          <ul className="max-h-72 space-y-1 overflow-auto">
-            {others.map((m) => (
-              <li key={m.id}>
-                <button
-                  type="button"
-                  className="flex h-12 w-full items-center justify-between rounded-md px-3 text-sm hover:bg-surface-2"
-                  onClick={() => {
-                    cederMando(m.id);
-                    setNote(`${m.nick} queda como ${ROLE_LABEL[me.role]}.`);
-                    setOpen(false);
-                  }}
-                >
-                  <span>{m.name}</span>
-                  <span className="text-xs text-muted">{ROLE_LABEL[m.role]}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="h-14 w-full text-base">
+          Ceder mando
+        </Button>
+      </DialogTrigger>
+      <DialogContent title="Ceder mando">
+        <p className="mb-3 text-sm text-muted">
+          La otra persona queda como dueña del equipo y se queda con tu puesto. Vos te quedás con el de ella.
+        </p>
+        <ul className="max-h-72 space-y-1 overflow-auto">
+          {others.map((m) => (
+            <li key={m.id} className="rounded-md px-3 py-2">
+              <p className="text-sm">{etiqueta(m, members)}</p>
+              <p className="text-xs text-muted">{ROLE_LABEL[m.role]}</p>
+              {pendingId === m.id ? (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Button
+                    variant="danger"
+                    className="h-11"
+                    onClick={() => {
+                      cederMando(m.id);
+                      setOpen(false);
+                    }}
+                  >
+                    Confirmar
+                  </Button>
+                  <Button variant="ghost" className="h-11" onClick={() => setPendingId(null)}>
+                    Cancelar
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="secondary" className="mt-2 h-11 w-full" onClick={() => setPendingId(m.id)}>
+                  Cederle el mando
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </DialogContent>
+    </Dialog>
   );
 }
 

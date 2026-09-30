@@ -12,12 +12,14 @@ export function EventCard({
   children,
   className,
   result,
+  showGear = false,
 }: {
   event: ClubEvent;
   rsvps: Rsvp[];
   children?: ReactNode;
   className?: string;
   result?: { gf: number; ga: number };
+  showGear?: boolean;
 }) {
   const voy = rsvps.filter((r) => r.status === "voy").length;
   const no = rsvps.filter((r) => r.status === "no").length;
@@ -27,9 +29,9 @@ export function EventCard({
   return (
     <article className={cn("rounded-xl bg-surface p-4 shadow-card", className)}>
       <div className="flex items-stretch gap-4">
-        <div className="grid w-16 shrink-0 place-items-center rounded-lg bg-board py-2 text-center">
-          <p className="text-xs font-semibold uppercase tracking-wide text-chalk/80">
-            {formatDay(event.startsAt).split(",")[0]}
+        <div className="grid w-20 shrink-0 place-items-center rounded-lg bg-board px-1 py-2 text-center">
+          <p className="text-[10px] font-semibold uppercase leading-tight tracking-wide text-chalk/80">
+            {formatDay(event.startsAt)}
           </p>
           <p className="font-display text-xl font-semibold tabular-nums leading-none text-chalk">
             {formatTime(event.startsAt)}
@@ -37,7 +39,8 @@ export function EventCard({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-            {KIND_LABEL[event.kind]} · {MODALITY_LABEL[event.modality]}
+            {KIND_LABEL[event.kind]}
+            {event.kind === "partido" ? ` · ${MODALITY_LABEL[event.modality]}` : ""}
           </p>
           <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold leading-tight">
             <span className="min-w-0 truncate">{event.title}</span>
@@ -64,7 +67,7 @@ export function EventCard({
           · {pending} sin responder · {no} no
         </span>
       </p>
-         {event.kind === "partido" ? <EquipmentCard event={event} /> : null}
+         {showGear && event.kind === "partido" ? <EquipmentCard event={event} /> : null}
       {children}
     </article>
   );

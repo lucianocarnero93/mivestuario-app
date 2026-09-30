@@ -10,6 +10,7 @@ import { outcome, playerRows, rankedBy, resultLabel, teamRecord } from "@/lib/fi
 import {
   activeTournament,
   eventOfClosedTournament,
+  matchSettled,
   sheetFor,
   sheetsForScope,
   useFija,
@@ -17,6 +18,7 @@ import {
   useMe,
 } from "@/lib/fija/store";
 import { cn } from "@/lib/utils";
+import type { ClubEvent, MatchSheet } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/stats")({
   component: StatsPage,
@@ -39,6 +41,7 @@ function StatsPage() {
   const createTournament = useFija((s) => s.createTournament);
   const renameTournament = useFija((s) => s.renameTournament);
   const finishTournament = useFija((s) => s.finishTournament);
+  const reopenTournament = useFija((s) => s.reopenTournament);
   const scope = torneo || "general";
   const scopedSheets = sheetsForScope(sheets, events, scope);
   const partidos = events
@@ -122,7 +125,7 @@ function StatsPage() {
           <p className="text-xs font-semibold uppercase tracking-widest text-muted">Gestión de torneo</p>
           {tournaments.length === 0 ? (
             <p className="mt-2 text-sm text-muted">
-              Creá el primer torneo antes de agendar un partido. Cada partido queda atado a un torneo.
+              Un partido puede ser amistoso. Abrí un torneo si querés separar liga y copa.
             </p>
           ) : null}
           {scope !== "general" && selected ? (
@@ -148,56 +151,48 @@ function StatsPage() {
             </form>
           ) : null}
           {scope !== "general" && selected?.status === "active" ? (
+            <FinishTournament
+              name={selected?.name ?? "Este torneo"}
+              events={events.filter((event) => event.tournamentId === scope)}
+              sheets={sheets}
+              onFinish={() => finishTournament(scope)}
+            />
+          ) : null}
+          {scope !== "general" && tournaments.find((t) => t.id === scope)?.status === "finished" ? (
             <div className="mt-2">
-              <p className="text-sm">
-                Estás viendo <span className="font-semibold">{currentLabel}</span>. Al finalizarlo, los
-                resultados quedan y el próximo torneo arranca de cero. Se borran las confirmaciones, la
-                formación y los avisos de esos partidos.
+              <p className="text-sm text-muted">
+                {currentLabel} está cerrado. Los partidos que todavía no se jugaron siguen en la agenda.
               </p>
-              <Button
-                variant="secondary"
-                className="mt-3 h-12 w-full"
-                onClick={() => finishTournament(scope)}
-              >
-                Finalizar estadísticas de este torneo
+              <Button variant="secondary" className="mt-3 h-12 w-full" onClick={() => reopenTournament(scope)}>
+                Reabrir torneo
               </Button>
             </div>
           ) : null}
-          {scope !== "general" && tournaments.find((t) => t.id === scope)?.status === "finished" ? (
-            <p className="mt-2 text-sm text-muted">
-              {currentLabel} está cerrado. Estas estadísticas no se mezclan con el torneo que venga.
-            </p>
-          ) : null}
-          {!live ? (
-            <form
-              className="mt-3 space-y-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                createTournament(newName);
-                setNewName("");
-              }}
-            >
-              <p className="text-sm text-muted">
-                {tournaments.length === 0
+          <form
+            className="mt-3 space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              createTournament(newName);
+              setNewName("");
+            }}
+          >
+            <p className="text-sm text-muted">
+              {live
+                ? `También podés abrir otro torneo. ${live.name} sigue activo.`
+                : tournaments.length === 0
                   ? "Nombre del torneo."
-                  : "No hay torneo activo. Arrancá el próximo para cargar partidos nuevos."}
-              </p>
-              <Input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Clausura 2026"
-                required
-              />
-              <Button type="submit" className="h-12 w-full">
-                Empezar torneo
-              </Button>
-            </form>
-          ) : scope === "general" ? (
-            <p className="mt-2 text-sm">
-              Torneo en juego: <span className="font-semibold">{live.name}</span>. Entrá a su ficha para
-              finalizarlo.
+                  : "Nombre del próximo torneo."}
             </p>
-          ) : null}
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Clausura 2026"
+              required
+            />
+            <Button type="submit" className="h-12 w-full">
+              Empezar torneo
+            </Button>
+          </form>
         </section>
       ) : null}
 
@@ -242,7 +237,7 @@ function StatsPage() {
               rank={i + 1}
               member={byId.get(row.memberId)}
               value={row.goals}
-              unit="goles"
+              unit={row.goals === 1 ? "gol" : "goles"}
             />
           ))}
         </RankBlock>
@@ -339,5 +334,61 @@ function ScopeChip({
     >
       {children}
     </button>
+  );
+}
+
+function FinishTournament({
+  name,
+  events,
+  sheets,
+  onFinish,
+}: {
+  name: string;
+  events: ClubEvent[];
+  sheets: MatchSheet[];
+  onFinish: () => void;
+}) {
+  const [ask, setAsk] = useState(false);
+  const pending = events.filter(
+    (event) => +new Date(event.startsAt) >= Date.now() - 3_600_000 && !matchSettled(event, sheetFor(event.id, sheets)),
+  );
+  return (
+    <div className="mt-2">
+      <p className="text-sm">
+        Estás viendo <span className="font-semibold">{name}</span>. Cerrar las estadísticas no borra los
+        partidos que todavía no se jugaron: siguen en la agenda y en la pizarra.
+      </p>
+      {ask ? (
+        <div className="mt-3 rounded-xl bg-surface p-4">
+          <p className="text-sm">
+            {pending.length > 0
+              ? `Todavía hay ${pending.length} partido${pending.length === 1 ? "" : "s"} por jugar (${pending
+                  .map((event) => event.title)
+                  .slice(0, 3)
+                  .join(", ")}). ¿Cerrar igual las estadísticas?`
+              : "¿Cerrar las estadísticas de este torneo? Después podés reabrirlo."}
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button
+              variant="secondary"
+              className="h-12"
+              onClick={() => {
+                onFinish();
+                setAsk(false);
+              }}
+            >
+              Cerrar
+            </Button>
+            <Button variant="ghost" className="h-12" onClick={() => setAsk(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="secondary" className="mt-3 h-12 w-full" onClick={() => setAsk(true)}>
+          Finalizar estadísticas de este torneo
+        </Button>
+      )}
+    </div>
   );
 }

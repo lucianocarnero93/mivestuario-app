@@ -32,12 +32,6 @@ export type AlertsInput = {
   tournaments: Tournament[];
 };
 
-function hoursBetween(iso: string, now: number): number {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return 0;
-  return Math.max(0, (now - t) / 3_600_000);
-}
-
 function tournamentClosed(tournaments: Tournament[], event: ClubEvent): boolean {
   if (!event.tournamentId) return false;
   return tournaments.some((item) => item.id === event.tournamentId && item.status === "finished");
@@ -55,10 +49,12 @@ export function alertsDue(state: AlertsInput, now = Date.now()): {
 
   for (const callup of state.convocatorias) {
     const event = state.events.find((item) => item.id === callup.eventId);
-    if (!event || tournamentClosed(state.tournaments, event)) continue;
+    if (!event || (tournamentClosed(state.tournaments, event) && Date.parse(event.startsAt) < now)) continue;
     const pending = state.rsvps.some((row) => row.eventId === callup.eventId && row.status === "pendiente");
     if (!pending) continue;
-    const hours = hoursBetween(callup.sentAt, now);
+    const kickoff = Date.parse(event.startsAt);
+    if (Number.isNaN(kickoff) || kickoff <= now) continue;
+    const hoursUntil = (kickoff - now) / 3_600_000;
     const ids = reminderIds(callup.eventId, callup.sentAt);
     const alreadyFirst =
       alertsSent.some(
@@ -73,7 +69,7 @@ export function alertsDue(state: AlertsInput, now = Date.now()): {
           (alert.eventId === callup.eventId && alert.kind === "second" && Date.parse(alert.at) >= ids.scope),
       ) || notices.some((notice) => notice.id === ids.secondNotice);
 
-    if (hours >= state.reminderPolicy.firstHours && !alreadyFirst) {
+    if (hoursUntil <= state.reminderPolicy.firstHours && !alreadyFirst) {
       const moment = new Date(now).toISOString();
       const body = `Todavía no confirmaste ${event.title}.`;
       alertsSent = [...alertsSent, { id: ids.firstAlert, eventId: callup.eventId, kind: "first", at: moment }];
@@ -94,7 +90,7 @@ export function alertsDue(state: AlertsInput, now = Date.now()): {
       changed = true;
     }
 
-    if (hours >= state.reminderPolicy.secondHours && !alreadySecond) {
+    if (hoursUntil <= state.reminderPolicy.secondHours && !alreadySecond) {
       const moment = new Date(now).toISOString();
       alertsSent = [...alertsSent, { id: ids.secondAlert, eventId: callup.eventId, kind: "second", at: moment }];
       notices = [
@@ -103,7 +99,7 @@ export function alertsDue(state: AlertsInput, now = Date.now()): {
           id: ids.secondNotice,
           kind: "recordatorio",
           title: "Pendientes para WhatsApp",
-          body: `Pasaron ${state.reminderPolicy.secondHours} h sin respuesta en ${event.title}.`,
+          body: `Faltan menos de ${state.reminderPolicy.secondHours} h y no contestaron ${event.title}.`,
           eventId: event.id,
           audience: "staff",
           at: moment,
@@ -169,7 +165,11 @@ export function mergePlayerInbox(
       }
       continue;
     }
-    const fixed = item.id.startsWith("in-r1-") || item.id.startsWith("in-r2-") || item.id.startsWith("in-eq-");
+    const fixed =
+      item.id.startsWith("in-r1-") ||
+      item.id.startsWith("in-r2-") ||
+      item.id.startsWith("in-eq-") ||
+      item.id.startsWith("in-now-");
     if (!fixed || (item.kind !== "recordatorio" && item.kind !== "equipamiento")) continue;
     if (!item.eventId || !eventIds.has(item.eventId)) continue;
     if (item.title.length > 120 || item.body.length > 200) continue;
@@ -246,15 +246,21 @@ export function decideClaim(input: {
   mode: ClaimMode;
   draft: { name: string; nick: string; number: number | null; menor: boolean };
   freshId: string;
+  claimId?: string;
 }): ClaimOutcome {
   const banned = new Set((input.bannedAccounts ?? []).map((item) => item.accountId));
   if (banned.has(input.accountId)) {
     return { kind: "removed", error: "El DT te sacó de este equipo." };
   }
   const dropped = new Set(input.droppedIds ?? []);
-  const current = input.members.find(
+  const byAccount = input.members.find(
     (person) => person.accountId === input.accountId || person.id === input.accountId,
   );
+  const claimed =
+    !byAccount && input.mode === "join" && input.claimId
+      ? input.members.find((person) => person.id === input.claimId && !person.accountId && !dropped.has(person.id))
+      : undefined;
+  const current = byAccount ?? claimed;
   if (current && (dropped.has(current.id) || dropped.has(input.accountId))) {
     return { kind: "keep", members: input.members };
   }
@@ -329,6 +335,47 @@ export function removeMemberEverywhere(
     events: bundle.events.map((event) => stripFromEvent(event, memberId)),
   };
   return { bundle: next, empty: members.length === 0 };
+}
+
+/** Une la cuenta con un nombre cargado a mano y saca el duplicado, sin banear. */
+export function claimExistingName(
+  bundle: ClubBundle,
+  accountId: string,
+  targetId: string,
+): { ok: true; bundle: ClubBundle } | { ok: false; error: string } {
+  const target = bundle.members.find((person) => person.id === targetId);
+  if (!target) return { ok: false, error: "Ese nombre no está en el plantel." };
+  if (target.accountId && target.accountId !== accountId) {
+    return { ok: false, error: "Ese nombre ya tiene otra cuenta." };
+  }
+  const caller = bundle.members.find((person) => person.accountId === accountId || person.id === accountId);
+  if (!caller) return { ok: false, error: "No estás en este equipo." };
+  const staff = caller.role === "dt" || caller.role === "ayudante";
+  if (!staff && target.accountId && target.id !== caller.id) {
+    return { ok: false, error: "Ese nombre ya tiene otra cuenta." };
+  }
+  if (target.id === caller.id && target.accountId === accountId) return { ok: true, bundle };
+  const duplicate = bundle.members.find(
+    (person) => person.id !== target.id && (person.accountId === accountId || person.id === accountId),
+  );
+  const members = bundle.members.map((person) =>
+    person.id === target.id ? { ...person, accountId } : person,
+  );
+  let nextBundle: ClubBundle = { ...bundle, members };
+  if (duplicate && duplicate.id !== bundle.club.createdBy) {
+    const stripped = removeMemberEverywhere(nextBundle, duplicate.id);
+    nextBundle = stripped.bundle;
+    const kept = nextBundle.members.find((person) => person.id === target.id);
+    if (kept) {
+      nextBundle = {
+        ...nextBundle,
+        members: nextBundle.members.map((person) =>
+          person.id === target.id ? { ...person, accountId } : person,
+        ),
+      };
+    }
+  }
+  return { ok: true, bundle: nextBundle };
 }
 
 export function readmitAccount(bundle: ClubBundle, accountId: string): ClubBundle {

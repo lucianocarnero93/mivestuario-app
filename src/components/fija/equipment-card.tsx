@@ -24,7 +24,10 @@ export function EquipmentCard({ event }: { event: ClubEvent }) {
   function nombreDe(memberId: string | null): string {
     if (!memberId) return "Sin asignar";
     const member = members.find((m) => m.id === memberId);
-    return member?.nick ?? member?.name ?? "Desconocido";
+    if (!member) return "Desconocido";
+    const same = members.filter((item) => item.nick === member.nick).length > 1;
+    const number = member.number != null ? `${member.number} ` : "";
+    return same ? `${number}${member.nick} (${member.name})` : `${number}${member.nick}`;
   }
 
   return (
@@ -55,7 +58,7 @@ export function EquipmentCard({ event }: { event: ClubEvent }) {
                   <option value="">Sin asignar</option>
                   {members.map((m: Member) => (
                     <option key={m.id} value={m.id}>
-                      {m.nick ?? m.name}
+                      {nombreDe(m.id)}
                     </option>
                   ))}
                 </select>

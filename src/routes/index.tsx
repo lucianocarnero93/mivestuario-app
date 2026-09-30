@@ -47,9 +47,14 @@ function HomePage() {
           {staff ? "Cargá la próxima fecha en la agenda." : "Cuando el DT cargue una fecha, aparece acá."}
         </p>
         {staff ? (
-          <Button asChild className="mt-4 h-14 w-full text-base">
-            <Link to="/agenda">Crear fecha</Link>
-          </Button>
+          <div className="mt-4 grid gap-2">
+            <Button asChild className="h-14 w-full text-base">
+              <Link to="/agenda">Crear fecha</Link>
+            </Button>
+            <Button asChild variant="secondary" className="h-12 w-full">
+              <Link to="/equipo">Sumar jugadores</Link>
+            </Button>
+          </div>
         ) : null}
       </main>
     );
@@ -85,6 +90,11 @@ function HomePage() {
       <h1 className="text-3xl font-semibold tracking-tight">
         {staff ? "Panel del vestuario" : "Tu próximo llamado"}
       </h1>
+      {staff && players.length <= 1 ? (
+        <Button asChild variant="secondary" className="mt-4 h-12 w-full">
+          <Link to="/equipo">Sumar jugadores</Link>
+        </Button>
+      ) : null}
 
       {staff ? <div className="mt-4"><InviteShareButton /></div> : null}
 
@@ -109,6 +119,7 @@ function HomePage() {
         event={event}
         rsvps={eventRsvps}
         result={sheet ? { gf: sheet.goalsFor, ga: sheet.goalsAgainst } : undefined}
+        showGear
       />
 
       {!staff ? (
@@ -191,7 +202,7 @@ function HomePage() {
                 {eventRsvps.filter((r) => r.status === "pendiente").length} pendientes
               </span>
             </div>
-            <ConfirmGroups players={players} eventRsvps={eventRsvps} />
+            <ConfirmGroups players={players} eventRsvps={eventRsvps} eventId={event.id} staff />
             {event.kind === "partido" ? (
               <Button asChild className="mt-3 h-14 w-full text-base" variant="outline">
                 <Link to="/stats" search={{ partido: event.id, torneo: "general" }}>

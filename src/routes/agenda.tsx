@@ -19,10 +19,15 @@ function AgendaPage() {
   const tournaments = useFija((s) => s.tournaments);
   const staff = useIsStaff();
   const now = Date.now();
-  const active = events.filter((event) => !eventOfClosedTournament(event, tournaments));
+  const active = events.filter(
+    (event) => !eventOfClosedTournament(event, tournaments) || !matchSettled(event, sheetFor(event.id, sheets)),
+  );
   const upcoming = active
-    .filter((event) => isUpcoming(event, sheetFor(event.id, sheets), now))
+    .filter((event) => isUpcoming(event, sheetFor(event.id, sheets), now) && +new Date(event.startsAt) >= now - 3_600_000)
     .sort(bySoonest);
+  const pendingResult = active
+    .filter((event) => needsResult(event, sheetFor(event.id, sheets), now) && +new Date(event.startsAt) < now - 3_600_000)
+    .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
   const played = active
     .filter((event) => event.kind === "partido" && matchSettled(event, sheetFor(event.id, sheets)))
     .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
@@ -34,7 +39,7 @@ function AgendaPage() {
         {staff ? <CreateEventButton /> : null}
       </div>
       <p className="mt-1 text-sm text-muted">Lo próximo arriba. Lo ya jugado, abajo.</p>
-      {upcoming.length === 0 && played.length === 0 ? (
+      {upcoming.length === 0 && played.length === 0 && pendingResult.length === 0 ? (
         <p className="mt-6 text-sm text-muted">
           {staff
             ? "Todavía no hay fechas. Tocá Nuevo para cargar el próximo partido."
@@ -49,6 +54,18 @@ function AgendaPage() {
             </li>
           ))}
         </ul>
+      ) : null}
+      {pendingResult.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-warning">Falta el resultado</h2>
+          <ul className="mt-3 space-y-3">
+            {pendingResult.map((event) => (
+              <li key={event.id}>
+                <AgendaItem event={event} staff={staff} needsResult />
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
       {played.length > 0 ? (
         <section className="mt-8">

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { hoursSince, whatsAppClaimUrl } from "@/lib/fija/share";
+import { whatsAppClaimUrl } from "@/lib/fija/share";
 import {
   convocatoriaFor,
   useFija,
@@ -20,11 +20,11 @@ export function StaffCallup({ event }: { event: ClubEvent }) {
   const policy = useFija((s) => s.reminderPolicy);
   const sendConvocatoria = useFija((s) => s.sendConvocatoria);
   const sendReminder = useFija((s) => s.sendReminder);
-  const reminder = useFija((s) => s.reminder);
+  const [alerted, setAlerted] = useState(false);
   const conv = convocatoriaFor(event.id, convocatorias);
   const eventRsvps = rsvps.filter((r) => r.eventId === event.id);
   const pending = eventRsvps.filter((r) => r.status === "pendiente");
-  const ready = conv ? whatsappReady(event.id, convocatorias, policy) : false;
+  const ready = conv ? whatsappReady(event.id, convocatorias, policy, event.startsAt) : false;
   const players = members.filter((m) => m.juega ?? m.role === "jugador");
   const overdue = ready
     ? players.filter(
@@ -36,8 +36,8 @@ export function StaffCallup({ event }: { event: ClubEvent }) {
     <section className="mt-5">
       {conv ? (
         <p className="text-xs text-muted">
-          Convocatoria enviada hace {Math.floor(hoursSince(conv.sentAt))} h. Primera alerta a las{" "}
-          {policy.firstHours} h. WhatsApp a las {policy.secondHours} h.
+          Convocatoria enviada. La alerta al jugador sale cuando faltan {policy.firstHours} h para el partido.
+          La lista de WhatsApp, cuando faltan {policy.secondHours} h.
         </p>
       ) : (
         <p className="text-xs text-muted">Todavía no mandaste la convocatoria de este partido.</p>
@@ -56,9 +56,12 @@ export function StaffCallup({ event }: { event: ClubEvent }) {
           variant="secondary"
           className="h-12"
           disabled={pending.length === 0}
-          onClick={() => sendReminder(event.id)}
+          onClick={() => {
+            sendReminder(event.id);
+            setAlerted(true);
+          }}
         >
-          {reminder?.eventId === event.id ? "Alerta enviada" : "Alertar ahora"}
+          {alerted ? "Les avisamos" : "Alertar ahora"}
         </Button>
         <PolicyDialog />
       </div>
@@ -126,11 +129,10 @@ function PolicyDialog() {
           }}
         >
           <p className="text-sm text-muted">
-            Si el jugador no responde, a las primeras horas llega una segunda alerta. Después se
-            habilita el reclamo por WhatsApp.
+            Las horas se cuentan hasta el partido, no desde que mandaste la convocatoria. El número más grande dispara antes.
           </p>
           <div>
-            <Label htmlFor="first-h">Segunda alerta (horas)</Label>
+            <Label htmlFor="first-h">Avisar al jugador (horas antes)</Label>
             <Input
               id="first-h"
               className="mt-1"
@@ -140,7 +142,7 @@ function PolicyDialog() {
             />
           </div>
           <div>
-            <Label htmlFor="second-h">WhatsApp de reclamo (horas)</Label>
+            <Label htmlFor="second-h">Lista de WhatsApp (horas antes)</Label>
             <Input
               id="second-h"
               className="mt-1"
@@ -161,10 +163,15 @@ function PolicyDialog() {
 export function ConfirmGroups({
   players,
   eventRsvps,
+  eventId,
+  staff = false,
 }: {
   players: Member[];
   eventRsvps: { memberId: string; status: RsvpStatus }[];
+  eventId?: string;
+  staff?: boolean;
 }) {
+  const setMemberRsvp = useFija((s) => s.setMemberRsvp);
   const groups: { status: RsvpStatus; title: string; tone: string }[] = [
     { status: "pendiente", title: "Sin responder", tone: "text-warning" },
     { status: "voy", title: "Van", tone: "text-accent" },
@@ -193,6 +200,20 @@ export function ConfirmGroups({
                   <span className={`text-xs font-semibold ${group.tone}`}>
                     {group.status === "voy" ? "Va" : group.status === "no" ? "No" : "Pendiente"}
                   </span>
+                  {staff && eventId ? (
+                    <span className="flex gap-1">
+                      {(["voy", "no", "pendiente"] as RsvpStatus[]).map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          className="h-10 rounded-md bg-bg px-2 text-xs font-semibold"
+                          onClick={() => setMemberRsvp(eventId, p.id, status)}
+                        >
+                          {status === "voy" ? "Va" : status === "no" ? "No" : "Pend."}
+                        </button>
+                      ))}
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>

@@ -279,7 +279,7 @@ export function MatchSheetRead({
                   <span className="text-xs text-muted">{player.name}</span>
                 </span>
                 <span className="text-right text-xs tabular-nums text-muted">
-                  {row.goals > 0 ? <span className="block font-semibold text-accent">{row.goals} goles</span> : null}
+                  {row.goals > 0 ? <span className="block font-semibold text-accent">{row.goals} {row.goals === 1 ? "gol" : "goles"}</span> : null}
                   {row.assists > 0 ? <span className="block">{row.assists} asist.</span> : null}
                   {row.yellow > 0 ? <span className="block text-warning">{row.yellow} amarilla</span> : null}
                   {row.red > 0 ? <span className="block text-danger">{row.red} roja</span> : null}
