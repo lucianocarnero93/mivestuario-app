@@ -5,7 +5,7 @@ import { ROLE_LABEL } from "@/lib/fija/format";
 import { readPedirEdad } from "@/lib/fija/edad";
 import { rememberInvite } from "@/lib/fija/share";
 import { registerTeamPush } from "@/lib/fija/push-client";
-import { useFija, useIsStaff, useMe } from "@/lib/fija/store";
+import { useFija, useIsStaff, useMe, currentAccount, wipeLocalTeamData } from "@/lib/fija/store";
 import { cn } from "@/lib/utils";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { authClient } from "@/lib/auth/client";
@@ -43,14 +43,27 @@ export function PhoneShell() {
   const club = useFija((s) => s.club);
   const hydrated = useFija((s) => s.hydrated);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user, isPending } = useCurrentUserState();
 
   useEffect(() => {
     rememberInvite(new URLSearchParams(window.location.search).get("invite"));
   }, []);
 
   useEffect(() => {
+    if (isPending || !user?.id) return;
+    let cancel = false;
     void Promise.resolve(useFija.persist.rehydrate()).then(async () => {
+      if (cancel) return;
       setHydrated();
+      const account = await currentAccount();
+      if (cancel) return;
+      if (account) {
+        const owner = useFija.getState().ownerAccountId;
+        if (owner && owner !== account.id) wipeLocalTeamData({ keepInvite: true });
+        if (useFija.getState().ownerAccountId !== account.id) {
+          useFija.setState({ ownerAccountId: account.id });
+        }
+      }
       await useFija.getState().syncFromCloud();
       await useFija.getState().ensureMySpot();
     });
@@ -75,13 +88,14 @@ export function PhoneShell() {
     window.addEventListener("vestuario-notifications-granted", listen);
     if (typeof Notification !== "undefined" && Notification.permission === "granted") listen();
     return () => {
+      cancel = true;
       window.clearInterval(id);
       window.clearInterval(refresh);
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onFocus);
       window.removeEventListener("vestuario-notifications-granted", listen);
     };
-  }, [setHydrated, tickAlerts]);
+  }, [setHydrated, tickAlerts, user?.id, isPending]);
 
   const isBare = (BARE_PATHS as readonly string[]).includes(pathname);
 

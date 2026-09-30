@@ -10,7 +10,7 @@ import { alertsDue } from "./club-rules";
 import { pruneBundle } from "./prune";
 import { clampHours, hoursSince } from "./share";
 import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, loadClubDoc, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, useMyName, withoutDroppedEvents } from "./cloud";
-import { readMenor } from "./edad";
+import { clearPedirEdad, readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
@@ -59,6 +59,7 @@ type State = ReturnType<typeof createSeed> & {
   lastFlushErrorAt: number | null;
   cloudWeight: number | null;
   savedMine: Record<string, RsvpStatus>;
+  ownerAccountId: string | null;
   setHydrated: () => void;
   setActive: (id: string) => void;
   viewAsRole: (role: Role) => void;
@@ -136,6 +137,7 @@ const blank = {
   profile: { name: "", nick: "" },
   gpsConsent: "unset" as const,
   activeId: GUEST_ID,
+  ownerAccountId: null as string | null,
 };
 
 /*
@@ -163,7 +165,7 @@ const blank = {
   - flushCloud        subir el equipo a la nube.
 */
 
-async function currentAccount(): Promise<{ id: string; name: string } | null> {
+export async function currentAccount(): Promise<{ id: string; name: string } | null> {
   try {
     const session = await authClient.getSession();
     const id = session?.data?.user?.id;
@@ -1345,6 +1347,7 @@ export const useFija = create<State>()(
           cloudStatus: "ok",
           cloudError: get().dirty ? get().cloudError : null,
           savedMine: mineSaved(teamFound.rsvps, linked?.id ?? personId),
+          ownerAccountId: account ?? get().ownerAccountId,
         });
         applyingCloud = false;
         return true;
@@ -1394,6 +1397,7 @@ export const useFija = create<State>()(
           gpsConsent: state.gpsConsent,
           activeId: me.id,
           hydrated: true,
+          ownerAccountId: account ?? state.ownerAccountId,
         });
         void get().publishClub();
       },
@@ -1608,11 +1612,13 @@ export const useFija = create<State>()(
 
       // Sube el equipo a la nube usando el código como llave. Reintenta solo.
       flushCloud: async () => {
+        const epoch = cloudEpoch;
         const state = get();
         if (!state.club) return false;
         set({ cloudStatus: "syncing" });
         let lastError = "No se pudo guardar el equipo.";
         for (let attempt = 0; attempt < 3; attempt += 1) {
+          if (epoch !== cloudEpoch) return false;
           const current = get();
           if (!current.club) return false;
           try {
@@ -1641,6 +1647,7 @@ export const useFija = create<State>()(
               },
             });
             if (result.ok && result.bundle) {
+              if (epoch !== cloudEpoch) return false;
               const savedBundle = result.bundle;
               const rev = localRev;
               flushFailStreak = 0;
@@ -1689,6 +1696,7 @@ export const useFija = create<State>()(
           }
           await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
         }
+        if (epoch !== cloudEpoch) return false;
         flushFailStreak += 1;
         set({ cloudStatus: "off", cloudError: lastError, lastFlushErrorAt: Date.now(), dirty: true });
         noteQuiet("guardar", lastError);
@@ -1756,6 +1764,7 @@ export const useFija = create<State>()(
         reminder: s.reminder,
         dirty: s.dirty,
         savedMine: s.savedMine,
+        ownerAccountId: s.ownerAccountId,
       }),
             onRehydrateStorage: () => (state) => {
         if (!state) return;
@@ -1795,7 +1804,43 @@ export const useFija = create<State>()(
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let localRev = 0;
 let flushFailStreak = 0;
+let cloudEpoch = 0;
 const resumeTried = new Set<string>();
+
+export function wipeLocalTeamData({ keepInvite = false } = {}) {
+  cloudEpoch += 1;
+  if (flushTimer) {
+    window.clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+  useFija.setState({
+    ...blank,
+    hydrated: true,
+    cloudStatus: "idle",
+    cloudError: null,
+    dirty: false,
+    savedMine: {},
+    ownerAccountId: null,
+    clubNotice: null,
+    bannedAccounts: [],
+    lastFlushErrorAt: null,
+    cloudWeight: null,
+  });
+  useFija.persist.clearStorage();
+  if (typeof window === "undefined") return;
+  try {
+    const drop: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key.startsWith("mv-member-") || key === "mv-menor" || (!keepInvite && key === "mv-invite")) drop.push(key);
+    }
+    for (const key of drop) localStorage.removeItem(key);
+  } catch {
+    // Si el celular no deja borrar, la memoria igual quedó vacía.
+  }
+  clearPedirEdad();
+}
 
 function flushRetryWait(): number {
   if (flushFailStreak <= 0) return 30_000;

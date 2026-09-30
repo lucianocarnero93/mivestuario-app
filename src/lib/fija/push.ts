@@ -124,6 +124,35 @@ export const savePushSubscription = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const dropPushSubscription = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { endpoint?: string; codes?: string[] }) => ({
+    endpoint: String(input?.endpoint ?? "").slice(0, 800),
+    codes: (Array.isArray(input?.codes) ? input.codes : [])
+      .map((code) => sanitizeCode(String(code)))
+      .filter((code) => code.length > 0)
+      .slice(0, 12),
+  }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    const userId = String((context as { userId?: string }).userId ?? "");
+    if (!userId || !data.endpoint || data.codes.length === 0) return { ok: false };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    for (const code of data.codes) {
+      const current = asPushes(await readJson(sql, PUSHES, code));
+      const next = current.filter((item) => item.endpoint !== data.endpoint);
+      if (next.length === current.length) continue;
+      await sql.query(
+        `insert into vestuario_docs (collection, id, data, updated_at)
+         values ($1, $2, $3::jsonb, now())
+         on conflict (collection, id)
+         do update set data = excluded.data, updated_at = now()`,
+        [PUSHES, code, JSON.stringify({ subs: next })],
+      );
+    }
+    return { ok: true };
+  });
+
 export const notifyClub = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator(
