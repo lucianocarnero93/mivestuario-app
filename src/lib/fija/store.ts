@@ -9,7 +9,7 @@ import { FORMATIONS } from "./formations";
 import { alertsDue, preferRsvp } from "./club-rules";
 import { pruneBundle } from "./prune";
 import { clampHours } from "./share";
-import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, savePortrait, useMyName, withoutDroppedEvents } from "./cloud";
+import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
 import { clearPedirEdad, readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
@@ -639,9 +639,17 @@ export const useFija = create<State>()(
         if (!isStaffId(get())) return;
         const post = get().charla.find((item) => item.id === id);
         if (!post) return;
+        const goneInbox = get().inbox.filter(
+          (item) => item.kind === "charla" && item.at === post.at && item.body === post.text,
+        );
+        const droppedCharlaIds = [
+          ...new Set([...(get().droppedCharlaIds ?? []), id, ...goneInbox.map((item) => item.id)]),
+        ];
+        const gone = new Set(droppedCharlaIds);
         set({
-          charla: get().charla.filter((item) => item.id !== id),
-          inbox: get().inbox.filter((item) => !(item.kind === "charla" && item.at === post.at && item.body === post.text)),
+          droppedCharlaIds,
+          charla: get().charla.filter((item) => !gone.has(item.id)),
+          inbox: get().inbox.filter((item) => !gone.has(item.id)),
         });
       },
 
@@ -844,6 +852,7 @@ export const useFija = create<State>()(
         const target = state.members.find((person) => person.id === memberId);
         const allowed = isCreatorId(state) || (isStaffId(state) && target?.menor === true);
         if (!allowed || !memberId || memberId === state.activeId) return;
+        if (state.club?.createdBy === memberId) return;
         if (!state.members.some((person) => person.id === memberId)) return;
         const droppedIds = [...new Set([...(state.droppedIds ?? []), memberId])];
         set({
@@ -1623,6 +1632,7 @@ export const useFija = create<State>()(
 
       // En un celular nuevo, trae los equipos donde esta cuenta ya está.
       restoreMyClubs: async () => {
+        if (!get().hydrated) return;
         let listed: { code: string; name: string }[] = [];
         try {
           listed = await listMyClubs();
@@ -1719,6 +1729,7 @@ export const useFija = create<State>()(
 
       // Baja de la nube la última copia del equipo en el que ya estoy.
       syncFromCloud: async () => {
+        if (!get().hydrated) return;
         if (syncingNow) return;
         const epoch = cloudEpoch;
         const generation = ++syncGeneration;
@@ -1847,7 +1858,11 @@ export const useFija = create<State>()(
             if (!current.club || current.club.id !== clubId) return false;
             const local = toBundle({ ...current, club: current.club });
             const merged = remote
-              ? mergeClubBundles(local, remote, { activeId: current.activeId, staff: isStaffId(current) })
+              ? mergeClubBundles(local, remote, {
+                  activeId: current.activeId,
+                  staff: isStaffId(current),
+                  dirty: true,
+                })
               : local;
             const result = await saveClubDoc({
               data: {
@@ -1981,6 +1996,7 @@ export const useFija = create<State>()(
         activeId: s.activeId,
         droppedIds: s.droppedIds ?? [],
         droppedEventIds: s.droppedEventIds ?? [],
+        droppedCharlaIds: s.droppedCharlaIds ?? [],
         reminder: s.reminder,
         dirty: s.dirty,
         savedMine: s.savedMine,
@@ -2001,6 +2017,7 @@ export const useFija = create<State>()(
         if (!state.activeClubId) state.activeClubId = state.club?.id ?? null;
         if (!Array.isArray(state.droppedIds)) state.droppedIds = [];
         if (!Array.isArray(state.droppedEventIds)) state.droppedEventIds = [];
+        if (!Array.isArray(state.droppedCharlaIds)) state.droppedCharlaIds = [];
         if (!state.profile) {
           state.profile = createSeed().profile;
         }
@@ -2221,7 +2238,13 @@ function mergeClubBundles(
     ...(remote.droppedEventIds ?? []),
     ...(who.staff ? (local.droppedEventIds ?? []) : []),
   ]);
-  return pruneBundle(
+  const droppedCharla = new Set([
+    ...(remote.droppedCharlaIds ?? []),
+    ...(who.staff ? (local.droppedCharlaIds ?? []) : []),
+  ]);
+  const creatorId = remote.club.createdBy || local.club.createdBy;
+  return withoutDroppedCharla(
+    pruneBundle(
     lightenClosedMatches(
     withoutDroppedEvents(
       {
@@ -2230,7 +2253,9 @@ function mergeClubBundles(
       keepAccountOwner(
         remote.members,
         unionById(remote.members, local.members).filter(
-          (person) => !(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id),
+          (person) =>
+            person.id === creatorId ||
+            (!(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id)),
         ),
       ),
       remote.members,
@@ -2250,12 +2275,16 @@ function mergeClubBundles(
     alertLog: unionById(remote.alertLog, local.alertLog),
     reminderPolicy: who.staff ? local.reminderPolicy : remote.reminderPolicy,
     tournaments: mergeTournaments(remote.tournaments, who.staff ? local.tournaments : []),
-    droppedIds: [...new Set([...(remote.droppedIds ?? []), ...(local.droppedIds ?? [])])],
+    droppedIds: [...new Set([...(remote.droppedIds ?? []), ...(local.droppedIds ?? [])])].filter(
+      (id) => id !== creatorId,
+    ),
     bannedAccounts: who.staff ? (remote.bannedAccounts ?? []) : [],
       },
       droppedEvents,
     ),
     ),
+    ),
+    droppedCharla,
   );
 }
 
@@ -2320,6 +2349,7 @@ function snapshotShelf(state: {
   tournaments: Tournament[];
   droppedIds?: string[];
   droppedEventIds?: string[];
+  droppedCharlaIds?: string[];
   activeId: string;
 }): ShelfTeam | null {
   if (!state.club) return null;
@@ -2398,6 +2428,7 @@ function toBundle(state: {
   tournaments: Tournament[];
   droppedIds?: string[];
   droppedEventIds?: string[];
+  droppedCharlaIds?: string[];
 }): ClubBundle {
   return {
     club: state.club,
@@ -2415,6 +2446,7 @@ function toBundle(state: {
     tournaments: state.tournaments,
     droppedIds: state.droppedIds ?? [],
     droppedEventIds: state.droppedEventIds ?? [],
+    droppedCharlaIds: state.droppedCharlaIds ?? [],
   };
 }
 

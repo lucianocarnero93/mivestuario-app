@@ -423,6 +423,16 @@ export function pickSheet(previous: MatchSheet, incoming: MatchSheet): MatchShee
   return sheetTime(incoming) >= sheetTime(previous) ? incoming : previous;
 }
 
+export function withoutDroppedCharla(bundle: ClubBundle, dropped: Set<string>): ClubBundle {
+  if (dropped.size === 0) return { ...bundle, droppedCharlaIds: [] };
+  return {
+    ...bundle,
+    droppedCharlaIds: [...dropped],
+    charla: (bundle.charla ?? []).filter((item) => !dropped.has(item.id)),
+    inbox: (bundle.inbox ?? []).filter((item) => !dropped.has(item.id)),
+  };
+}
+
 export function withoutDroppedEvents(bundle: ClubBundle, dropped: Set<string>): ClubBundle {
   if (dropped.size === 0) return { ...bundle, droppedEventIds: [...dropped] };
   return {
@@ -478,7 +488,8 @@ function lockStaffRoles(existing: ClubBundle, members: Member[], userId: string)
   const roles = new Map(existing.members.map((person) => [person.id, person.role]));
   return members.map((person) => {
     const role = roles.get(person.id);
-    return role ? { ...person, role } : person;
+    if (role) return { ...person, role };
+    return { ...person, role: "jugador" };
   });
 }
 
@@ -521,14 +532,25 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   }
   const me = memberFor(existing.members, userId);
   const staff = isStaffMember(me);
-  const dropped = new Set(staff ? [...(existing.droppedIds ?? []), ...(incoming.droppedIds ?? [])] : (existing.droppedIds ?? []));
+  const creatorId = existing.club.createdBy;
+  const requestedDrops = (staff ? (incoming.droppedIds ?? []) : []).filter((id) => id !== creatorId);
+  const dropped = new Set(
+    staff
+      ? [...(existing.droppedIds ?? []).filter((id) => id !== creatorId), ...requestedDrops]
+      : (existing.droppedIds ?? []),
+  );
   const droppedEvents = new Set(
     staff
       ? [...(existing.droppedEventIds ?? []), ...(incoming.droppedEventIds ?? [])]
       : (existing.droppedEventIds ?? []),
   );
+  const droppedCharla = new Set(
+    staff
+      ? [...(existing.droppedCharlaIds ?? []), ...(incoming.droppedCharlaIds ?? [])]
+      : (existing.droppedCharlaIds ?? []),
+  );
   const previous = new Map(existing.members.map((person) => [person.id, person]));
-  const bannedAccounts = nextBannedAccounts(existing, incoming.droppedIds, staff, new Date().toISOString());
+  const bannedAccounts = nextBannedAccounts(existing, requestedDrops, staff, new Date().toISOString());
   const members = withoutBanned(
     staff
       ? unionById(existing.members, incoming.members)
@@ -568,7 +590,8 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   const listed = lockStaffRoles(existing, capped, userId);
   const eventIds = new Set(existing.events.map((event) => event.id));
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
-  return pruneBundle(
+  return withoutDroppedCharla(
+    pruneBundle(
     lightenClosedMatches(
     withoutDroppedEvents(
       {
@@ -576,6 +599,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       ? {
           ...existing.club,
           ...incoming.club,
+          name: callerIsCreator(existing, userId) ? incoming.club.name || existing.club.name : existing.club.name,
           inviteCode: existing.club.inviteCode,
           createdBy: callerIsCreator(existing, userId) ? incoming.club.createdBy || existing.club.createdBy : existing.club.createdBy,
         }
@@ -609,6 +633,8 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       droppedEvents,
     ),
   ),
+  ),
+    droppedCharla,
   );
 }
 

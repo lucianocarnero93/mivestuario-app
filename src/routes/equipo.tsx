@@ -41,11 +41,13 @@ function EquipoPage() {
   const assists = rankedBy(rows, "assists").slice(0, 5);
   const cards = rows.filter((row) => row.yellow > 0 || row.red > 0);
   const syncFromCloud = useFija((s) => s.syncFromCloud);
+  const hydrated = useFija((s) => s.hydrated);
   const cloudWeight = useFija((s) => s.cloudWeight);
 
   useEffect(() => {
+    if (!hydrated) return;
     void syncFromCloud();
-  }, [syncFromCloud]);
+  }, [hydrated, syncFromCloud]);
   const byId = new Map(members.map((m) => [m.id, m]));
   const byMember = new Map(rows.map((row) => [row.memberId, row]));
   const coaches = members.filter((m) => m.role !== "jugador");

@@ -193,6 +193,8 @@ export type ClubBundle = {
   droppedIds?: string[];
   /** Partidos que el DT sacó de la agenda. No vuelven al mezclar. */
   droppedEventIds?: string[];
+  /** Charlas que el cuerpo técnico borró. No vuelven al mezclar. */
+  droppedCharlaIds?: string[];
   /** Cuentas que el DT sacó. No las manda el celular: las escribe el servidor. */
   bannedAccounts?: { accountId: string; name: string; at: string }[];
 };
@@ -218,6 +220,7 @@ export type AppState = {
   tournaments: Tournament[];
   droppedIds?: string[];
   droppedEventIds?: string[];
+  droppedCharlaIds?: string[];
   archivedClubs: ClubBundle[];
   profile: Profile;
   gpsConsent: GpsConsent;
