@@ -6,7 +6,7 @@ import { CardRow, MyNumbers, RankBlock, RankRow, RecordStrip } from "@/component
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDay } from "@/lib/fija/format";
-import { outcome, playerRows, rankedBy, resultLabel, teamRecord } from "@/lib/fija/stats";
+import { alumniMember, outcome, playerRows, rankedBy, resultLabel, teamRecord } from "@/lib/fija/stats";
 import {
   activeTournament,
   eventOfClosedTournament,
@@ -36,6 +36,7 @@ function StatsPage() {
   const club = useFija((s) => s.club);
   const events = useFija((s) => s.events);
   const members = useFija((s) => s.members);
+  const alumni = useFija((s) => s.alumni);
   const sheets = useFija((s) => s.matchSheets);
   const tournaments = useFija((s) => s.tournaments);
   const createTournament = useFija((s) => s.createTournament);
@@ -82,6 +83,7 @@ function StatsPage() {
   const assists = rankedBy(rows, "assists");
   const cardRows = rows.filter((row) => row.yellow > 0 || row.red > 0);
   const byId = new Map(members.map((m) => [m.id, m]));
+  const personOf = (id: string) => byId.get(id) ?? alumniMember(alumni, id);
   const mine = rows.find((row) => row.memberId === me.id);
   const pending = staff
     ? partidos.filter(
@@ -235,7 +237,7 @@ function StatsPage() {
             <RankRow
               key={row.memberId}
               rank={i + 1}
-              member={byId.get(row.memberId)}
+              member={personOf(row.memberId)}
               value={row.goals}
               unit={row.goals === 1 ? "gol" : "goles"}
             />
@@ -246,7 +248,7 @@ function StatsPage() {
             <RankRow
               key={row.memberId}
               rank={i + 1}
-              member={byId.get(row.memberId)}
+              member={personOf(row.memberId)}
               value={row.assists}
               unit="asistencias"
             />
@@ -256,7 +258,7 @@ function StatsPage() {
           {cardRows
             .sort((a, b) => b.red - a.red || b.yellow - a.yellow)
             .map((row) => (
-              <CardRow key={row.memberId} member={byId.get(row.memberId)} row={row} />
+              <CardRow key={row.memberId} member={personOf(row.memberId)} row={row} />
             ))}
         </RankBlock>
       </div>

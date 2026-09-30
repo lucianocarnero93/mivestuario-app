@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatWhen } from "@/lib/fija/format";
-import { clampStat, outcome, resultLabel } from "@/lib/fija/stats";
+import { alumniMember, clampStat, outcome, resultLabel } from "@/lib/fija/stats";
 import { defaultSheetPlayers, sheetFor, useFija } from "@/lib/fija/store";
 import type { ClubEvent, PlayerMatchStat } from "@/lib/fija/types";
 import { cn } from "@/lib/utils";
@@ -33,6 +33,7 @@ export function MatchSheetForm({
     defaultSheetPlayers(event, members, existing),
   );
   const [saved, setSaved] = useState(false);
+  const [sheetError, setSheetError] = useState("");
   const [confirmClosed, setConfirmClosed] = useState(false);
   const [askDone, setAskDone] = useState(false);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
@@ -56,6 +57,11 @@ export function MatchSheetForm({
           setConfirmClosed(true);
           return;
         }
+        if (sumGoals > gf) {
+          setSheetError("Los goles de los jugadores no pueden superar los goles del equipo.");
+          return;
+        }
+        setSheetError("");
         saveMatchSheet(
           {
             eventId: event.id,
@@ -111,9 +117,12 @@ export function MatchSheetForm({
 
       {sumGoals !== gf ? (
         <p className="text-xs text-warning">
-          La suma de goles individuales ({sumGoals}) no coincide con el resultado.
+          {sumGoals > gf
+            ? "Los goles de los jugadores superan el resultado. Corregilo antes de guardar."
+            : `La suma de goles individuales (${sumGoals}) no coincide con el resultado.`}
         </p>
       ) : null}
+      {sheetError ? <p className="text-sm text-danger">{sheetError}</p> : null}
 
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-widest text-muted">
@@ -226,6 +235,7 @@ export function MatchSheetRead({
   onBack: () => void;
 }) {
   const members = useFija((s) => s.members);
+  const alumni = useFija((s) => s.alumni);
   const sheets = useFija((s) => s.matchSheets);
   const sheet = sheetFor(event.id, sheets);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
@@ -272,8 +282,7 @@ export function MatchSheetRead({
       {marked.length > 0 ? (
         <ul className="divide-y divide-border overflow-hidden rounded-xl bg-surface shadow-card">
           {marked.map((row) => {
-            const player = byId.get(row.memberId);
-            if (!player) return null;
+            const player = byId.get(row.memberId) ?? alumniMember(alumni, row.memberId);
             return (
               <li key={row.memberId} className="flex items-center gap-3 px-4 py-3">
                 <span className="min-w-0 flex-1">

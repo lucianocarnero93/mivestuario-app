@@ -86,6 +86,14 @@ function sendMail(payload: { to: string; subject: string; html: string }) {
     });
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, """);
+}
+
 export const auth = betterAuth({
   baseURL: env("BETTER_AUTH_URL") ?? "http://localhost:8080",
   secret: env("BETTER_AUTH_SECRET") ?? "dev-secret-change-me-32-chars-minimum",
@@ -125,7 +133,7 @@ export const auth = betterAuth({
         to: user.email,
         subject: "Recuperá tu contraseña de Mi Vestuario",
         html: `
-          <p>Hola ${user.name ?? "jugador"},</p>
+          <p>Hola ${escapeHtml(user.name ?? "jugador")},</p>
           <p>Recibimos un pedido para recuperar tu contraseña.</p>
           <p><a href="${url}">Hacé clic acá para elegir una nueva contraseña</a></p>
           <p>El enlace expira en 1 hora. Si no pediste esto, ignorá este mail.</p>
@@ -146,6 +154,35 @@ export const auth = betterAuth({
   },
 
   session: { cookieCache: { enabled: true, maxAge: 300 } },
+
+  rateLimit: {
+    window: 60,
+    max: 100,
+    customRules: {
+      "/get-session": false,
+    },
+  },
+
+  databaseHooks: {
+    user: {
+      update: {
+        before: async (data: { menor?: boolean }) => {
+          if (data?.menor === false) {
+            const { menor: _ignored, ...rest } = data;
+            return { data: rest };
+          }
+          return { data };
+        },
+      },
+      delete: {
+        before: async (user: { id?: string }) => {
+          if (!user?.id) return;
+          const { releaseAccount } = await import("@/lib/fija/release-account");
+          await releaseAccount(user.id);
+        },
+      },
+    },
+  },
 
   advanced: {
     useSecureCookies: false,

@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABEL } from "@/lib/fija/format";
 import { MAX_BYTES } from "@/lib/fija/club-rules";
-import { playerRows, rankedBy, teamRecord } from "@/lib/fija/stats";
+import { alumniMember, playerRows, rankedBy, teamRecord } from "@/lib/fija/stats";
 import { useFija, useIsCreator, useIsStaff, useMe } from "@/lib/fija/store";
 import type { Role } from "@/lib/fija/types";
 
@@ -49,6 +49,8 @@ function EquipoPage() {
     void syncFromCloud();
   }, [hydrated, syncFromCloud]);
   const byId = new Map(members.map((m) => [m.id, m]));
+  const alumni = useFija((s) => s.alumni);
+  const personOf = (id: string) => byId.get(id) ?? alumniMember(alumni, id);
   const byMember = new Map(rows.map((row) => [row.memberId, row]));
   const coaches = members.filter((m) => m.role !== "jugador");
   const players = members.filter((m) => m.role === "jugador");
@@ -104,7 +106,7 @@ function EquipoPage() {
             <RankRow
               key={row.memberId}
               rank={i + 1}
-              member={byId.get(row.memberId)}
+              member={personOf(row.memberId)}
               value={row.goals}
               unit={row.goals === 1 ? "gol" : "goles"}
             />
@@ -115,7 +117,7 @@ function EquipoPage() {
             <RankRow
               key={row.memberId}
               rank={i + 1}
-              member={byId.get(row.memberId)}
+              member={personOf(row.memberId)}
               value={row.assists}
               unit="asistencias"
             />
@@ -125,7 +127,7 @@ function EquipoPage() {
           {cards
             .sort((a, b) => b.red - a.red || b.yellow - a.yellow)
             .map((row) => (
-              <CardRow key={row.memberId} member={byId.get(row.memberId)} row={row} />
+              <CardRow key={row.memberId} member={personOf(row.memberId)} row={row} />
             ))}
         </RankBlock>
         <Link

@@ -172,16 +172,23 @@ const blank = {
 */
 
 export async function currentAccount(): Promise<{ id: string; name: string } | null> {
+  if (accountCache && Date.now() - accountCache.at < 20_000) return accountCache.value;
   try {
     const session = await authClient.getSession();
     const id = session?.data?.user?.id;
     const name = session?.data?.user?.name;
-    if (typeof id !== "string" || id.length === 0) return null;
-    return { id, name: typeof name === "string" ? name.trim() : "" };
+    const value =
+      typeof id === "string" && id.length > 0
+        ? { id, name: typeof name === "string" ? name.trim() : "" }
+        : null;
+    accountCache = { at: Date.now(), value };
+    return value;
   } catch {
-    return null;
+    return accountCache?.value ?? null;
   }
 }
+
+let accountCache: { at: number; value: { id: string; name: string } | null } | null = null;
 
 async function currentAccountId(): Promise<string | null> {
   const account = await currentAccount();
@@ -854,9 +861,14 @@ export const useFija = create<State>()(
         if (!allowed || !memberId || memberId === state.activeId) return;
         if (state.club?.createdBy === memberId) return;
         if (!state.members.some((person) => person.id === memberId)) return;
+        const gone = state.members.find((person) => person.id === memberId);
         const droppedIds = [...new Set([...(state.droppedIds ?? []), memberId])];
+        const alumni = gone
+          ? [...(state.alumni ?? []).filter((item) => item.id !== gone.id), { id: gone.id, name: gone.name, nick: gone.nick }]
+          : (state.alumni ?? []);
         set({
           droppedIds,
+          alumni,
           members: state.members.filter((person) => person.id !== memberId),
           rsvps: state.rsvps.filter((row) => row.memberId !== memberId),
           invites: state.invites.filter((invite) => invite.memberId !== memberId),
@@ -932,10 +944,13 @@ export const useFija = create<State>()(
           yellow: clampStat(row.yellow),
           red: clampStat(row.red),
         }));
+        const goalsFor = clampStat(input.goalsFor);
+        const scored = playerStats.reduce((sum, row) => sum + row.goals, 0);
+        if (scored > goalsFor) return;
         const sheet: MatchSheet = {
           eventId: input.eventId,
           opponent: sanitizeName(input.opponent),
-          goalsFor: clampStat(input.goalsFor),
+          goalsFor,
           goalsAgainst: clampStat(input.goalsAgainst),
           notes: sanitizeText(input.notes, 400),
           recordedAt: new Date().toISOString(),
@@ -1998,6 +2013,7 @@ export const useFija = create<State>()(
         droppedIds: s.droppedIds ?? [],
         droppedEventIds: s.droppedEventIds ?? [],
         droppedCharlaIds: s.droppedCharlaIds ?? [],
+        alumni: s.alumni ?? [],
         reminder: s.reminder,
         dirty: s.dirty,
         savedMine: s.savedMine,
@@ -2019,6 +2035,7 @@ export const useFija = create<State>()(
         if (!Array.isArray(state.droppedIds)) state.droppedIds = [];
         if (!Array.isArray(state.droppedEventIds)) state.droppedEventIds = [];
         if (!Array.isArray(state.droppedCharlaIds)) state.droppedCharlaIds = [];
+        if (!Array.isArray(state.alumni)) state.alumni = [];
         if (!state.profile) {
           state.profile = createSeed().profile;
         }
@@ -2279,6 +2296,10 @@ function mergeClubBundles(
     droppedIds: [...new Set([...(remote.droppedIds ?? []), ...(local.droppedIds ?? [])])].filter(
       (id) => id !== creatorId,
     ),
+    alumni: [
+      ...(remote.alumni ?? []),
+      ...(local.alumni ?? []).filter((item) => !(remote.alumni ?? []).some((kept) => kept.id === item.id)),
+    ],
     bannedAccounts: who.staff ? (remote.bannedAccounts ?? []) : [],
       },
       droppedEvents,
@@ -2430,6 +2451,7 @@ function toBundle(state: {
   droppedIds?: string[];
   droppedEventIds?: string[];
   droppedCharlaIds?: string[];
+  alumni?: { id: string; name: string; nick: string }[];
 }): ClubBundle {
   return {
     club: state.club,
@@ -2448,6 +2470,7 @@ function toBundle(state: {
     droppedIds: state.droppedIds ?? [],
     droppedEventIds: state.droppedEventIds ?? [],
     droppedCharlaIds: state.droppedCharlaIds ?? [],
+    alumni: state.alumni ?? [],
   };
 }
 

@@ -8,7 +8,6 @@ import { registerTeamPush } from "@/lib/fija/push-client";
 import { useFija, useIsStaff, useMe, currentAccount, wipeLocalTeamData } from "@/lib/fija/store";
 import { cn } from "@/lib/utils";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { authClient } from "@/lib/auth/client";
 import { ClubGate } from "./club-gate";
 import { InboxBell } from "./inbox-bell";
 import { BrandLockup } from "./logo";
@@ -149,7 +148,6 @@ function AuthFrame({ children }: { children: ReactNode }) {
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
 
   useEffect(() => {
-    void authClient.getSession().catch(() => undefined);
     setPedirEdad(readPedirEdad());
   }, [user]);
 

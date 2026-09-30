@@ -41,6 +41,11 @@ function SeguridadPage() {
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [nextPassword, setNextPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState("");
 
   useEffect(() => {
     void queryGpsPermission().then(setGps);
@@ -237,6 +242,75 @@ function SeguridadPage() {
             disabled={savingName || newName.trim() === (me.name ?? "")}
           >
             {savingName ? "Guardando…" : "Guardar nombre"}
+          </Button>
+        </div>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <label className="block text-sm font-semibold">Cambiar contraseña</label>
+          <p className="mt-1 text-xs text-muted">Si entraste con Google, este cambio no aplica.</p>
+          <input
+            className="mt-2 flex h-12 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg"
+            type="password"
+            value={currentPassword}
+            autoComplete="current-password"
+            placeholder="Contraseña actual"
+            onChange={(event) => setCurrentPassword(event.target.value)}
+          />
+          <input
+            className="mt-2 flex h-12 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg"
+            type="password"
+            value={nextPassword}
+            autoComplete="new-password"
+            placeholder="Nueva contraseña"
+            onChange={(event) => setNextPassword(event.target.value)}
+          />
+          <input
+            className="mt-2 flex h-12 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg"
+            type="password"
+            value={repeatPassword}
+            autoComplete="new-password"
+            placeholder="Repetir contraseña"
+            onChange={(event) => setRepeatPassword(event.target.value)}
+          />
+          {passwordMessage ? <p className="mt-2 text-sm text-muted">{passwordMessage}</p> : null}
+          <Button
+            className="mt-3 h-12 w-full"
+            disabled={savingPassword}
+            onClick={() => {
+              if (nextPassword.length < 8) {
+                setPasswordMessage("La contraseña necesita al menos 8 caracteres.");
+                return;
+              }
+              if (nextPassword !== repeatPassword) {
+                setPasswordMessage("Las dos contraseñas no coinciden.");
+                return;
+              }
+              setSavingPassword(true);
+              setPasswordMessage("");
+              void authClient
+                .changePassword({
+                  currentPassword,
+                  newPassword: nextPassword,
+                  revokeOtherSessions: false,
+                })
+                .then((result) => {
+                  setSavingPassword(false);
+                  if (result.error) {
+                    setPasswordMessage("No se pudo cambiar. Revisá la contraseña actual.");
+                    return;
+                  }
+                  setCurrentPassword("");
+                  setNextPassword("");
+                  setRepeatPassword("");
+                  setPasswordMessage("Listo. La contraseña quedó actualizada.");
+                })
+                .catch(() => {
+                  setSavingPassword(false);
+                  setPasswordMessage("No se pudo cambiar. Probá de nuevo.");
+                });
+            }}
+          >
+            {savingPassword ? "Guardando…" : "Guardar contraseña"}
           </Button>
         </div>
       </section>

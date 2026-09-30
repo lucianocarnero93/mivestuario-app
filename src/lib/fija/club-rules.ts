@@ -1,7 +1,9 @@
-import type { AlertLog, ClubBundle, ClubEvent, InboxItem, Member, Rsvp, Tournament } from "./types.ts";
+import type { AlertLog, Alumni, ClubBundle, ClubEvent, InboxItem, MatchSheet, Member, Rsvp, Tournament } from "./types.ts";
+import { clampStat } from "./stats.ts";
 
 export const MAX_BYTES = 350_000;
 export const HARD_BYTES = 500_000;
+export const MAX_MEMBERS = 80;
 
 export function sizeVerdict(before: number, after: number): "ok" | "soft" | "hard" {
   if (after > HARD_BYTES) return "hard";
@@ -205,8 +207,9 @@ export function mergePlayerInbox(
   existing: InboxItem[],
   incoming: InboxItem[],
   meId: string,
-  eventIds: Set<string>,
+  events: ClubEvent[],
 ): InboxItem[] {
+  const eventIds = new Set(events.map((event) => event.id));
   const map = new Map(existing.map((item) => [item.id, item]));
   for (const item of incoming) {
     const previous = map.get(item.id);
@@ -216,17 +219,77 @@ export function mergePlayerInbox(
       }
       continue;
     }
-    const fixed =
-      item.id.startsWith("in-r1-") ||
-      item.id.startsWith("in-r2-") ||
-      item.id.startsWith("in-eq-") ||
-      item.id.startsWith("in-now-");
-    if (!fixed || (item.kind !== "recordatorio" && item.kind !== "equipamiento")) continue;
-    if (!item.eventId || !eventIds.has(item.eventId)) continue;
-    if (item.title.length > 120 || item.body.length > 200) continue;
-    map.set(item.id, item);
+    if (!item.eventId || !eventIds.has(item.eventId) || !playerNoticeAllowed(item, events)) continue;
+    map.set(item.id, {
+      ...item,
+      title: item.title.slice(0, 120),
+      body: item.body.slice(0, 200),
+    });
   }
   return [...map.values()];
+}
+
+/** Un jugador no puede inventar el texto de un aviso. Solo el recordatorio y el equipamiento, con la frase de siempre. */
+export function playerNoticeAllowed(item: InboxItem, events: ClubEvent[]): boolean {
+  const event = events.find((entry) => entry.id === item.eventId);
+  if (!event) return false;
+  if (
+    item.kind === "recordatorio" &&
+    item.audience === "pending" &&
+    item.id.startsWith(`in-r1-${event.id}-`)
+  ) {
+    return item.title === "Falta tu confirmación" && item.body === `Todavía no confirmaste ${event.title}.`;
+  }
+  if (item.kind !== "equipamiento" || item.audience !== "miembro" || !item.memberId) return false;
+  if (item.id !== `in-eq-${event.id}-${item.memberId}`) return false;
+  const carried = Object.entries(event.equipamiento ?? {})
+    .filter(([, memberId]) => memberId === item.memberId)
+    .map(([name]) => name);
+  if (carried.length === 0) return false;
+  const labels = carried.map((name) => (name === "remeras" ? "las remeras" : "las pelotas")).join(" y ");
+  const titles = new Set(["Hoy hay partido", "Mañana hay partido", "Te toca el equipamiento"]);
+  return titles.has(item.title) && item.body === `Te toca llevar ${labels} para ${event.title}.`;
+}
+
+const APP_PATHS = new Set(["/", "/chat", "/cancha", "/agenda", "/stats", "/equipo", "/seguridad"]);
+
+export function safeAppPath(url: string): string {
+  if (!url.startsWith("/") || url.startsWith("//") || url.includes("\\") || url.includes("://")) return "/";
+  const path = url.split("?")[0]?.split("#")[0] ?? "/";
+  return APP_PATHS.has(path) ? path : "/";
+}
+
+export function noticeFits(
+  bundle: ClubBundle,
+  memberId: string,
+  staff: boolean,
+  title: string,
+  body: string,
+  now = Date.now(),
+): { title: string; url: string } | null {
+  const fresh = (at?: string) => {
+    const time = Date.parse(at ?? "");
+    return Number.isFinite(time) && now - time < 10 * 60 * 1000 && now - time > -60_000;
+  };
+  const me = bundle.members.find((person) => person.id === memberId);
+  if (!me) return null;
+  const ownMessage = (bundle.messages ?? []).some(
+    (item) => item.memberId === memberId && item.text === body && fresh(item.at),
+  );
+  if (!staff) {
+    if (!ownMessage) return null;
+    return { title: (me.nick || "Plantel").slice(0, 80), url: "/chat" };
+  }
+  const ownCharla = (bundle.charla ?? []).some(
+    (item) => item.memberId === memberId && item.text === body && fresh(item.at),
+  );
+  const note = (bundle.inbox ?? []).find((item) => item.title === title && item.body === body && fresh(item.at));
+  if (!ownMessage && !ownCharla && !note) return null;
+  if (note && !ownMessage && !ownCharla) {
+    const url = note.kind === "formacion" ? "/cancha" : note.kind === "charla" ? "/chat" : "/";
+    return { title: note.title.slice(0, 80), url };
+  }
+  return { title: title.slice(0, 80) || (me.nick || "Plantel"), url: "/chat" };
 }
 
 export function mergePlayerAlerts(existing: AlertLog[], incoming: AlertLog[], eventIds: Set<string>): AlertLog[] {
@@ -359,6 +422,77 @@ export function freshMemberId(): string {
   return `m-${bytes}`;
 }
 
+export function capRoster(previous: Member[], next: Member[], max = MAX_MEMBERS): Member[] {
+  if (next.length <= max) return next;
+  const known = new Set(previous.map((person) => person.id));
+  const kept = next.filter((person) => known.has(person.id));
+  const added = next.filter((person) => !known.has(person.id));
+  return [...kept, ...added].slice(0, Math.max(max, kept.length));
+}
+
+export function mergeAlumni(kept: Alumni[] | undefined, incoming: Alumni[] | undefined): Alumni[] {
+  const map = new Map<string, Alumni>();
+  for (const item of [...(kept ?? []), ...(incoming ?? [])]) {
+    if (!item?.id || !item.name || map.has(item.id)) continue;
+    map.set(item.id, {
+      id: item.id.slice(0, 80),
+      name: item.name.slice(0, 80),
+      nick: (item.nick || item.name).slice(0, 40),
+    });
+  }
+  return [...map.values()].slice(0, 300);
+}
+
+export function detachAccount(bundle: ClubBundle, accountId: string): ClubBundle {
+  if (!accountId) return bundle;
+  return {
+    ...bundle,
+    members: bundle.members.map((person) =>
+      person.accountId === accountId ? { ...person, accountId: null } : person,
+    ),
+  };
+}
+
+export function sanitizeSheet(sheet: MatchSheet): MatchSheet {
+  const players = (Array.isArray(sheet.players) ? sheet.players : [])
+    .slice(0, 40)
+    .map((row) => ({
+      memberId: String(row.memberId ?? "").slice(0, 80),
+      goals: clampStat(row.goals),
+      assists: clampStat(row.assists),
+      yellow: clampStat(row.yellow),
+      red: clampStat(row.red),
+    }))
+    .filter((row) => row.memberId);
+  const goalsFor = clampStat(sheet.goalsFor);
+  let left = goalsFor;
+  const fitted = players.map((row) => {
+    const goals = Math.min(row.goals, left);
+    left -= goals;
+    return { ...row, goals };
+  });
+  return {
+    ...sheet,
+    opponent: String(sheet.opponent ?? "").slice(0, 80),
+    notes: String(sheet.notes ?? "").slice(0, 400),
+    goalsFor,
+    goalsAgainst: clampStat(sheet.goalsAgainst),
+    players: fitted,
+  };
+}
+
+export function clipTextList<T extends { text?: string }>(list: T[], max = 400): T[] {
+  return list.map((item) => ({ ...item, text: String(item.text ?? "").slice(0, max) }));
+}
+
+export function clipInbox(list: InboxItem[]): InboxItem[] {
+  return list.map((item) => ({
+    ...item,
+    title: String(item.title ?? "").slice(0, 120),
+    body: String(item.body ?? "").slice(0, 200),
+  }));
+}
+
 function stripFromEvent(event: ClubEvent, memberId: string): ClubEvent {
   const lineup = Object.fromEntries(Object.entries(event.lineup).filter(([, id]) => id !== memberId));
   return {
@@ -374,6 +508,10 @@ export function removeMemberEverywhere(
   memberId: string,
 ): { bundle: ClubBundle; empty: boolean } {
   let members = bundle.members.filter((person) => person.id !== memberId);
+  const gone = bundle.members.find((person) => person.id === memberId);
+  const alumni = gone
+    ? mergeAlumni(bundle.alumni, [{ id: gone.id, name: gone.name, nick: gone.nick }])
+    : (bundle.alumni ?? []);
   let club = bundle.club;
   if (club.createdBy === memberId && members[0]) {
     const nextOwner =
@@ -389,6 +527,7 @@ export function removeMemberEverywhere(
     ...bundle,
     club,
     members,
+    alumni,
     droppedIds: [...new Set([...(bundle.droppedIds ?? []), memberId])],
     rsvps: bundle.rsvps.filter((row) => row.memberId !== memberId),
     invites: bundle.invites.filter((invite) => invite.memberId !== memberId),

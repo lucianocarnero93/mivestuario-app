@@ -46,3 +46,15 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
     </main>
   );
 }
+
+export function NotFoundPage() {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-bg px-6 text-center text-fg">
+      <h1 className="text-lg font-semibold">Esa página no existe</h1>
+      <p className="max-w-md text-sm text-muted">El enlace no corresponde a una pantalla del vestuario.</p>
+      <a href="/" className="flex h-12 items-center rounded-lg bg-accent px-5 font-semibold text-accent-fg">
+        Volver al inicio
+      </a>
+    </main>
+  );
+}

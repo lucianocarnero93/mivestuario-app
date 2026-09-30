@@ -378,6 +378,7 @@ export function emptyClubState() {
     droppedIds: [] as string[],
     droppedEventIds: [] as string[],
     droppedCharlaIds: [] as string[],
+    alumni: [] as AppState["alumni"],
     reminder: null as AppState["reminder"],
   };
 }
@@ -459,6 +460,7 @@ export function createSeed(): Omit<AppState, "hydrated"> {
     droppedIds: [],
     droppedEventIds: [],
     droppedCharlaIds: [],
+    alumni: [],
     archivedClubs: openClubs(),
     profile: { name: "Martín Díaz", nick: "Profe" },
     gpsConsent: "unset",

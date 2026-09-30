@@ -16,6 +16,7 @@ function ResetPage() {
   const token = search.token;
   const linkBroken = !token || search.error === "INVALID_TOKEN";
   const [password, setPassword] = useState("");
+  const [repeat, setRepeat] = useState("");
   const [errorText, setErrorText] = useState("");
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -25,6 +26,10 @@ function ResetPage() {
     setErrorText("");
     if (password.length < 8) {
       setErrorText("La contraseña necesita al menos 8 caracteres.");
+      return;
+    }
+    if (password !== repeat) {
+      setErrorText("Las dos contraseñas no coinciden.");
       return;
     }
     if (!token) {
@@ -38,7 +43,12 @@ function ResetPage() {
     });
     setBusy(false);
     if (result.error) {
-      setErrorText(result.error.message ?? "No se pudo cambiar la contraseña.");
+      const message = result.error.message ?? "";
+      setErrorText(
+        /invalid token|expired/i.test(message)
+          ? "Este enlace no sirve o ya venció. Pedí uno nuevo."
+          : "No se pudo cambiar la contraseña.",
+      );
     } else {
       setDone(true);
     }
@@ -75,6 +85,16 @@ function ResetPage() {
                 value={password}
                 autoComplete="new-password"
                 onChange={(event) => setPassword(event.target.value)}
+              />
+            </label>
+            <label className="block text-sm">
+              Repetir contraseña
+              <input
+                className="mt-1 flex h-12 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg"
+                type="password"
+                value={repeat}
+                autoComplete="new-password"
+                onChange={(event) => setRepeat(event.target.value)}
               />
             </label>
             {errorText ? <p className="text-sm text-danger">{errorText}</p> : null}

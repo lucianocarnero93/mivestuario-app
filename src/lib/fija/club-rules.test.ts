@@ -11,7 +11,12 @@ import {
   nextBannedAccounts,
   preferRsvp,
   readmitAccount,
+  detachAccount,
+  mergeAlumni,
+  noticeFits,
+  playerNoticeAllowed,
   removeMemberEverywhere,
+  sanitizeSheet,
   sizeVerdict,
 } from "./club-rules.ts";
 import type { ClubBundle, ClubEvent, Member } from "./types.ts";
@@ -338,6 +343,21 @@ test("el aviso de equipamiento nombra solo a quien lo lleva", () => {
 });
 
 test("el jugador solo suma avisos fijos y su propia lectura", () => {
+  const event = {
+    id: "e1",
+    kind: "partido" as const,
+    title: "Fecha",
+    place: "Cancha",
+    mapsQuery: "Cancha",
+    lat: null,
+    lng: null,
+    startsAt: "2026-10-01T21:00:00.000Z",
+    modality: "f5" as const,
+    lineup: {},
+    tactics: "",
+    lineupPublishedAt: null,
+    tournamentId: null,
+  };
   const existing = [
     {
       id: "in-r1-e1-1",
@@ -350,15 +370,25 @@ test("el jugador solo suma avisos fijos y su propia lectura", () => {
       readBy: [] as string[],
     },
   ];
+  const legit = {
+    id: "in-r1-e1-9",
+    kind: "recordatorio" as const,
+    title: "Falta tu confirmación",
+    body: "Todavía no confirmaste Fecha.",
+    eventId: "e1",
+    audience: "pending" as const,
+    at: "2026-03-01T01:00:00.000Z",
+    readBy: [] as string[],
+  };
   const merged = mergePlayerInbox(
     existing,
     [
-      { ...existing[0], title: "Cambiado", readBy: ["me", "otro"] },
+      { ...existing[0], title: "PARTIDO SUSPENDIDO", body: "No vengan", readBy: ["me", "otro"] },
       {
         id: "azar",
         kind: "recordatorio",
-        title: "X",
-        body: "Y",
+        title: "PARTIDO SUSPENDIDO",
+        body: "No vengan",
         eventId: "e1",
         audience: "all",
         at: "2026-03-01T00:00:00.000Z",
@@ -374,24 +404,16 @@ test("el jugador solo suma avisos fijos y su propia lectura", () => {
         at: "2026-03-01T01:00:00.000Z",
         readBy: ["otro"],
       },
-      {
-        id: "in-r2-e1-3",
-        kind: "recordatorio",
-        title: "x".repeat(121),
-        body: "largo",
-        eventId: "e1",
-        audience: "pending",
-        at: "2026-03-01T01:00:00.000Z",
-        readBy: [],
-      },
+      legit,
     ],
     "me",
-    new Set(["e1"]),
+    [event],
   );
   assert.equal(merged.length, 2);
   assert.equal(merged[0]?.title, "Aviso");
   assert.deepEqual(merged[0]?.readBy, ["me"]);
-  assert.equal(merged[1]?.id, "in-r2-e1-2");
+  assert.equal(merged[1]?.id, legit.id);
+  assert.equal(playerNoticeAllowed(legit, [event]), true);
 
   const alerts = mergePlayerAlerts(
     [{ id: "al-first-e1-1", eventId: "e1", kind: "first", at: "original" }],
@@ -407,3 +429,57 @@ test("el jugador solo suma avisos fijos y su propia lectura", () => {
   assert.equal(alerts[0]?.at, "original");
   assert.equal(alerts[1]?.id, "al-second-e1-1");
 });
+
+test("sacar a alguien deja el nombre para el ranking", () => {
+  const team = bundle([
+    person({ id: "dt", name: "Lucho", role: "dt" }),
+    person({ id: "j1", name: "Enzo Pérez", nick: "Enzo" }),
+  ]);
+  const removed = removeMemberEverywhere(team, "j1");
+  assert.equal(removed.bundle.alumni?.[0]?.name, "Enzo Pérez");
+  assert.equal(removed.bundle.alumni?.[0]?.nick, "Enzo");
+  const again = mergeAlumni(removed.bundle.alumni, [{ id: "j1", name: "Otro", nick: "Otro" }]);
+  assert.equal(again[0]?.name, "Enzo Pérez");
+});
+
+test("borrar la cuenta suelta el nombre y no lo borra", () => {
+  const team = bundle([
+    person({ id: "dt", name: "Lucho", role: "dt", accountId: "acc-dt" }),
+    person({ id: "j1", name: "Pibe", accountId: "acc-p" }),
+  ]);
+  const next = detachAccount(team, "acc-p");
+  const pibe = next.members.find((item) => item.id === "j1");
+  assert.equal(pibe?.name, "Pibe");
+  assert.equal(pibe?.accountId, null);
+});
+
+test("un aviso inventado no sale si no está en el equipo", () => {
+  const team = bundle([
+    person({ id: "j1", name: "Pibe", nick: "Pibe", accountId: "acc-p" }),
+  ]);
+  const now = Date.parse("2026-04-01T18:00:00.000Z");
+  team.messages = [{ id: "m1", memberId: "j1", text: "Llego tarde", at: "2026-04-01T17:58:00.000Z" }];
+  const chat = noticeFits(team, "j1", false, "PARTIDO SUSPENDIDO", "Llego tarde", now);
+  assert.equal(chat?.title, "Pibe");
+  assert.equal(chat?.url, "/chat");
+  const fake = noticeFits(team, "j1", false, "PARTIDO SUSPENDIDO", "No vengan", now);
+  assert.equal(fake, null);
+});
+
+test("la planilla no deja más goles individuales que el resultado", () => {
+  const sheet = sanitizeSheet({
+    eventId: "e1",
+    opponent: "Rival",
+    goalsFor: 1,
+    goalsAgainst: 0,
+    notes: "",
+    recordedAt: "2026-04-01T18:00:00.000Z",
+    players: [
+      { memberId: "a", goals: 4, assists: 0, yellow: 0, red: 0 },
+      { memberId: "b", goals: 2, assists: 0, yellow: 0, red: 0 },
+    ],
+  });
+  assert.equal(sheet.goalsFor, 1);
+  assert.equal(sheet.players.reduce((sum, row) => sum + row.goals, 0), 1);
+});
+

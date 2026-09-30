@@ -7,16 +7,22 @@ import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
   canAssignRoles,
+  capRoster,
+  clipInbox,
+  clipTextList,
   decideClaim,
   freshMemberId,
   guardMember,
   HARD_BYTES,
+  mergeAlumni,
   mergePlayerAlerts,
   mergePlayerInbox,
   nextBannedAccounts,
+  noticeFits,
   preferRsvp,
   readmitAccount,
   removeMemberEverywhere,
+  sanitizeSheet,
   sizeVerdict,
   withoutBanned,
 } from "./club-rules";
@@ -61,7 +67,7 @@ function isStaffMember(person: Member | undefined): boolean {
   return person?.role === "dt" || person?.role === "ayudante";
 }
 
-async function noteLookup(userId: string): Promise<void> {
+async function noteLookup(userId: string, limit = ATTEMPT_LIMIT): Promise<void> {
   if (!userId) throw new Error("Entrá de nuevo para buscar un equipo.");
   await withTransaction(async (query) => {
     const rows = await query<{ data: { n?: number; since?: number } | string }>(
@@ -86,7 +92,7 @@ async function noteLookup(userId: string): Promise<void> {
       n = (parsed.n ?? 0) + 1;
       since = parsed.since;
     }
-    if (n > ATTEMPT_LIMIT) throw new Error("Demasiados intentos. Esperá un rato.");
+    if (n > limit) throw new Error("Demasiados intentos. Esperá un rato.");
     await query(
       `insert into vestuario_docs (collection, id, data, updated_at)
        values ($1, $2, $3::jsonb, now())
@@ -126,6 +132,19 @@ export async function memberIdInClub(code: string, userId: string): Promise<stri
   const bundle = await readClub(code);
   if (!bundle) return null;
   return memberFor(bundle.members, userId)?.id ?? null;
+}
+
+export async function noticeForMember(
+  code: string,
+  userId: string,
+  title: string,
+  body: string,
+): Promise<{ title: string; url: string } | null> {
+  const bundle = await readClub(code);
+  if (!bundle) return null;
+  const me = memberFor(bundle.members, userId);
+  if (!me) return null;
+  return noticeFits(bundle, me.id, isStaffMember(me), title, body);
 }
 
 export async function isClubMember(code: string, userId: string): Promise<boolean> {
@@ -187,10 +206,30 @@ export const peekClubName = createServerFn({ method: "POST" })
   .validator((code: string) => sanitizeCode(code))
   .handler(async ({ data: code }): Promise<string | null> => {
     if (!code) return null;
+    const bucket = await peekBucket();
+    if (bucket) {
+      try {
+        await noteLookup(bucket, 8);
+      } catch {
+        return null;
+      }
+    }
     const bundle = await readClub(code);
     const name = bundle?.club.name?.trim() ?? "";
     return name ? name.slice(0, 80) : null;
   });
+
+async function peekBucket(): Promise<string | null> {
+  try {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const request = getRequest();
+    const forwarded = request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
+    const ip = (forwarded || request?.headers?.get("x-real-ip") || "").slice(0, 80);
+    return ip ? `peek:${ip}` : "peek:comun";
+  } catch {
+    return "peek:comun";
+  }
+}
 
 export const listMyClubs = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -474,7 +513,7 @@ function mergeSheetsByTime(kept: MatchSheet[], incoming: MatchSheet[]): MatchShe
   const map = new Map(kept.map((sheet) => [sheet.eventId, sheet]));
   for (const sheet of incoming) {
     const previous = map.get(sheet.eventId);
-    map.set(sheet.eventId, previous ? pickSheet(previous, sheet) : sheet);
+    map.set(sheet.eventId, sanitizeSheet(previous ? pickSheet(previous, sheet) : sheet));
   }
   return [...map.values()];
 }
@@ -524,7 +563,14 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     return pruneBundle(
       lightenClosedMatches(
         withoutDroppedEvents(
-          { ...incoming, members: capOversizedPhotos([], incoming.members) },
+          { ...incoming,
+          members: capRoster([], capOversizedPhotos([], incoming.members)),
+          messages: clipTextList(incoming.messages ?? []),
+          charla: clipTextList(incoming.charla ?? []),
+          inbox: clipInbox(incoming.inbox ?? []),
+          matchSheets: (incoming.matchSheets ?? []).map(sanitizeSheet),
+          alumni: mergeAlumni([], incoming.alumni),
+        },
           new Set(incoming.droppedEventIds ?? []),
         ),
       ),
@@ -586,7 +632,15 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     }
     unique.push(person);
   }
-  const capped = capOversizedPhotos(existing.members, unique);
+  const leaving = existing.members.filter((person) => dropped.has(person.id));
+  const alumni = mergeAlumni(
+    mergeAlumni(
+      existing.alumni,
+      leaving.map((person) => ({ id: person.id, name: person.name, nick: person.nick })),
+    ),
+    staff ? incoming.alumni : [],
+  );
+  const capped = capRoster(existing.members, capOversizedPhotos(existing.members, unique));
   const listed = lockStaffRoles(existing, capped, userId);
   const eventIds = new Set(existing.events.map((event) => event.id));
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
@@ -606,9 +660,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       : existing.club,
     members: listed,
     events: staff ? mergeEvents(existing.events, incoming.events) : existing.events,
-    rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => unique.some((person) => person.id === row.memberId)),
-    messages: unionById(existing.messages, incoming.messages),
-    charla: staff ? unionById(existing.charla, incoming.charla) : existing.charla,
+    rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => listed.some((person) => person.id === row.memberId)),
+    messages: clipTextList(unionById(existing.messages, incoming.messages)),
+    charla: clipTextList(staff ? unionById(existing.charla, incoming.charla) : existing.charla),
     matchSheets: staff ? mergeSheetsByTime(existing.matchSheets, incoming.matchSheets) : existing.matchSheets,
     invites: staff ? unionById(existing.invites, incoming.invites) : existing.invites,
     convocatorias: staff
@@ -617,9 +671,11 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           (incoming.convocatorias ?? []).map((item) => ({ ...item, id: item.eventId })),
         ).map(({ id: _id, ...item }) => item)
       : (existing.convocatorias ?? []),
-    inbox: staff
-      ? unionById(existing.inbox, incoming.inbox)
-      : mergePlayerInbox(existing.inbox, incoming.inbox, me?.id ?? "", eventIds),
+    inbox: clipInbox(
+      staff
+        ? unionById(existing.inbox, incoming.inbox)
+        : mergePlayerInbox(existing.inbox, incoming.inbox, me?.id ?? "", existing.events),
+    ),
     alertLog: staff
       ? unionById(existing.alertLog, incoming.alertLog)
       : mergePlayerAlerts(existing.alertLog, incoming.alertLog, eventIds),
@@ -628,6 +684,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       ? mergeTournaments(existing.tournaments, incoming.tournaments)
       : mergeTournaments(existing.tournaments, []),
     droppedIds: [...dropped],
+    alumni,
     bannedAccounts,
       },
       droppedEvents,

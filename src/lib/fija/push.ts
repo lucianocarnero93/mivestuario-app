@@ -1,7 +1,7 @@
 // Avisos del plantel. La clave pública se crea sola la primera vez y queda en la base.
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { isClubMember, memberIdInClub, memberIdsInClub } from "./cloud";
+import { isClubMember, memberIdInClub, memberIdsInClub, noticeForMember } from "./cloud";
 import { sanitizeCode } from "./sanitize";
 
 const PUSHES = "pushes";
@@ -169,6 +169,8 @@ export const notifyClub = createServerFn({ method: "POST" })
     const userId = String((context as { userId?: string }).userId ?? "");
     if (!data.code || !data.body) return { ok: false };
     if (!(await isClubMember(data.code, userId))) return { ok: false };
+    const notice = await noticeForMember(data.code, userId, data.title, data.body);
+    if (!notice) return { ok: false };
     const keys = await ensureVapid();
     if (!keys) return { ok: false };
     const webpush = (await import("web-push")).default;
@@ -195,10 +197,10 @@ export const notifyClub = createServerFn({ method: "POST" })
           await webpush.sendNotification(
             { endpoint: item.endpoint, keys: { p256dh: item.p256dh, auth: item.auth } },
             JSON.stringify({
-              title: data.title,
-              body: data.body,
+              title: notice.title,
+              body: data.body.slice(0, 180),
               tag: data.tag,
-              data: { url: data.url },
+              data: { url: notice.url },
             }),
           );
         } catch (error) {

@@ -195,8 +195,16 @@ export type ClubBundle = {
   droppedEventIds?: string[];
   /** Charlas que el cuerpo técnico borró. No vuelven al mezclar. */
   droppedCharlaIds?: string[];
+  /** Nombres que ya no están en el plantel, para que el ranking no los pierda. */
+  alumni?: Alumni[];
   /** Cuentas que el DT sacó. No las manda el celular: las escribe el servidor. */
   bannedAccounts?: { accountId: string; name: string; at: string }[];
+};
+
+export type Alumni = {
+  id: string;
+  name: string;
+  nick: string;
 };
 
 export type Profile = {
@@ -221,6 +229,7 @@ export type AppState = {
   droppedIds?: string[];
   droppedEventIds?: string[];
   droppedCharlaIds?: string[];
+  alumni?: Alumni[];
   archivedClubs: ClubBundle[];
   profile: Profile;
   gpsConsent: GpsConsent;

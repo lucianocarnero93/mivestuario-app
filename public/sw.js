@@ -173,16 +173,23 @@ async function flushPending(tag) {
 }
 
 async function openOrFocus(path) {
-  const url = new URL(path, self.location.origin).href;
+  let url = new URL("/", self.location.origin);
+  try {
+    const next = new URL(path || "/", self.location.origin);
+    if (next.origin === self.location.origin) url = next;
+  } catch {
+    url = new URL("/", self.location.origin);
+  }
+  const href = url.href;
   const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
   for (const client of clientsList) {
     if ("focus" in client) {
       await client.focus();
-      if ("navigate" in client && client.url !== url) await client.navigate(url);
+      if ("navigate" in client && client.url !== href) await client.navigate(href);
       return;
     }
   }
-  await self.clients.openWindow(url);
+  await self.clients.openWindow(href);
 }
 
 self.addEventListener("widgetclick", (event) => {

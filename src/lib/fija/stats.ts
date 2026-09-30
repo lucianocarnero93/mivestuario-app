@@ -1,4 +1,4 @@
-import type { MatchSheet, Member, PlayerMatchStat } from "./types";
+import type { Alumni, MatchSheet, Member, PlayerMatchStat } from "./types";
 
 export type Outcome = "won" | "drawn" | "lost";
 
@@ -64,6 +64,20 @@ export function playerRows(sheets: MatchSheet[], members: Member[]): PlayerRow[]
     }
   }
   return [...map.values()];
+}
+
+export function alumniMember(alumni: Alumni[] | undefined, id: string): Member {
+  const found = alumni?.find((item) => item.id === id);
+  if (!found) {
+    return { id, name: "Ex jugador", nick: "Ex jugador", role: "jugador", number: null };
+  }
+  return {
+    id: found.id,
+    name: found.name,
+    nick: found.nick || found.name,
+    role: "jugador",
+    number: null,
+  };
 }
 
 export function rankedBy(
