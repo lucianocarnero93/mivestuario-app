@@ -87,11 +87,11 @@ function sendMail(payload: { to: string; subject: string; html: string }) {
 }
 
 function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, """);
+  const amp = "&" + "amp;";
+  const lt = "&" + "lt;";
+  const gt = "&" + "gt;";
+  const quot = "&" + "quot;";
+  return value.replace(/&/g, amp).replace(/</g, lt).replace(/>/g, gt).replace(/"/g, quot);
 }
 
 export const auth = betterAuth({
