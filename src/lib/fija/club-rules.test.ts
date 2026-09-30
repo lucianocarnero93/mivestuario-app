@@ -203,6 +203,17 @@ test("unir la cuenta saca el duplicado y no banea", () => {
   assert.equal(joined.bundle.bannedAccounts?.length ?? 0, 0);
 });
 
+test("el DT no se puede convertir en un jugador cargado a mano", () => {
+  const team = bundle([
+    person({ id: "dt", name: "Lucho", role: "dt", accountId: "acc-dt" }),
+    person({ id: "j-pivi", name: "PivitA" }),
+  ]);
+  const claimed = claimExistingName(team, "acc-dt", "j-pivi");
+  assert.equal(claimed.ok, false);
+  if (claimed.ok) return;
+  assert.match(claimed.error, /otro jugador/);
+});
+
 function match(id = "e1", startsAt = "2026-04-01T21:00:00.000Z"): ClubEvent {
   return {
     id,

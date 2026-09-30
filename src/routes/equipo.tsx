@@ -448,11 +448,12 @@ function MemberEdit({
 
 function SoyEste() {
   const me = useMe();
+  const staff = useIsStaff();
   const members = useFija((s) => s.members);
   const claimName = useFija((s) => s.useThisName);
   const [error, setError] = useState("");
   const libres = members.filter((person) => !person.accountId && person.id !== me.id);
-  if (!me.accountId || libres.length === 0) return null;
+  if (staff || !me.accountId || libres.length === 0) return null;
   return (
     <section className="mt-5 rounded-xl bg-surface p-4 shadow-card">
       <p className="text-sm">Si el DT ya te cargó a mano, elegí ese nombre para no quedar dos veces.</p>

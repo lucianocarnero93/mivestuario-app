@@ -402,6 +402,9 @@ export function claimExistingName(
   const caller = bundle.members.find((person) => person.accountId === accountId || person.id === accountId);
   if (!caller) return { ok: false, error: "No estás en este equipo." };
   const staff = caller.role === "dt" || caller.role === "ayudante";
+  if (staff && caller.id !== target.id) {
+    return { ok: false, error: "Ya estás en el equipo. Ese nombre es de otro jugador." };
+  }
   if (!staff && target.accountId && target.id !== caller.id) {
     return { ok: false, error: "Ese nombre ya tiene otra cuenta." };
   }
