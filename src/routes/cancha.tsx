@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
-import { formatWhen } from "@/lib/fija/format";
+import { formatWhen, personLabel } from "@/lib/fija/format";
 import { matchSettled, nextEvent, sheetFor, useFija, useIsStaff } from "@/lib/fija/store";
 import type { Modality } from "@/lib/fija/types";
 
@@ -237,8 +237,7 @@ function CanchaPage() {
                   }}
                 >
                   <span>
-                    {p.number != null ? `${p.number} · ` : ""}
-                    {p.nick}
+                    {personLabel(p, players)}
                   </span>
                   <span className="text-xs text-muted">{used.has(p.id) ? "en cancha" : p.name.split(" ")[1]}</span>
                 </button>

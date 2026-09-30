@@ -1,3 +1,4 @@
+import { personLabel } from "@/lib/fija/format";
 import { useFija } from "@/lib/fija/store";
 import type { ClubEvent, Member } from "@/lib/fija/types";
 
@@ -87,8 +88,7 @@ export function SquadPanel({
               <li key={person.id} className="py-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="min-w-0 truncate text-sm">
-                    {person.number != null ? `${person.number} ` : ""}
-                    {person.nick}
+                    {personLabel(person, plantel)}
                     <span className="ml-2 text-xs text-muted">{donde ? `${donde} · ${estado}` : estado}</span>
                   </span>
                   {staff ? (

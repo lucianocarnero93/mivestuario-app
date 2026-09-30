@@ -1,4 +1,4 @@
-import { KIND_LABEL, formatDay, formatTime } from "@/lib/fija/format";
+import { KIND_LABEL, formatDay, formatTime, personLabel } from "@/lib/fija/format";
 import { MODALITY_LABEL } from "@/lib/fija/formations";
 import type { ClubEvent, Rsvp } from "@/lib/fija/types";
 import { cn } from "@/lib/utils";
@@ -29,8 +29,9 @@ export function EventCard({
   const total = Math.max(rsvps.length, 1);
   const van = rsvps
     .filter((row) => row.status === "voy")
-    .map((row) => members.find((person) => person.id === row.memberId)?.nick)
-    .filter((nick): nick is string => Boolean(nick));
+    .map((row) => members.find((person) => person.id === row.memberId))
+    .filter((person): person is NonNullable<typeof person> => Boolean(person))
+    .map((person) => personLabel(person, members));
 
   return (
     <article className={cn("rounded-xl bg-surface p-4 shadow-card", className)}>

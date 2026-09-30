@@ -20,6 +20,7 @@ import {
   sizeVerdict,
 } from "./club-rules.ts";
 import type { ClubBundle, ClubEvent, Member } from "./types.ts";
+import { personLabel } from "./format.ts";
 
 function person(partial: Partial<Member> & Pick<Member, "id" | "name">): Member {
   return {
@@ -482,4 +483,18 @@ test("la planilla no deja más goles individuales que el resultado", () => {
   assert.equal(sheet.goalsFor, 1);
   assert.equal(sheet.players.reduce((sum, row) => sum + row.goals, 0), 1);
 });
+
+test("dos Enzo no se confunden", () => {
+  const people = [
+    { id: "a", nick: "Enzo", name: "Enzo Pérez", number: null },
+    { id: "b", nick: "Enzo", name: "Enzo Fernández", number: null },
+    { id: "c", nick: "Enzo", name: "Enzo", number: null },
+    { id: "d", nick: "Enzo", name: "Enzo", number: 9 },
+  ];
+  assert.equal(personLabel(people[0], people), "Enzo (Enzo Pérez)");
+  assert.equal(personLabel(people[1], people), "Enzo (Enzo Fernández)");
+  assert.equal(personLabel(people[2], people), "Enzo · 1");
+  assert.equal(personLabel(people[3], people), "9 Enzo");
+});
+
 

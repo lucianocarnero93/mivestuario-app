@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Chalkboard } from "@/components/fija/chalkboard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { formatWhen } from "@/lib/fija/format";
+import { formatDay, formatTime } from "@/lib/fija/format";
 import { useFija, useIsStaff } from "@/lib/fija/store";
 
 type ShareSearch = {
@@ -55,7 +55,7 @@ function CharlaWall() {
         ) : (
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-chalk/70">
-              {byId.get(latest.memberId)?.nick ?? "Cuerpo técnico"} · {formatWhen(latest.at)}
+              {byId.get(latest.memberId)?.nick ?? "Cuerpo técnico"} · {formatDay(latest.at)} · {formatTime(latest.at)}
             </p>
             <p className="mt-1 text-lg leading-relaxed">{latest.text}</p>
             {staff ? (
@@ -96,7 +96,7 @@ function CharlaWall() {
             {older.map((post) => (
               <li key={post.id}>
                 <p className="text-xs font-semibold uppercase tracking-widest text-chalk/70">
-                  {byId.get(post.memberId)?.nick ?? "Cuerpo técnico"} · {formatWhen(post.at)}
+                  {byId.get(post.memberId)?.nick ?? "Cuerpo técnico"} · {formatDay(post.at)} · {formatTime(post.at)}
                 </p>
                 <p className="mt-1 leading-relaxed">{post.text}</p>
                 {staff ? (

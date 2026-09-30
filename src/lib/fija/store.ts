@@ -1470,6 +1470,7 @@ export const useFija = create<State>()(
           ownerAccountId: account ?? get().ownerAccountId,
         });
         applyingCloud = false;
+        void get().applySharedPhoto();
         return true;
       },
 
@@ -1519,7 +1520,7 @@ export const useFija = create<State>()(
           hydrated: true,
           ownerAccountId: account ?? state.ownerAccountId,
         });
-        void get().publishClub();
+        void get().publishClub().then(() => get().applySharedPhoto());
       },
 
       setActiveClub: async (clubId) => {
@@ -1718,23 +1719,23 @@ export const useFija = create<State>()(
         const account = await currentAccount();
         const accountId = account?.id ?? state.ownerAccountId;
         let photo: string | null = null;
-        if (accountId) {
+        try {
+          const remote = await loadPortrait();
+          photo = remote.photo;
+        } catch {
+          photo = null;
+        }
+        if (!photo && accountId) {
           for (const team of state.otherClubs) {
-            const person = team.bundle.members.find(
-              (item) => (item.accountId === accountId || item.id === accountId) && item.photo && !item.menor,
-            );
+            const person = team.bundle.members.find((item) => {
+              if (!item.photo || item.menor) return false;
+              if (item.accountId === accountId || item.id === accountId) return true;
+              return item.id === team.activeId && (!item.accountId || item.accountId === accountId);
+            });
             if (person?.photo) {
               photo = person.photo;
               break;
             }
-          }
-        }
-        if (!photo) {
-          try {
-            const remote = await loadPortrait();
-            photo = remote.photo;
-          } catch {
-            photo = null;
           }
         }
         if (!photo || !photo.startsWith("data:image/") || photo.length > 30_000) return;

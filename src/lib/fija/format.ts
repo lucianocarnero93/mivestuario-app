@@ -72,6 +72,21 @@ export function defaultKickoff(): string {
   return `${get("year")}-${get("month")}-${get("day")}T21:00`;
 }
 
+export function personLabel(
+  person: { id: string; nick: string; name: string; number: number | null },
+  people: { id: string; nick: string; name: string; number: number | null }[],
+): string {
+  const nick = person.nick || person.name || "Jugador";
+  const number = person.number != null ? `${person.number} ` : "";
+  const sameNick = people.filter((item) => (item.nick || item.name) === (person.nick || person.name));
+  if (sameNick.length <= 1) return `${number}${nick}`;
+  const sameName = sameNick.filter((item) => item.name === person.name);
+  if (sameName.length <= 1 && person.name && person.name !== nick) return `${number}${nick} (${person.name})`;
+  if (person.number != null) return `${person.number} ${nick}`;
+  const index = sameName.findIndex((item) => item.id === person.id);
+  return `${nick} · ${index + 1}`;
+}
+
 export function initials(name: string): string {
   const parts = name.split(" ").filter(Boolean);
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();

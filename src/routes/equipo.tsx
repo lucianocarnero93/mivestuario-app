@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ROLE_LABEL } from "@/lib/fija/format";
+import { ROLE_LABEL, personLabel } from "@/lib/fija/format";
 import { MAX_BYTES } from "@/lib/fija/club-rules";
 import { alumniMember, playerRows, rankedBy, teamRecord } from "@/lib/fija/stats";
 import { useFija, useIsCreator, useIsStaff, useMe } from "@/lib/fija/store";
@@ -395,8 +395,8 @@ function DesignateDialog() {
                     onClick={() => {
                       const aviso =
                         role === "dt" || role === "ayudante"
-                          ? `¿${m.nick} pasa a ${ROLE_LABEL[role]}? Quien lo era pasa a jugador.`
-                          : `¿${m.nick} pasa a jugador?`;
+                          ? `¿${etiqueta(m, members)} pasa a ${ROLE_LABEL[role]}? Quien lo era pasa a jugador.`
+                          : `¿${etiqueta(m, members)} pasa a jugador?`;
                       if (!window.confirm(aviso)) return;
                       assignRole(m.id, role);
                       setOpen(false);
@@ -484,10 +484,8 @@ function SoyEste() {
   );
 }
 
-function etiqueta(person: { id: string; nick: string; name: string; number: number | null }, members: { nick: string; number: number | null; name: string }[]) {
-  const same = members.filter((item) => item.nick === person.nick).length > 1;
-  const number = person.number != null ? `${person.number} ` : "";
-  return same ? `${number}${person.nick} (${person.name})` : `${number}${person.nick}`;
+function etiqueta(person: { id: string; nick: string; name: string; number: number | null }, members: { id: string; nick: string; name: string; number: number | null }[]) {
+  return personLabel(person, members);
 }
 
 function CederMando() {
