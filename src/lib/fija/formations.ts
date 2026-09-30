@@ -8,10 +8,11 @@ export type Formation = {
   slots: Slot[];
 };
 
-export const MODALITIES: Modality[] = ["f5", "f8", "f9", "f11"];
+export const MODALITIES: Modality[] = ["f5", "f7", "f8", "f9", "f11"];
 
 export const MODALITY_LABEL: Record<Modality, string> = {
   f5: "Fútbol 5",
+  f7: "Fútbol 7",
   f8: "Fútbol 8",
   f9: "Fútbol 9",
   f11: "Fútbol 11",
@@ -19,6 +20,7 @@ export const MODALITY_LABEL: Record<Modality, string> = {
 
 export const MODALITY_SHORT: Record<Modality, string> = {
   f5: "F5",
+  f7: "F7",
   f8: "F8",
   f9: "F9",
   f11: "F11",
@@ -57,6 +59,34 @@ export const FORMATIONS: Record<Modality, Formation[]> = {
         { key: "VOL", label: "VOL", x: 50, y: 42 },
         { key: "EI", label: "DEL", x: 32, y: 18 },
         { key: "ED", label: "DEL", x: 68, y: 18 },
+      ],
+    },
+  ],
+  f7: [
+    {
+      id: "1-2-3-1",
+      name: "1-2-3-1",
+      slots: [
+        { key: "ARQ", label: "ARQ", x: 50, y: 86 },
+        { key: "LI", label: "DEF", x: 30, y: 68 },
+        { key: "LD", label: "DEF", x: 70, y: 68 },
+        { key: "MI", label: "VOL", x: 22, y: 46 },
+        { key: "MC", label: "VOL", x: 50, y: 48 },
+        { key: "MD", label: "VOL", x: 78, y: 46 },
+        { key: "DC", label: "DEL", x: 50, y: 22 },
+      ],
+    },
+    {
+      id: "1-3-2-1",
+      name: "1-3-2-1",
+      slots: [
+        { key: "ARQ", label: "ARQ", x: 50, y: 86 },
+        { key: "LI", label: "DEF", x: 18, y: 68 },
+        { key: "DF", label: "DEF", x: 50, y: 70 },
+        { key: "LD", label: "DEF", x: 82, y: 68 },
+        { key: "MI", label: "VOL", x: 32, y: 44 },
+        { key: "MD", label: "VOL", x: 68, y: 44 },
+        { key: "DC", label: "DEL", x: 50, y: 22 },
       ],
     },
   ],

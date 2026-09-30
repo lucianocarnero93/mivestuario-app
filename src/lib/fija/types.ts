@@ -14,7 +14,7 @@
 */
 
 export type Role = "dt" | "ayudante" | "jugador";
-export type Modality = "f5" | "f8" | "f9" | "f11";
+export type Modality = "f5" | "f7" | "f8" | "f9" | "f11";
 export type EventKind = "partido" | "entrenamiento" | "reunion";
 export type RsvpStatus = "pendiente" | "voy" | "no";
 export type InboxKind = "convocatoria" | "recordatorio" | "formacion" | "charla" | "equipamiento";
@@ -102,6 +102,10 @@ export type ClubEvent = {
   equipamiento?: Partial<Record<ItemEquipamiento, string>>;
   /** ID de la formación elegida (ej: "4-4-2", "clasica"). */
   formacion?: string;
+  /** Convocados a este partido. Si falta, vale la formación que ya estaba armada. */
+  convocados?: string[];
+  /** Banco. Tienen que estar convocados y no pueden ser titulares. */
+  suplentes?: string[];
   /** Cuándo se armó la formación. Gana la copia más nueva, aunque tenga menos jugadores. */
   lineupUpdatedAt?: string;
   /** Cuándo el DT confirmó que la planilla está completa. */

@@ -4,6 +4,7 @@ import { uid } from "./format";
 import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
+import { FORMATIONS } from "./formations";
 import { clampHours, hoursSince } from "./share";
 import { claimMember, closedMatchStillHeavy, lightenClosedMatches, loadClubDoc, mergeTournaments, pickEvent, pickSheet, saveClubDoc, useMyName, withoutDroppedEvents } from "./cloud";
 import { readMenor } from "./edad";
@@ -69,7 +70,11 @@ type State = ReturnType<typeof createSeed> & {
   }) => void;
   updateEvent: (id: string, patch: Partial<ClubEvent>) => void;
   deleteEvent: (id: string) => void;
-  setSpot: (eventId: string, slot: string, memberId: string | null) => void;
+  setSpot: (eventId: string, slot: string, memberId: string | null) => string | null;
+  setSuplente: (eventId: string, memberId: string, on: boolean) => string | null;
+  setConvocado: (eventId: string, memberId: string, on: boolean) => string | null;
+  convocarLosQueVan: (eventId: string) => string | null;
+  setBoardShape: (eventId: string, modality: Modality, formacionId: string) => string | null;
   setTactics: (eventId: string, tactics: string) => void;
   publishLineup: (eventId: string) => void;
   sendChat: (text: string) => void;
@@ -263,7 +268,12 @@ export const useFija = create<State>()(
           if (!next || next.status === "finished") return;
         }
         const touchesBoard =
-          "lineup" in patch || "formacion" in patch || "modality" in patch || "tactics" in patch;
+          "lineup" in patch ||
+          "formacion" in patch ||
+          "modality" in patch ||
+          "tactics" in patch ||
+          "convocados" in patch ||
+          "suplentes" in patch;
         set({
           events: get().events.map((event) =>
             event.id === id
@@ -296,12 +306,20 @@ export const useFija = create<State>()(
       // Si memberId viene vacío, saca a quien estaba en ese puesto.
       // Un jugador no puede estar en dos puestos a la vez.
       setSpot: (eventId, slot, memberId) => {
-        if (!isStaffId(get())) return;
-        if (tournamentClosedFor(get(), eventId)) return;
+        if (!isStaffId(get())) return "Solo el DT o el ayudante arman la pizarra.";
+        if (tournamentClosedFor(get(), eventId)) return "El torneo está cerrado.";
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event) return "Ese partido no está.";
+        if (memberId) {
+          const aviso = avisoParaCancha(get(), event, memberId);
+          if (aviso) return aviso;
+        }
         set({
-          events: get().events.map((event) => {
-            if (event.id !== eventId) return event;
-            const lineup = { ...event.lineup };
+          events: get().events.map((item) => {
+            if (item.id !== eventId) return item;
+            const lineup = { ...item.lineup };
+            let suplentes = item.suplentes ?? [];
+            let convocados = item.convocados;
             if (!memberId) {
               delete lineup[slot];
             } else {
@@ -309,10 +327,163 @@ export const useFija = create<State>()(
                 if (lineup[position] === memberId) delete lineup[position];
               }
               lineup[slot] = memberId;
+              suplentes = suplentes.filter((id) => id !== memberId);
+              if (!convocados) {
+                convocados = [...new Set([...Object.values(lineup), ...suplentes])];
+              } else if (!convocados.includes(memberId)) {
+                return item;
+              }
             }
-            return { ...event, lineup, lineupUpdatedAt: new Date().toISOString() };
+            return {
+              ...item,
+              lineup,
+              suplentes,
+              convocados,
+              lineupUpdatedAt: new Date().toISOString(),
+            };
           }),
         });
+        return null;
+      },
+
+      setSuplente: (eventId, memberId, on) => {
+        if (!isStaffId(get())) return "Solo el DT o el ayudante arman la pizarra.";
+        if (tournamentClosedFor(get(), eventId)) return "El torneo está cerrado.";
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event) return "Ese partido no está.";
+        if (on) {
+          const aviso = avisoParaCancha(get(), event, memberId);
+          if (aviso) return aviso;
+        }
+        set({
+          events: get().events.map((item) => {
+            if (item.id !== eventId) return item;
+            const lineup = { ...item.lineup };
+            if (on) {
+              for (const position of Object.keys(lineup)) {
+                if (lineup[position] === memberId) delete lineup[position];
+              }
+            }
+            const base = item.convocados ?? [...new Set([...Object.values(item.lineup), ...(item.suplentes ?? [])])];
+            const convocados = !on || base.includes(memberId) ? base : [...base, memberId];
+            const suplentes = on
+              ? [...new Set([...(item.suplentes ?? []).filter((id) => id !== memberId), memberId])]
+              : (item.suplentes ?? []).filter((id) => id !== memberId);
+            return {
+              ...item,
+              lineup,
+              convocados,
+              suplentes,
+              lineupUpdatedAt: new Date().toISOString(),
+            };
+          }),
+        });
+        return null;
+      },
+
+      setConvocado: (eventId, memberId, on) => {
+        if (!isStaffId(get())) return "Solo el DT o el ayudante arman la convocatoria.";
+        if (tournamentClosedFor(get(), eventId)) return "El torneo está cerrado.";
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event) return "Ese partido no está.";
+        if (on && rsvpDe(get(), eventId, memberId) !== "voy") {
+          return "No confirmó que va. No se puede convocar.";
+        }
+        set({
+          events: get().events.map((item) => {
+            if (item.id !== eventId) return item;
+            const actuales = item.convocados ?? [
+              ...new Set([...Object.values(item.lineup), ...(item.suplentes ?? [])]),
+            ];
+            const convocados = on
+              ? [...new Set([...actuales, memberId])]
+              : actuales.filter((id) => id !== memberId);
+            const lineup = on
+              ? item.lineup
+              : Object.fromEntries(Object.entries(item.lineup).filter(([, id]) => id !== memberId));
+            const suplentes = (item.suplentes ?? []).filter((id) => convocados.includes(id));
+            return { ...item, convocados, lineup, suplentes, lineupUpdatedAt: new Date().toISOString() };
+          }),
+        });
+        return null;
+      },
+
+      convocarLosQueVan: (eventId) => {
+        if (!isStaffId(get())) return "Solo el DT o el ayudante arman la convocatoria.";
+        if (tournamentClosedFor(get(), eventId)) return "El torneo está cerrado.";
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event) return "Ese partido no está.";
+        const van = new Set(
+          get()
+            .members.filter((person) => person.juega ?? person.role === "jugador")
+            .filter((person) => rsvpDe(get(), eventId, person.id) === "voy")
+            .map((person) => person.id),
+        );
+        if (van.size === 0) return "Nadie confirmó que va.";
+        const afuera = Object.values(event.lineup).filter((id) => !van.has(id));
+        set({
+          events: get().events.map((item) => {
+            if (item.id !== eventId) return item;
+            const lineup = Object.fromEntries(Object.entries(item.lineup).filter(([, id]) => van.has(id)));
+            const suplentes = (item.suplentes ?? []).filter((id) => van.has(id));
+            return {
+              ...item,
+              convocados: [...van],
+              lineup,
+              suplentes,
+              lineupUpdatedAt: new Date().toISOString(),
+            };
+          }),
+        });
+        return afuera.length > 0 ? "Saqué de la cancha a quien no confirmó que va." : null;
+      },
+
+      setBoardShape: (eventId, modality, formacionId) => {
+        if (!isStaffId(get())) return "Solo el DT o el ayudante cambian la formación.";
+        if (tournamentClosedFor(get(), eventId)) return "El torneo está cerrado.";
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event) return "Ese partido no está.";
+        const oldSlots = slotsDe(event.modality, event.formacion);
+        const nextSlots = slotsDe(modality, formacionId);
+        const ordered = oldSlots.map((slot) => event.lineup[slot.key]).filter((id): id is string => Boolean(id));
+        const lineup: Record<string, string> = {};
+        const used = new Set<string>();
+        nextSlots.forEach((slot, index) => {
+          const id = ordered[index];
+          if (!id || used.has(id)) return;
+          lineup[slot.key] = id;
+          used.add(id);
+        });
+        const overflow = ordered.filter((id) => !used.has(id));
+        const convocados = [
+          ...new Set([...(event.convocados ?? [...ordered, ...(event.suplentes ?? [])]), ...overflow]),
+        ];
+        const suplentes = [
+          ...new Set([
+            ...(event.suplentes ?? []).filter((id) => convocados.includes(id) && !used.has(id)),
+            ...overflow,
+          ]),
+        ];
+        set({
+          events: get().events.map((item) =>
+            item.id === eventId
+              ? {
+                  ...item,
+                  modality,
+                  formacion: formacionId,
+                  lineup,
+                  convocados,
+                  suplentes,
+                  lineupUpdatedAt: new Date().toISOString(),
+                }
+              : item,
+          ),
+        });
+        if (overflow.length === 0) return null;
+        const nombres = overflow
+          .map((id) => get().members.find((person) => person.id === id)?.nick ?? "Un jugador")
+          .join(", ");
+        return `Pasaron al banco: ${nombres}.`;
       },
 
       // Guarda la nota táctica que escribe el DT debajo de la cancha.
@@ -694,8 +865,15 @@ export const useFija = create<State>()(
             const lineup = Object.fromEntries(
               Object.entries(event.lineup).filter(([, id]) => id !== memberId),
             );
-            const changed = Object.keys(lineup).length !== Object.keys(event.lineup).length;
-            return changed ? { ...event, lineup, lineupUpdatedAt: new Date().toISOString() } : event;
+            const convocados = (event.convocados ?? []).filter((id) => id !== memberId);
+            const suplentes = (event.suplentes ?? []).filter((id) => id !== memberId);
+            const changed =
+              Object.keys(lineup).length !== Object.keys(event.lineup).length ||
+              convocados.length !== (event.convocados ?? []).length ||
+              suplentes.length !== (event.suplentes ?? []).length;
+            return changed
+              ? { ...event, lineup, convocados, suplentes, lineupUpdatedAt: new Date().toISOString() }
+              : event;
           }),
         });
         void get().flushCloud();
@@ -1988,6 +2166,31 @@ async function queueSync(tag: string) {
   }
 }
 
+function slotsDe(modality: Modality, formacionId?: string) {
+  const list = FORMATIONS[modality] ?? FORMATIONS.f8;
+  return (list.find((item) => item.id === formacionId) ?? list[0]).slots;
+}
+
+function rsvpDe(
+  state: { rsvps: { eventId: string; memberId: string; status: RsvpStatus }[] },
+  eventId: string,
+  memberId: string,
+): RsvpStatus | undefined {
+  return state.rsvps.find((row) => row.eventId === eventId && row.memberId === memberId)?.status;
+}
+
+function avisoParaCancha(
+  state: { members: Member[]; rsvps: { eventId: string; memberId: string; status: RsvpStatus }[] },
+  event: ClubEvent,
+  memberId: string,
+): string | null {
+  const person = state.members.find((item) => item.id === memberId);
+  if (!person || !(person.juega ?? person.role === "jugador")) return "No está en el plantel que juega.";
+  if (event.convocados && !event.convocados.includes(memberId)) return "No está convocado.";
+  if (rsvpDe(state, event.id, memberId) !== "voy") return "No confirmó que va. No se puede convocar.";
+  return null;
+}
+
 function missingPlayingRsvps(state: {
   members: Member[];
   events: ClubEvent[];
@@ -2133,10 +2336,10 @@ export function defaultSheetPlayers(
 ): PlayerMatchStat[] {
   const players = members.filter((m) => m.juega ?? m.role === "jugador");
   const lineupIds = new Set(Object.values(event.lineup));
+  const benchIds = new Set(event.suplentes ?? []);
   const sorted = [...players].sort((a, b) => {
-    const aIn = lineupIds.has(a.id) ? 0 : 1;
-    const bIn = lineupIds.has(b.id) ? 0 : 1;
-    return aIn - bIn;
+    const rank = (id: string) => (lineupIds.has(id) ? 0 : benchIds.has(id) ? 1 : 2);
+    return rank(a.id) - rank(b.id);
   });
   return sorted.map((p) => existing?.players.find((row) => row.memberId === p.id) ?? emptyStat(p.id));
 }

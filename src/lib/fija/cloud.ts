@@ -224,8 +224,16 @@ export function lightenClosedMatches(bundle: ClubBundle): ClubBundle {
     ...bundle,
     events: bundle.events.map((event) => {
       if (!ids.has(event.id)) return event;
-      if (Object.keys(event.lineup ?? {}).length === 0 && !event.tactics && !event.formacion) return event;
-      return { ...event, lineup: {}, tactics: "", formacion: undefined };
+      if (
+        Object.keys(event.lineup ?? {}).length === 0 &&
+        !event.tactics &&
+        !event.formacion &&
+        (event.suplentes ?? []).length === 0 &&
+        (event.convocados ?? []).length === 0
+      ) {
+        return event;
+      }
+      return { ...event, lineup: {}, tactics: "", formacion: undefined, suplentes: [], convocados: [] };
     }),
     rsvps: (bundle.rsvps ?? []).filter((row) => !ids.has(row.eventId)),
     inbox: (bundle.inbox ?? []).filter((item) => !item.eventId || !ids.has(item.eventId)),
@@ -266,7 +274,22 @@ export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
         : boardChanged || incomingSpots >= previousSpots
           ? { ...previous, ...incoming }
           : { ...incoming, ...previous, lineup: previous.lineup };
-  return keepResultMark(previous, incoming, merged);
+  return tidySquad(keepResultMark(previous, incoming, merged));
+}
+
+function tidySquad(event: ClubEvent): ClubEvent {
+  const seen = new Set<string>();
+  const lineup: Record<string, string> = {};
+  for (const [key, id] of Object.entries(event.lineup ?? {})) {
+    if (!id || seen.has(id)) continue;
+    if (event.convocados && !event.convocados.includes(id)) continue;
+    seen.add(id);
+    lineup[key] = id;
+  }
+  const convocados = event.convocados ? [...new Set(event.convocados)] : event.convocados;
+  const titulares = new Set(Object.values(lineup));
+  const suplentes = [...new Set((event.suplentes ?? []).filter((id) => !titulares.has(id) && (!convocados || convocados.includes(id))))];
+  return { ...event, lineup, convocados, suplentes };
 }
 
 function sheetTime(sheet: MatchSheet): number {

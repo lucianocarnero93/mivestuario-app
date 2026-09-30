@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Chalkboard } from "@/components/fija/chalkboard";
 import { Pitch } from "@/components/fija/pitch";
+import { SquadPanel } from "@/components/fija/squad-panel";
 import { Segmented } from "@/components/fija/segmented";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -21,8 +22,9 @@ function CanchaPage() {
   const sheets = useFija((s) => s.matchSheets);
   const members = useFija((s) => s.members);
   const setSpot = useFija((s) => s.setSpot);
+  const setBoardShape = useFija((s) => s.setBoardShape);
   const setTactics = useFija((s) => s.setTactics);
-  const updateEvent = useFija((s) => s.updateEvent);
+  const rsvps = useFija((s) => s.rsvps);
   const publishLineup = useFija((s) => s.publishLineup);
     const setJuega = useFija((s) => s.setJuega);
   const me = useFija((s) => s.members.find((m) => m.id === s.activeId));
@@ -38,30 +40,16 @@ function CanchaPage() {
    const players = members.filter((m) => m.juega ?? m.role === "jugador");
   const used = useMemo(() => new Set(Object.values(event?.lineup ?? {})), [event]);
   const filled = Object.keys(event?.lineup ?? {}).length;
-    function cambiarFormacion(nuevaId: string) {
+  function cambiarFormacion(nuevaId: string) {
     if (!event) return;
     const actual = event.formacion ?? FORMATIONS[event.modality][0].id;
     if (actual === nuevaId) return;
-    const tieneJugadores = Object.keys(event.lineup).length > 0;
-    if (tieneJugadores) {
-      const ok = window.confirm("Cambiar la formación borra los jugadores que ya pusiste. ¿Seguir?");
-      if (!ok) return;
-    }
-    updateEvent(event.id, { formacion: nuevaId, lineup: {} });
+    setNote(setBoardShape(event.id, event.modality, nuevaId));
   }
 
   function cambiarModalidad(modality: Modality) {
     if (!event || event.modality === modality) return;
-    const tieneJugadores = Object.keys(event.lineup).length > 0;
-    if (tieneJugadores) {
-      const ok = window.confirm("Cambiar de fútbol borra los jugadores que ya pusiste. ¿Seguir?");
-      if (!ok) return;
-    }
-    updateEvent(event.id, {
-      modality,
-      formacion: FORMATIONS[modality][0].id,
-      lineup: {},
-    });
+    setNote(setBoardShape(event.id, modality, FORMATIONS[modality][0].id));
   }
 
   if (!event) {
@@ -156,6 +144,7 @@ function CanchaPage() {
           onSlot={setSlot}
         />
       </div>
+      <SquadPanel event={event} staff={staff} onNotice={setNote} />
       {staff ? (
         <p className="mt-2 text-center text-xs text-muted">Tocá un puesto para poner o sacar a alguien.</p>
       ) : null}
@@ -205,7 +194,7 @@ function CanchaPage() {
                   className="h-12 w-full justify-start"
                   onClick={() => {
                     if (!staff || !slot) return;
-                    setSpot(event.id, slot, null);
+                    setNote(setSpot(event.id, slot, null));
                     setSlot(null);
                   }}
                 >
@@ -213,14 +202,21 @@ function CanchaPage() {
                 </Button>
               </li>
             ) : null}
-            {players.map((p) => (
+            <li className="px-3 py-2 text-sm text-muted">Solo aparecen los convocados que confirmaron que van.</li>
+            {players
+              .filter((p) => {
+                const llamado = event.convocados ? event.convocados.includes(p.id) : true;
+                const va = rsvps.some((row) => row.eventId === event.id && row.memberId === p.id && row.status === "voy");
+                return llamado && va;
+              })
+              .map((p) => (
               <li key={p.id}>
                 <button
                   type="button"
                   className="flex h-12 w-full items-center justify-between rounded-md px-3 text-sm hover:bg-surface-2"
                   onClick={() => {
                     if (!staff || !slot) return;
-                    setSpot(event.id, slot, p.id);
+                    setNote(setSpot(event.id, slot, p.id));
                     setSlot(null);
                   }}
                 >
