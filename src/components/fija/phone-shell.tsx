@@ -5,7 +5,7 @@ import { ROLE_LABEL } from "@/lib/fija/format";
 import { readPedirEdad } from "@/lib/fija/edad";
 import { rememberInvite } from "@/lib/fija/share";
 import { registerTeamPush } from "@/lib/fija/push-client";
-import { useFija, useMe } from "@/lib/fija/store";
+import { useFija, useIsStaff, useMe } from "@/lib/fija/store";
 import { cn } from "@/lib/utils";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { authClient } from "@/lib/auth/client";
@@ -100,6 +100,7 @@ export function PhoneShell() {
             ) : (
               <>
                 <AppBar />
+                <CloudBanner />
                 <PushBanner />
                 <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2">
                   <Outlet />
@@ -160,14 +161,43 @@ function AppBar() {
   );
 }
 
-function CloudDot() {
+function CloudBanner() {
   const status = useFija((s) => s.cloudStatus);
-  const label =
-    status === "ok" ? "Nube" : status === "syncing" ? "Subiendo" : status === "off" ? "Local" : "En espera";
+  const error = useFija((s) => s.cloudError);
+  const flushCloud = useFija((s) => s.flushCloud);
+  const staff = useIsStaff();
+  const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
+  if (!online) {
+    return (
+      <p className="bg-surface px-4 py-2 text-center text-sm text-muted">
+        Sin conexión. Lo que cargues se guarda cuando vuelva la red.
+      </p>
+    );
+  }
+  if (status !== "off" || !error) return null;
+  const full = error.includes("pesa demasiado");
+  const text = full
+    ? staff
+      ? "El equipo está lleno: sacá fotos o el escudo para seguir guardando."
+      : "No se pudo guardar. Avisale al DT que el equipo está lleno."
+    : error;
   return (
-    <span className={cn("mr-1 text-[10px] font-semibold uppercase tracking-widest", status === "ok" ? "text-accent" : "text-muted")}>
-      {label}
-    </span>
+    <p className="flex items-center justify-between gap-2 bg-surface px-4 py-2 text-sm">
+      <span>{text}</span>
+      <button type="button" className="h-10 shrink-0 font-semibold text-accent" onClick={() => void flushCloud()}>
+        Reintentar
+      </button>
+    </p>
   );
 }
 

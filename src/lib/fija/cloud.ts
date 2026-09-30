@@ -8,11 +8,16 @@ import {
   decideClaim,
   freshMemberId,
   guardMember,
+  HARD_BYTES,
+  mergePlayerAlerts,
+  mergePlayerInbox,
   nextBannedAccounts,
   readmitAccount,
   removeMemberEverywhere,
+  sizeVerdict,
   withoutBanned,
 } from "./club-rules";
+import { pruneBundle } from "./prune";
 import { vestuarioLog } from "@/lib/vestuario-log";
 import type { ClubBundle, ClubEvent, MatchSheet, Member, Rsvp, Tournament } from "./types";
 
@@ -20,7 +25,6 @@ const COLLECTION = "clubs";
 const ATTEMPTS = "intentos";
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const ATTEMPT_LIMIT = 30;
-const MAX_BYTES = 350_000;
 
 function asBundle(value: unknown): ClubBundle | null {
   if (!value || typeof value !== "object") return null;
@@ -363,6 +367,21 @@ function mergeSheetsByTime(kept: MatchSheet[], incoming: MatchSheet[]): MatchShe
   return [...map.values()];
 }
 
+function capOversizedPhotos(previous: Member[], next: Member[]): Member[] {
+  const oldById = new Map(previous.map((person) => [person.id, person]));
+  return next.map((person) => {
+    const photo = person.photo;
+    if (!photo || photo.length <= 40_000) return person;
+    const old = oldById.get(person.id);
+    if (old && old.photo === photo) return person;
+    return { ...person, photo: old?.photo ?? null };
+  });
+}
+
+function withinHardLimit(bundle: ClubBundle): boolean {
+  return Buffer.byteLength(JSON.stringify(bundle), "utf8") <= HARD_BYTES;
+}
+
 function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {
   const map = new Map<string, Rsvp>();
   for (const row of kept) map.set(`${row.eventId}:${row.memberId}`, row);
@@ -377,8 +396,13 @@ function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {
 
 function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId: string): ClubBundle {
   if (!existing) {
-    return lightenClosedMatches(
-      withoutDroppedEvents(incoming, new Set(incoming.droppedEventIds ?? [])),
+    return pruneBundle(
+      lightenClosedMatches(
+        withoutDroppedEvents(
+          { ...incoming, members: capOversizedPhotos([], incoming.members) },
+          new Set(incoming.droppedEventIds ?? []),
+        ),
+      ),
     );
   }
   const me = memberFor(existing.members, userId);
@@ -410,7 +434,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
             name: mine.name || person.name,
             nick: mine.nick || person.nick,
             number: mine.number ?? person.number,
-            photo: mine.photo,
+            photo: mine.photo && mine.photo.length > 40_000 ? person.photo : mine.photo,
           },
           person,
         );
@@ -426,12 +450,15 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     }
     unique.push(person);
   }
+  const capped = capOversizedPhotos(existing.members, unique);
+  const eventIds = new Set(existing.events.map((event) => event.id));
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
-  return lightenClosedMatches(
+  return pruneBundle(
+    lightenClosedMatches(
     withoutDroppedEvents(
       {
     club: staff ? { ...existing.club, ...incoming.club, inviteCode: existing.club.inviteCode, createdBy: existing.club.createdBy } : existing.club,
-    members: unique,
+    members: capped,
     events: staff ? mergeEvents(existing.events, incoming.events) : existing.events,
     rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => unique.some((person) => person.id === row.memberId)),
     messages: unionById(existing.messages, incoming.messages),
@@ -444,8 +471,12 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           (incoming.convocatorias ?? []).map((item) => ({ ...item, id: item.eventId })),
         ).map(({ id: _id, ...item }) => item)
       : (existing.convocatorias ?? []),
-    inbox: unionById(existing.inbox, incoming.inbox),
-    alertLog: staff ? unionById(existing.alertLog, incoming.alertLog) : existing.alertLog,
+    inbox: staff
+      ? unionById(existing.inbox, incoming.inbox)
+      : mergePlayerInbox(existing.inbox, incoming.inbox, me?.id ?? "", eventIds),
+    alertLog: staff
+      ? unionById(existing.alertLog, incoming.alertLog)
+      : mergePlayerAlerts(existing.alertLog, incoming.alertLog, eventIds),
     reminderPolicy: staff ? (incoming.reminderPolicy ?? existing.reminderPolicy) : existing.reminderPolicy,
     tournaments: staff
       ? mergeTournaments(existing.tournaments, incoming.tournaments)
@@ -455,6 +486,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       },
       droppedEvents,
     ),
+  ),
   );
 }
 
@@ -464,7 +496,7 @@ export const saveClubDoc = createServerFn({ method: "POST" })
     code: sanitizeCode(input.code),
     bundle: input.bundle,
   }))
-  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; bundle?: ClubBundle }> => {
+  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; bundle?: ClubBundle; weight?: number }> => {
     if (!data.code || !data.bundle?.club) return { ok: false, error: "El equipo está incompleto." };
     const userId = userIdOf(context as { userId?: string });
     if (!userId) return { ok: false, error: "Entrá de nuevo para guardar." };
@@ -491,9 +523,11 @@ export const saveClubDoc = createServerFn({ method: "POST" })
         if (!existing && !memberFor(data.bundle.members, userId)) {
           throw new Error("No estás en este equipo.");
         }
+        const before = existing ? Buffer.byteLength(JSON.stringify(existing), "utf8") : 0;
         const next = mergeForSave(existing, data.bundle, userId);
         const payload = JSON.stringify(next);
-        if (payload.length > MAX_BYTES) throw new Error("El equipo pesa demasiado para subirlo.");
+        const after = Buffer.byteLength(payload, "utf8");
+        if (sizeVerdict(before, after) !== "ok") throw new Error("El equipo pesa demasiado para subirlo.");
         if (!rows[0]) {
           await query(
             `insert into vestuario_docs (collection, id, data, updated_at)
@@ -506,9 +540,9 @@ export const saveClubDoc = createServerFn({ method: "POST" })
             [COLLECTION, data.code, payload],
           );
         }
-        return next;
+        return { next, weight: after };
       });
-      return { ok: true, bundle: merged };
+      return { ok: true, bundle: merged.next, weight: merged.weight };
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
       vestuarioLog("guardar", message);
@@ -578,11 +612,13 @@ export const claimMember = createServerFn({ method: "POST" })
         if (decision.kind === "removed") return { removed: true as const, members: existing.members };
         if (decision.kind === "notMember") return { notMember: true as const, members: existing.members };
         if (decision.kind === "keep") return { members: decision.members };
+        const next = pruneBundle({ ...existing, members: decision.members });
+        if (!withinHardLimit(next)) throw new Error("El equipo pesa demasiado para subirlo.");
         await query(
           `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
-          [COLLECTION, data.code, JSON.stringify({ ...existing, members: decision.members })],
+          [COLLECTION, data.code, JSON.stringify(next)],
         );
-        return { members: decision.members };
+        return { members: next.members };
       });
       if ("removed" in members && members.removed) {
         return { ok: false, removed: true, error: "El DT te sacó de este equipo." };
@@ -594,7 +630,7 @@ export const claimMember = createServerFn({ method: "POST" })
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
       vestuarioLog("plantel", message);
-      if (message.includes("no está")) return { ok: false, error: message };
+      if (message.includes("no está") || message.includes("pesa demasiado")) return { ok: false, error: message };
       return { ok: false, error: "No se pudo anotar en el plantel." };
     }
   });
@@ -725,17 +761,19 @@ export const useMyName = createServerFn({ method: "POST" })
           if (person.accountId === accountId) return { ...person, accountId: null };
           return person;
         });
+        const next = pruneBundle({ ...existing, members: list });
+        if (!withinHardLimit(next)) throw new Error("El equipo pesa demasiado para subirlo.");
         await query(
           `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
-          [COLLECTION, data.code, JSON.stringify({ ...existing, members: list })],
+          [COLLECTION, data.code, JSON.stringify(next)],
         );
-        return list;
+        return next.members;
       });
       return { ok: true, members };
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
       vestuarioLog("nombre", message);
-      if (message.includes("no está") || message.includes("otra cuenta")) return { ok: false, error: message };
+      if (message.includes("no está") || message.includes("otra cuenta") || message.includes("pesa demasiado")) return { ok: false, error: message };
       return { ok: false, error: "No se pudo usar ese nombre." };
     }
   });

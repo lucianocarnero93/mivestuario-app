@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABEL } from "@/lib/fija/format";
+import { MAX_BYTES } from "@/lib/fija/club-rules";
 import { playerRows, rankedBy, teamRecord } from "@/lib/fija/stats";
 import { useFija, useIsCreator, useIsStaff, useMe } from "@/lib/fija/store";
 import type { Role } from "@/lib/fija/types";
@@ -40,6 +41,7 @@ function EquipoPage() {
   const assists = rankedBy(rows, "assists").slice(0, 5);
   const cards = rows.filter((row) => row.yellow > 0 || row.red > 0);
   const syncFromCloud = useFija((s) => s.syncFromCloud);
+  const cloudWeight = useFija((s) => s.cloudWeight);
 
   useEffect(() => {
     void syncFromCloud();
@@ -60,6 +62,11 @@ function EquipoPage() {
           <p className="text-sm text-muted">Cuerpo técnico, plantel y estadísticas.</p>
         </div>
       </div>
+      {staff && cloudWeight != null && cloudWeight > MAX_BYTES * 0.8 ? (
+        <p className="mt-4 rounded-xl bg-surface px-4 py-3 text-sm">
+          El equipo está cerca del límite de espacio. Sacá fotos que no uses o achicá el escudo.
+        </p>
+      ) : null}
       {staff ? (
         <div className="mt-4">
           <CrestPicker src={club?.crest} name={club?.name} onChange={setClubCrest} />
@@ -73,6 +80,7 @@ function EquipoPage() {
             src={me.photo}
             name={me.name}
             onChange={setMyPhoto}
+            imageOptions={{ size: 128, quality: 0.7, maxChars: 30_000 }}
             chooseLabel="Elegir mi foto"
             emptyHint="Tu avatar. En la formación se ve en tu puesto."
           />

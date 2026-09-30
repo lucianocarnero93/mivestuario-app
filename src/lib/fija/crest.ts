@@ -1,5 +1,11 @@
 // Achica la foto elegida para que el escudo entre en el celular y en la nube.
-export function readCrestFile(file: File): Promise<string | null> {
+export function readCrestFile(
+  file: File,
+  options: { size?: number; quality?: number; maxChars?: number } = {},
+): Promise<string | null> {
+  const size = options.size ?? 256;
+  const quality = options.quality ?? 0.72;
+  const maxChars = options.maxChars ?? 120_000;
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onerror = () => resolve(null);
@@ -7,7 +13,6 @@ export function readCrestFile(file: File): Promise<string | null> {
       const image = new Image();
       image.onerror = () => resolve(null);
       image.onload = () => {
-        const size = 256;
         const canvas = document.createElement("canvas");
         canvas.width = size;
         canvas.height = size;
@@ -22,8 +27,8 @@ export function readCrestFile(file: File): Promise<string | null> {
         ctx.fillStyle = "#0b1c12";
         ctx.fillRect(0, 0, size, size);
         ctx.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.72);
-        resolve(dataUrl.length < 120_000 ? dataUrl : null);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve(dataUrl.length < maxChars ? dataUrl : null);
       };
       image.src = String(reader.result ?? "");
     };

@@ -12,13 +12,26 @@ export function PushBanner() {
   const setRsvp = useFija((s) => s.setRsvp);
   const dismiss = useFija((s) => s.dismissReminder);
   const markInboxRead = useFija((s) => s.markInboxRead);
+  const savedMine = useFija((s) => s.savedMine);
+  const cloudError = useFija((s) => s.cloudError);
+  const flushCloud = useFija((s) => s.flushCloud);
 
   const reminderEvent = reminder ? events.find((e) => e.id === reminder.eventId) : undefined;
   const mine = reminderEvent
     ? rsvps.find((r) => r.eventId === reminderEvent.id && r.memberId === me.id)
     : undefined;
+  const saved = reminderEvent ? savedMine[reminderEvent.id] : undefined;
+  const pending = !mine || mine.status === "pendiente";
+  const waiting =
+    Boolean(mine) && (mine?.status === "voy" || mine?.status === "no") && saved !== mine?.status;
   const showLegacy =
-    Boolean(reminderEvent) && (me.juega ?? me.role === "jugador") && (!mine || mine.status === "pendiente");
+    Boolean(reminderEvent) && (me.juega ?? me.role === "jugador") && (pending || waiting);
+
+  function answerLabel(status: "voy" | "no", on: string, off: string) {
+    if (mine?.status !== status) return off;
+    if (saved === status) return on;
+    return cloudError ? `${off} · no se guardó` : `${off} · guardando…`;
+  }
 
   if (showLegacy && reminderEvent) {
     return (
@@ -32,12 +45,20 @@ export function PushBanner() {
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button className="h-12" variant="success" onClick={() => setRsvp(reminderEvent.id, "voy")}>
-                Voy ✓
+                {answerLabel("voy", "Voy ✓", "Voy")}
               </Button>
               <Button className="h-12" variant="danger" onClick={() => setRsvp(reminderEvent.id, "no")}>
-                No voy ✕
+                {answerLabel("no", "No voy ✕", "No voy")}
               </Button>
             </div>
+            {waiting && cloudError ? (
+              <p className="mt-2 text-xs">
+                {cloudError}{" "}
+                <button type="button" className="h-10 font-semibold underline" onClick={() => void flushCloud()}>
+                  Reintentar
+                </button>
+              </p>
+            ) : null}
             <button type="button" className="mt-2 h-11 text-xs underline" onClick={dismiss}>
               Después
             </button>

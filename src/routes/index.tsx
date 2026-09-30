@@ -24,6 +24,9 @@ function HomePage() {
   const rsvps = useFija((s) => s.rsvps);
   const members = useFija((s) => s.members);
   const setRsvp = useFija((s) => s.setRsvp);
+  const savedMine = useFija((s) => s.savedMine);
+  const cloudError = useFija((s) => s.cloudError);
+  const flushCloud = useFija((s) => s.flushCloud);
   const sheets = useFija((s) => s.matchSheets);
   const tournaments = useFija((s) => s.tournaments);
   const club = useFija((s) => s.club);
@@ -56,6 +59,12 @@ function HomePage() {
   const mine = eventRsvps.find((r) => r.memberId === me.id);
   const sheet = sheetFor(event.id, sheets);
   const alreadyPlayed = +new Date(event.startsAt) < Date.now() - 3_600_000;
+  const saved = savedMine[event.id];
+  function answerLabel(status: "voy" | "no", on: string, off: string) {
+    if (mine?.status !== status) return off;
+    if (saved === status) return on;
+    return cloudError ? `${off} · no se guardó` : `${off} · guardando…`;
+  }
 
   return (
     <main className="px-4 py-5">
@@ -114,16 +123,25 @@ function HomePage() {
             variant={mine?.status === "voy" ? "success" : "secondary"}
             onClick={() => setRsvp(event.id, "voy")}
           >
-            {mine?.status === "voy" ? "Voy ✓" : "Voy"}
+            {answerLabel("voy", "Voy ✓", "Voy")}
           </Button>
           <Button
             className="h-16 text-base font-semibold"
             variant={mine?.status === "no" ? "danger" : "secondary"}
             onClick={() => setRsvp(event.id, "no")}
           >
-            {mine?.status === "no" ? "No voy ✕" : "No voy"}
+            {answerLabel("no", "No voy ✕", "No voy")}
           </Button>
-          {mine?.status === "voy" || mine?.status === "no" ? null : (
+          {mine?.status === "voy" || mine?.status === "no" ? (
+            saved !== mine.status && cloudError ? (
+              <p className="text-center text-xs text-muted">
+                {cloudError}{" "}
+                <button type="button" className="h-10 font-semibold text-accent" onClick={() => void flushCloud()}>
+                  Reintentar
+                </button>
+              </p>
+            ) : null
+          ) : (
             <p className="rounded-lg bg-surface py-3 text-center text-sm font-medium text-muted">Pendiente</p>
           )}
           <Button asChild variant="ghost" className="h-12">
@@ -141,16 +159,28 @@ function HomePage() {
                 variant={mine?.status === "voy" ? "success" : "secondary"}
                 onClick={() => setRsvp(event.id, "voy")}
               >
-                {mine?.status === "voy" ? "Voy ✓" : "Yo voy"}
+                {answerLabel("voy", "Voy ✓", "Yo voy")}
               </Button>
               <Button
                 className="h-12"
                 variant={mine?.status === "no" ? "danger" : "secondary"}
                 onClick={() => setRsvp(event.id, "no")}
               >
-                {mine?.status === "no" ? "No voy ✕" : "Yo no voy"}
+                {answerLabel("no", "No voy ✕", "Yo no voy")}
               </Button>
             </div>
+          ) : null}
+          {(me.juega ?? me.role === "jugador") &&
+          !alreadyPlayed &&
+          (mine?.status === "voy" || mine?.status === "no") &&
+          saved !== mine.status &&
+          cloudError ? (
+            <p className="mt-2 text-center text-xs text-muted">
+              {cloudError}{" "}
+              <button type="button" className="h-10 font-semibold text-accent" onClick={() => void flushCloud()}>
+                Reintentar
+              </button>
+            </p>
           ) : null}
           <section className="mt-5">
             <div className="flex items-center justify-between">

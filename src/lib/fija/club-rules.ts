@@ -1,4 +1,193 @@
-import type { ClubBundle, ClubEvent, Member } from "./types.ts";
+import type { AlertLog, ClubBundle, ClubEvent, InboxItem, Member, Rsvp, Tournament } from "./types.ts";
+
+export const MAX_BYTES = 350_000;
+export const HARD_BYTES = 500_000;
+
+export function sizeVerdict(before: number, after: number): "ok" | "soft" | "hard" {
+  if (after > HARD_BYTES) return "hard";
+  if (after > MAX_BYTES && after > before + 1024) return "soft";
+  return "ok";
+}
+
+export function reminderIds(eventId: string, sentAt: string) {
+  const scope = Date.parse(sentAt);
+  return {
+    scope,
+    firstAlert: `al-first-${eventId}-${scope}`,
+    firstNotice: `in-r1-${eventId}-${scope}`,
+    secondAlert: `al-second-${eventId}-${scope}`,
+    secondNotice: `in-r2-${eventId}-${scope}`,
+  };
+}
+
+export type AlertPush = { body: string; tag: string; eventId: string };
+
+export type AlertsInput = {
+  events: ClubEvent[];
+  rsvps: Rsvp[];
+  convocatorias: { eventId: string; sentAt: string }[];
+  inbox: InboxItem[];
+  alertLog: AlertLog[];
+  reminderPolicy: { firstHours: number; secondHours: number };
+  tournaments: Tournament[];
+};
+
+function hoursBetween(iso: string, now: number): number {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, (now - t) / 3_600_000);
+}
+
+function tournamentClosed(tournaments: Tournament[], event: ClubEvent): boolean {
+  if (!event.tournamentId) return false;
+  return tournaments.some((item) => item.id === event.tournamentId && item.status === "finished");
+}
+
+export function alertsDue(state: AlertsInput, now = Date.now()): {
+  inbox: InboxItem[];
+  alertLog: AlertLog[];
+  pushes: AlertPush[];
+} {
+  let notices = state.inbox;
+  let alertsSent = state.alertLog;
+  const pushes: AlertPush[] = [];
+  let changed = false;
+
+  for (const callup of state.convocatorias) {
+    const event = state.events.find((item) => item.id === callup.eventId);
+    if (!event || tournamentClosed(state.tournaments, event)) continue;
+    const pending = state.rsvps.some((row) => row.eventId === callup.eventId && row.status === "pendiente");
+    if (!pending) continue;
+    const hours = hoursBetween(callup.sentAt, now);
+    const ids = reminderIds(callup.eventId, callup.sentAt);
+    const alreadyFirst =
+      alertsSent.some(
+        (alert) =>
+          alert.id === ids.firstAlert ||
+          (alert.eventId === callup.eventId && alert.kind === "first" && Date.parse(alert.at) >= ids.scope),
+      ) || notices.some((notice) => notice.id === ids.firstNotice);
+    const alreadySecond =
+      alertsSent.some(
+        (alert) =>
+          alert.id === ids.secondAlert ||
+          (alert.eventId === callup.eventId && alert.kind === "second" && Date.parse(alert.at) >= ids.scope),
+      ) || notices.some((notice) => notice.id === ids.secondNotice);
+
+    if (hours >= state.reminderPolicy.firstHours && !alreadyFirst) {
+      const moment = new Date(now).toISOString();
+      const body = `Todavía no confirmaste ${event.title}.`;
+      alertsSent = [...alertsSent, { id: ids.firstAlert, eventId: callup.eventId, kind: "first", at: moment }];
+      notices = [
+        ...notices,
+        {
+          id: ids.firstNotice,
+          kind: "recordatorio",
+          title: "Segunda alerta de convocatoria",
+          body,
+          eventId: event.id,
+          audience: "pending",
+          at: moment,
+          readBy: [],
+        },
+      ];
+      pushes.push({ body, tag: `vestuario-r1-${event.id}`, eventId: event.id });
+      changed = true;
+    }
+
+    if (hours >= state.reminderPolicy.secondHours && !alreadySecond) {
+      const moment = new Date(now).toISOString();
+      alertsSent = [...alertsSent, { id: ids.secondAlert, eventId: callup.eventId, kind: "second", at: moment }];
+      notices = [
+        ...notices,
+        {
+          id: ids.secondNotice,
+          kind: "recordatorio",
+          title: "Pendientes para WhatsApp",
+          body: `Pasaron ${state.reminderPolicy.secondHours} h sin respuesta en ${event.title}.`,
+          eventId: event.id,
+          audience: "staff",
+          at: moment,
+          readBy: [],
+        },
+      ];
+      changed = true;
+    }
+  }
+
+  for (const event of state.events) {
+    if (event.kind !== "partido" || tournamentClosed(state.tournaments, event) || !event.equipamiento) continue;
+    const hoursUntil = (Date.parse(event.startsAt) - now) / 3_600_000;
+    if (hoursUntil > 24 || hoursUntil < 0) continue;
+    if (alertsSent.some((alert) => alert.eventId === event.id && alert.kind === "equipment")) continue;
+    const byMember = new Map<string, string[]>();
+    for (const [item, memberId] of Object.entries(event.equipamiento)) {
+      if (!memberId) continue;
+      const list = byMember.get(memberId) ?? [];
+      list.push(item);
+      byMember.set(memberId, list);
+    }
+    if (byMember.size === 0) continue;
+    const moment = new Date(now).toISOString();
+    for (const [memberId, items] of byMember) {
+      const itemLabels = items.map((item) => (item === "remeras" ? "las remeras" : "las pelotas")).join(" y ");
+      const body = `Te toca llevar ${itemLabels} para ${event.title}.`;
+      notices = [
+        ...notices,
+        {
+          id: `in-eq-${event.id}-${memberId}`,
+          kind: "equipamiento",
+          title: "Mañana hay partido",
+          body,
+          eventId: event.id,
+          audience: "miembro",
+          at: moment,
+          readBy: [],
+        },
+      ];
+      pushes.push({ body, tag: `vestuario-eq-${event.id}-${memberId}`, eventId: event.id });
+    }
+    alertsSent = [...alertsSent, { id: `al-eq-${event.id}`, eventId: event.id, kind: "equipment", at: moment }];
+    changed = true;
+  }
+
+  if (!changed) return { inbox: state.inbox, alertLog: state.alertLog, pushes };
+  return { inbox: notices, alertLog: alertsSent, pushes };
+}
+
+export function mergePlayerInbox(
+  existing: InboxItem[],
+  incoming: InboxItem[],
+  meId: string,
+  eventIds: Set<string>,
+): InboxItem[] {
+  const map = new Map(existing.map((item) => [item.id, item]));
+  for (const item of incoming) {
+    const previous = map.get(item.id);
+    if (previous) {
+      if (meId && item.readBy.includes(meId) && !previous.readBy.includes(meId)) {
+        map.set(item.id, { ...previous, readBy: [...previous.readBy, meId] });
+      }
+      continue;
+    }
+    const fixed = item.id.startsWith("in-r1-") || item.id.startsWith("in-r2-") || item.id.startsWith("in-eq-");
+    if (!fixed || (item.kind !== "recordatorio" && item.kind !== "equipamiento")) continue;
+    if (!item.eventId || !eventIds.has(item.eventId)) continue;
+    if (item.title.length > 120 || item.body.length > 200) continue;
+    map.set(item.id, item);
+  }
+  return [...map.values()];
+}
+
+export function mergePlayerAlerts(existing: AlertLog[], incoming: AlertLog[], eventIds: Set<string>): AlertLog[] {
+  const map = new Map(existing.map((item) => [item.id, item]));
+  for (const item of incoming) {
+    if (map.has(item.id)) continue;
+    const fixed = item.id.startsWith("al-first-") || item.id.startsWith("al-second-") || item.id.startsWith("al-eq-");
+    if (!fixed || !eventIds.has(item.eventId)) continue;
+    map.set(item.id, item);
+  }
+  return [...map.values()];
+}
 
 export type BannedAccount = { accountId: string; name: string; at: string };
 

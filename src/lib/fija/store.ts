@@ -6,6 +6,8 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
+import { alertsDue } from "./club-rules";
+import { pruneBundle } from "./prune";
 import { clampHours, hoursSince } from "./share";
 import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, loadClubDoc, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, useMyName, withoutDroppedEvents } from "./cloud";
 import { readMenor } from "./edad";
@@ -53,6 +55,10 @@ type State = ReturnType<typeof createSeed> & {
   cloudError: string | null;
   clubNotice: string | null;
   bannedAccounts: { accountId: string; name: string; at: string }[];
+  dirty: boolean;
+  lastFlushErrorAt: number | null;
+  cloudWeight: number | null;
+  savedMine: Record<string, RsvpStatus>;
   setHydrated: () => void;
   setActive: (id: string) => void;
   viewAsRole: (role: Role) => void;
@@ -186,6 +192,10 @@ export const useFija = create<State>()(
       cloudError: null as string | null,
       clubNotice: null as string | null,
       bannedAccounts: [] as { accountId: string; name: string; at: string }[],
+      dirty: false,
+      lastFlushErrorAt: null as number | null,
+      cloudWeight: null as number | null,
+      savedMine: {} as Record<string, RsvpStatus>,
       // Marca que el celular ya recuperó lo guardado.
       setHydrated: () => set({ hydrated: true }),
 
@@ -617,137 +627,23 @@ export const useFija = create<State>()(
       // Cada tanto revisa si ya pasó el plazo y hay que recordar a los que no contestaron.
       tickAlerts: () => {
         const state = get();
-        const now = Date.now();
-        const { firstHours, secondHours } = state.reminderPolicy;
-        let notices = state.inbox;
-        let alertsSent = state.alertLog;
-        let somethingChanged = false;
-
-        for (const callup of state.convocatorias) {
-          const event = state.events.find((item) => item.id === callup.eventId);
-          if (!event || tournamentClosedFor(state, event.id)) continue;
-          const peopleWhoDidNotAnswer = state.rsvps.filter(
-            (answer) => answer.eventId === callup.eventId && answer.status === "pendiente",
-          );
-          if (peopleWhoDidNotAnswer.length === 0) continue;
-
-          const hoursSinceCallup = hoursSince(callup.sentAt, now);
-          const alreadySentFirst = alertsSent.some(
-            (alert) => alert.eventId === callup.eventId && alert.kind === "first",
-          );
-          const alreadySentSecond = alertsSent.some(
-            (alert) => alert.eventId === callup.eventId && alert.kind === "second",
-          );
-
-          // Primer recordatorio: se lo ve el jugador que todavía no confirmó.
-          if (hoursSinceCallup >= firstHours && !alreadySentFirst) {
-            const moment = new Date().toISOString();
-            const firstAlert: AlertLog = {
-              id: uid("al"),
-              eventId: callup.eventId,
-              kind: "first",
-              at: moment,
-            };
-            const notice: InboxItem = {
-              id: uid("in"),
-              kind: "recordatorio",
-              title: "Segunda alerta de convocatoria",
-              body: `Todavía no confirmaste ${event.title}.`,
-              eventId: event.id,
-              audience: "pending",
-              at: moment,
-              readBy: [],
-            };
-            alertsSent = [...alertsSent, firstAlert];
-            notices = [...notices, notice];
-            somethingChanged = true;
-            void notifyApp({
-              body: notice.body,
-              tag: `vestuario-r1-${event.id}`,
-              eventId: event.id,
-            });
-          }
-
-          // Segundo recordatorio: se lo ve el DT, para reclamar por WhatsApp.
-          if (hoursSinceCallup >= secondHours && !alreadySentSecond) {
-            const moment = new Date().toISOString();
-            const secondAlert: AlertLog = {
-              id: uid("al"),
-              eventId: callup.eventId,
-              kind: "second",
-              at: moment,
-            };
-            const notice: InboxItem = {
-              id: uid("in"),
-              kind: "recordatorio",
-              title: "Pendientes para WhatsApp",
-              body: `Pasaron ${secondHours} h sin respuesta en ${event.title}.`,
-              eventId: event.id,
-              audience: "staff",
-              at: moment,
-              readBy: [],
-            };
-            alertsSent = [...alertsSent, secondAlert];
-            notices = [...notices, notice];
-            somethingChanged = true;
-          }
+        const due = alertsDue(
+          {
+            events: state.events,
+            rsvps: state.rsvps,
+            convocatorias: state.convocatorias,
+            inbox: state.inbox,
+            alertLog: state.alertLog,
+            reminderPolicy: state.reminderPolicy,
+            tournaments: state.tournaments,
+          },
+          Date.now(),
+        );
+        if (due.inbox === state.inbox && due.alertLog === state.alertLog) return;
+        set({ inbox: due.inbox, alertLog: due.alertLog });
+        for (const push of due.pushes) {
+          void notifyApp({ body: push.body, tag: push.tag, eventId: push.eventId });
         }
-
-            // Notificaciones de equipamiento: 24h antes del partido.
-        // Solo a los que llevan algo. Si llevan 2 cosas, va en una sola notificación.
-        const HOURS_BEFORE = 24;
-        const MS_PER_HOUR = 3_600_000;
-        for (const event of state.events) {
-          if (event.kind !== "partido") continue;
-          if (tournamentClosedFor(state, event.id)) continue;
-          if (!event.equipamiento) continue;
-          const hoursUntil = (+new Date(event.startsAt) - now) / MS_PER_HOUR;
-          if (hoursUntil > HOURS_BEFORE || hoursUntil < 0) continue;
-          const alreadyNotified = alertsSent.some(
-            (alert) => alert.eventId === event.id && alert.kind === "equipment",
-          );
-          if (alreadyNotified) continue;
-
-          // Agrupar por miembro: { memberId: ["remeras", "pelotas"] }
-          const byMember = new Map<string, ItemEquipamiento[]>();
-          for (const [item, memberId] of Object.entries(event.equipamiento)) {
-            if (!memberId) continue;
-            const list = byMember.get(memberId) ?? [];
-            list.push(item as ItemEquipamiento);
-            byMember.set(memberId, list);
-          }
-          if (byMember.size === 0) continue;
-
-          const moment = new Date().toISOString();
-          for (const [memberId, items] of byMember) {
-            const itemLabels = items
-              .map((i) => (i === "remeras" ? "las remeras" : "las pelotas"))
-              .join(" y ");
-            const notice: InboxItem = {
-              id: uid("in"),
-              kind: "equipamiento",
-              title: "Mañana hay partido",
-              body: `Te toca llevar ${itemLabels} para ${event.title}.`,
-              eventId: event.id,
-              audience: "miembro",
-              at: moment,
-              readBy: [],
-            };
-            notices = [...notices, notice];
-            void notifyApp({
-              body: notice.body,
-              tag: `vestuario-eq-${event.id}-${memberId}`,
-              eventId: event.id,
-            });
-          }
-          alertsSent = [
-            ...alertsSent,
-            { id: uid("al"), eventId: event.id, kind: "equipment", at: moment },
-          ];
-          somethingChanged = true;
-        }
-
-        if (somethingChanged) set({ inbox: notices, alertLog: alertsSent });
       },
       // Marca un aviso como leído por la persona que está usando la app.
       markInboxRead: (noticeId) => {
@@ -1088,7 +984,7 @@ export const useFija = create<State>()(
         const personId = get().activeId;
         const me = get().members.find((person) => person.id === personId);
         if (me?.menor || readMenor()) return;
-        const safe = photo && photo.startsWith("data:image/") && photo.length < 120_000 ? photo : null;
+        const safe = photo && photo.startsWith("data:image/") && photo.length < 30_000 ? photo : null;
         set({
           members: get().members.map((person) =>
             person.id === personId ? { ...person, photo: safe } : person,
@@ -1447,7 +1343,8 @@ export const useFija = create<State>()(
           members: claimed.members,
           activeId: linked?.id ?? personId,
           cloudStatus: "ok",
-          cloudError: null,
+          cloudError: get().dirty ? get().cloudError : null,
+          savedMine: mineSaved(teamFound.rsvps, linked?.id ?? personId),
         });
         applyingCloud = false;
         return true;
@@ -1599,7 +1496,7 @@ export const useFija = create<State>()(
             members: result.members,
             activeId: mine?.id ?? state.activeId,
             cloudStatus: "ok",
-            cloudError: null,
+            cloudError: get().dirty ? get().cloudError : null,
           });
           applyingCloud = false;
         } catch {
@@ -1618,7 +1515,7 @@ export const useFija = create<State>()(
           members: result.members,
           activeId: memberId,
           cloudStatus: "ok",
-          cloudError: null,
+          cloudError: get().dirty ? get().cloudError : null,
         });
         applyingCloud = false;
         return true;
@@ -1656,8 +1553,10 @@ export const useFija = create<State>()(
               archivedClubs: current.archivedClubs,
               activeId: current.activeId,
               hydrated: true,
-              cloudStatus: "ok",
-              cloudError: null,
+              cloudStatus: current.dirty ? current.cloudStatus : "ok",
+              cloudError: current.dirty ? current.cloudError : null,
+              savedMine: mineSaved(remoteTeam.bundle.rsvps, current.activeId),
+              bannedAccounts: merged.bannedAccounts ?? current.bannedAccounts,
             });
             applyingCloud = false;
             const remoteIds = new Set(remoteTeam.bundle.members.map((person) => person.id));
@@ -1700,6 +1599,10 @@ export const useFija = create<State>()(
           if (!quiet) set({ cloudStatus: "off" });
         } finally {
           syncingNow = false;
+          const after = get();
+          const last = after.lastFlushErrorAt;
+          const waited = last == null || Date.now() - last > flushRetryWait();
+          if ((after.dirty || mineUnsaved(after)) && after.club && waited) void get().flushCloud();
         }
       },
 
@@ -1707,7 +1610,7 @@ export const useFija = create<State>()(
       flushCloud: async () => {
         const state = get();
         if (!state.club) return false;
-        set({ cloudStatus: "syncing", cloudError: null });
+        set({ cloudStatus: "syncing" });
         let lastError = "No se pudo guardar el equipo.";
         for (let attempt = 0; attempt < 3; attempt += 1) {
           const current = get();
@@ -1737,13 +1640,15 @@ export const useFija = create<State>()(
                 bundle: merged,
               },
             });
-            if (result.ok) {
+            if (result.ok && result.bundle) {
               const savedBundle = result.bundle;
+              const rev = localRev;
+              flushFailStreak = 0;
               applyingCloud = true;
               set({
-                ...(savedBundle ?? merged),
+                ...savedBundle,
                 otherClubs: get().otherClubs,
-                activeClubId: (savedBundle ?? merged).club.id,
+                activeClubId: savedBundle.club.id,
                 profile: get().profile,
                 gpsConsent: get().gpsConsent,
                 archivedClubs: get().archivedClubs,
@@ -1751,8 +1656,18 @@ export const useFija = create<State>()(
                 hydrated: true,
                 cloudStatus: "ok",
                 cloudError: null,
+                dirty: localRev !== rev,
+                lastFlushErrorAt: null,
+                cloudWeight: result.weight ?? null,
+                savedMine: mineSaved(savedBundle.rsvps, get().activeId),
+                clubNotice: get().clubNotice,
+                bannedAccounts: savedBundle.bannedAccounts ?? get().bannedAccounts,
               });
               applyingCloud = false;
+              if (localRev !== rev) {
+                if (flushTimer) window.clearTimeout(flushTimer);
+                flushTimer = window.setTimeout(() => void useFija.getState().flushCloud(), 800) as unknown as ReturnType<typeof setTimeout>;
+              }
               const notice = freshNotice(current.activeId, remote, merged);
               if (notice) {
                 void notifyClub({
@@ -1774,7 +1689,8 @@ export const useFija = create<State>()(
           }
           await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
         }
-        set({ cloudStatus: "off", cloudError: lastError });
+        flushFailStreak += 1;
+        set({ cloudStatus: "off", cloudError: lastError, lastFlushErrorAt: Date.now(), dirty: true });
         noteQuiet("guardar", lastError);
         return false;
       },
@@ -1838,6 +1754,8 @@ export const useFija = create<State>()(
         droppedIds: s.droppedIds ?? [],
         droppedEventIds: s.droppedEventIds ?? [],
         reminder: s.reminder,
+        dirty: s.dirty,
+        savedMine: s.savedMine,
       }),
             onRehydrateStorage: () => (state) => {
         if (!state) return;
@@ -1875,7 +1793,20 @@ export const useFija = create<State>()(
 );
 
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let localRev = 0;
+let flushFailStreak = 0;
 const resumeTried = new Set<string>();
+
+function flushRetryWait(): number {
+  if (flushFailStreak <= 0) return 30_000;
+  return Math.min(30_000 * 2 ** (flushFailStreak - 1), 5 * 60_000);
+}
+
+function mineUnsaved(state: { activeId: string; rsvps: Rsvp[]; savedMine: Record<string, RsvpStatus> }): boolean {
+  return state.rsvps.some(
+    (row) => row.memberId === state.activeId && state.savedMine[row.eventId] !== row.status,
+  );
+}
 if (typeof window !== "undefined") {
   useFija.subscribe((state, prev) => {
     if (applyingCloud) return;
@@ -1894,6 +1825,8 @@ if (typeof window !== "undefined") {
       return;
     }
     if (flushTimer) window.clearTimeout(flushTimer);
+    localRev += 1;
+    if (!state.dirty) useFija.setState({ dirty: true });
     flushTimer = window.setTimeout(() => {
       void useFija.getState().flushCloud();
     }, 800) as unknown as ReturnType<typeof setTimeout>;
@@ -1997,7 +1930,8 @@ function mergeClubBundles(
     ...(remote.droppedEventIds ?? []),
     ...(who.staff ? (local.droppedEventIds ?? []) : []),
   ]);
-  return lightenClosedMatches(
+  return pruneBundle(
+    lightenClosedMatches(
     withoutDroppedEvents(
       {
     club,
@@ -2025,6 +1959,7 @@ function mergeClubBundles(
     bannedAccounts: who.staff ? (remote.bannedAccounts ?? []) : [],
       },
       droppedEvents,
+    ),
     ),
   );
 }
@@ -2123,6 +2058,14 @@ function memberIdForCode(inviteCode: string): { id: string; known: boolean } {
   } catch {
     return { id: uid("j"), known: false };
   }
+}
+
+function mineSaved(rows: { eventId: string; memberId: string; status: RsvpStatus }[], memberId: string) {
+  const saved: Record<string, RsvpStatus> = {};
+  for (const row of rows) {
+    if (row.memberId === memberId) saved[row.eventId] = row.status;
+  }
+  return saved;
 }
 
 function forgetStoredMember(inviteCode: string) {

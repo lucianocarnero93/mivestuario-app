@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  alertsDue,
   decideClaim,
+  mergePlayerAlerts,
+  mergePlayerInbox,
   nextBannedAccounts,
   readmitAccount,
   removeMemberEverywhere,
+  sizeVerdict,
 } from "./club-rules.ts";
-import type { ClubBundle, Member } from "./types.ts";
+import type { ClubBundle, ClubEvent, Member } from "./types.ts";
 
 function person(partial: Partial<Member> & Pick<Member, "id" | "name">): Member {
   return {
@@ -147,10 +151,166 @@ test("sacar limpia cancha, banco y convocatoria, y pasa el mando", () => {
   assert.equal(alone.empty, true);
 });
 
+test("el peso acepta, frena el crecimiento y corta el tope duro", () => {
+  assert.equal(sizeVerdict(100, 200), "ok");
+  assert.equal(sizeVerdict(360_000, 360_100), "ok");
+  assert.equal(sizeVerdict(360_000, 362_000), "soft");
+  assert.equal(sizeVerdict(10, 500_001), "hard");
+});
+
 test("dejar volver saca la cuenta de la lista de sacados", () => {
   const team = bundle([person({ id: "dt", name: "Lucho", role: "dt" })], {
     bannedAccounts: [{ accountId: "acc-p", name: "Pibe", at: "2026-01-01T00:00:00.000Z" }],
   });
   const next = readmitAccount(team, "acc-p");
   assert.equal(next.bannedAccounts?.length, 0);
+});
+
+function match(id = "e1"): ClubEvent {
+  return {
+    id,
+    kind: "partido",
+    title: "Fecha",
+    place: "Cancha",
+    mapsQuery: "Cancha",
+    lat: null,
+    lng: null,
+    startsAt: "2026-04-01T21:00:00.000Z",
+    modality: "f5",
+    lineup: {},
+    tactics: "",
+    lineupPublishedAt: null,
+    tournamentId: null,
+  };
+}
+
+test("alertsDue dos veces no inventa otro aviso", () => {
+  const sentAt = "2026-03-01T00:00:00.000Z";
+  const now = Date.parse(sentAt) + 5 * 3_600_000;
+  const state = {
+    events: [match()],
+    rsvps: [{ eventId: "e1", memberId: "p", status: "pendiente" as const }],
+    convocatorias: [{ eventId: "e1", sentAt }],
+    inbox: [],
+    alertLog: [],
+    reminderPolicy: { firstHours: 1, secondHours: 48 },
+    tournaments: [],
+  };
+  const first = alertsDue(state, now);
+  const second = alertsDue({ ...state, inbox: first.inbox, alertLog: first.alertLog }, now);
+  assert.equal(first.inbox.length, 1);
+  assert.equal(first.inbox[0]?.id.startsWith("in-r1-"), true);
+  assert.equal(second.inbox, first.inbox);
+  assert.equal(second.alertLog, first.alertLog);
+  assert.equal(second.pushes.length, 0);
+});
+
+test("reenviar la convocatoria vuelve a avisar", () => {
+  const sentAt = "2026-03-01T00:00:00.000Z";
+  const now = Date.parse(sentAt) + 5 * 3_600_000;
+  const state = {
+    events: [match()],
+    rsvps: [{ eventId: "e1", memberId: "p", status: "pendiente" as const }],
+    convocatorias: [{ eventId: "e1", sentAt }],
+    inbox: [],
+    alertLog: [],
+    reminderPolicy: { firstHours: 1, secondHours: 48 },
+    tournaments: [],
+  };
+  const first = alertsDue(state, now);
+  const resentAt = new Date(now + 60_000).toISOString();
+  const again = alertsDue(
+    { ...state, inbox: first.inbox, alertLog: first.alertLog, convocatorias: [{ eventId: "e1", sentAt: resentAt }] },
+    now + 5 * 3_600_000,
+  );
+  assert.equal(again.alertLog.length, first.alertLog.length + 1);
+  assert.notEqual(again.inbox.at(-1)?.id, first.inbox[0]?.id);
+});
+
+test("un aviso viejo no se duplica", () => {
+  const sentAt = "2026-03-01T00:00:00.000Z";
+  const scope = Date.parse(sentAt);
+  const state = {
+    events: [match()],
+    rsvps: [{ eventId: "e1", memberId: "p", status: "pendiente" as const }],
+    convocatorias: [{ eventId: "e1", sentAt }],
+    inbox: [],
+    alertLog: [{ id: "viejo", eventId: "e1", kind: "first" as const, at: new Date(scope + 1000).toISOString() }],
+    reminderPolicy: { firstHours: 1, secondHours: 100 },
+    tournaments: [],
+  };
+  const due = alertsDue(state, scope + 5 * 3_600_000);
+  assert.equal(due.alertLog, state.alertLog);
+  assert.equal(due.inbox, state.inbox);
+});
+
+test("el jugador solo suma avisos fijos y su propia lectura", () => {
+  const existing = [
+    {
+      id: "in-r1-e1-1",
+      kind: "recordatorio" as const,
+      title: "Aviso",
+      body: "Falta",
+      eventId: "e1",
+      audience: "pending" as const,
+      at: "2026-03-01T00:00:00.000Z",
+      readBy: [] as string[],
+    },
+  ];
+  const merged = mergePlayerInbox(
+    existing,
+    [
+      { ...existing[0], title: "Cambiado", readBy: ["me", "otro"] },
+      {
+        id: "azar",
+        kind: "recordatorio",
+        title: "X",
+        body: "Y",
+        eventId: "e1",
+        audience: "all",
+        at: "2026-03-01T00:00:00.000Z",
+        readBy: [],
+      },
+      {
+        id: "in-r2-e1-2",
+        kind: "recordatorio",
+        title: "Segundo",
+        body: "Bien",
+        eventId: "e1",
+        audience: "staff",
+        at: "2026-03-01T01:00:00.000Z",
+        readBy: ["otro"],
+      },
+      {
+        id: "in-r2-e1-3",
+        kind: "recordatorio",
+        title: "x".repeat(121),
+        body: "largo",
+        eventId: "e1",
+        audience: "pending",
+        at: "2026-03-01T01:00:00.000Z",
+        readBy: [],
+      },
+    ],
+    "me",
+    new Set(["e1"]),
+  );
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0]?.title, "Aviso");
+  assert.deepEqual(merged[0]?.readBy, ["me"]);
+  assert.equal(merged[1]?.id, "in-r2-e1-2");
+
+  const alerts = mergePlayerAlerts(
+    [{ id: "al-first-e1-1", eventId: "e1", kind: "first", at: "original" }],
+    [
+      { id: "al-first-e1-1", eventId: "e1", kind: "first", at: "pisado" },
+      { id: "azar", eventId: "e1", kind: "first", at: "x" },
+      { id: "al-second-e1-1", eventId: "e1", kind: "second", at: "nuevo" },
+      { id: "al-eq-no", eventId: "no", kind: "equipment", at: "x" },
+    ],
+    new Set(["e1"]),
+  );
+  assert.equal(alerts.length, 2);
+  assert.equal(alerts[0]?.at, "original");
+  assert.equal(alerts[1]?.id, "al-second-e1-1");
 });
