@@ -638,6 +638,7 @@ function MisEquipos() {
   const [teamName, setTeamName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   const saved = otherClubs.map((item) => item.bundle.club);
 
@@ -661,8 +662,16 @@ function MisEquipos() {
               <p className="min-w-0 flex-1 truncate font-medium">{item.name}</p>
             </div>
             <div className="mt-3 grid gap-2">
-              <Button className="h-12 w-full" onClick={() => void setActiveClub(item.id)}>
-                Cambiar a este equipo
+              <Button
+                className="h-12 w-full"
+                disabled={switchingId !== null}
+                onClick={() => {
+                  if (switchingId) return;
+                  setSwitchingId(item.id);
+                  void setActiveClub(item.id).finally(() => setSwitchingId(null));
+                }}
+              >
+                {switchingId === item.id ? "Cambiando…" : "Cambiar a este equipo"}
               </Button>
               <Button variant="ghost" className="h-11 w-full text-muted" onClick={() => removeClub(item.id)}>
                 Quitar de este celular

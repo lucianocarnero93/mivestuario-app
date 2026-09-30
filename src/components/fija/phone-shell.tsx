@@ -142,16 +142,34 @@ export function PhoneShell() {
 }
 
 function AuthFrame({ children }: { children: ReactNode }) {
-  const { user } = useCurrentUserState();
+  const { user, isPending } = useCurrentUserState();
+  const club = useFija((s) => s.club);
+  const hydrated = useFija((s) => s.hydrated);
   const [pedirEdad, setPedirEdad] = useState(false);
+  const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
 
   useEffect(() => {
     void authClient.getSession().catch(() => undefined);
     setPedirEdad(readPedirEdad());
   }, [user]);
 
+  useEffect(() => {
+    const up = () => setOnline(true);
+    const down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => {
+      window.removeEventListener("online", up);
+      window.removeEventListener("offline", down);
+    };
+  }, []);
+
+  if (isPending && !user) {
+    return <p className="grid min-h-dvh place-items-center px-6 text-center text-sm text-muted">Abriendo el vestuario…</p>;
+  }
   if (user && pedirEdad) return <EdadGate />;
   if (user) return children;
+  if (!online && hydrated && club) return children;
   return <SignInPanel />;
 }
 

@@ -780,6 +780,7 @@ export const useFija = create<State>()(
           club: { ...club, createdBy: otherPerson.id },
           activeId: currentPerson.id,
         });
+        void get().flushCloud();
       },
 
       // Cambia el nombre del equipo. Solo quien lo creó.
@@ -1217,6 +1218,7 @@ export const useFija = create<State>()(
         const inviteCode = sanitizeCode(code);
         if (!inviteCode) return false;
         if (state.club?.inviteCode.toUpperCase() === inviteCode) return true;
+        abandonInFlightCloud();
 
         const shelved = state.otherClubs.find(
           (item) => item.bundle.club.inviteCode.toUpperCase() === inviteCode,
@@ -1451,16 +1453,16 @@ export const useFija = create<State>()(
         const state = get();
         const teamName = sanitizeName(name);
         if (!teamName) return;
+        abandonInFlightCloud();
         let shelf = state.otherClubs;
         if (state.club) {
-          try {
-            await get().flushCloud();
-          } catch {
-            // El estante se queda con la copia local.
+          const shot = snapshotShelf(state);
+          if (shot) {
+            shelf = upsertShelf(state.otherClubs, shot);
+            void saveClubDoc({
+              data: { code: shot.bundle.club.inviteCode, bundle: shot.bundle },
+            }).catch(() => undefined);
           }
-          const fresh = get();
-          const shot = snapshotShelf(fresh);
-          if (shot) shelf = upsertShelf(fresh.otherClubs, shot);
         }
         const account = await currentAccountId();
         const me: Member = {
@@ -1500,27 +1502,27 @@ export const useFija = create<State>()(
         if (!clubId || state.club?.id === clubId) return;
         const next = state.otherClubs.find((item) => item.bundle.club.id === clubId);
         if (!next || !state.club) return;
-        try {
-          await get().flushCloud();
-        } catch {
-          // Cambiamos igual: la copia local no se pierde.
-        }
-        const fresh = get();
-        const current = snapshotShelf(fresh);
-        if (!current) return;
-        const rest = fresh.otherClubs.filter((item) => item.bundle.club.id !== clubId);
+        abandonInFlightCloud();
+        const leaving = snapshotShelf(state);
+        if (!leaving) return;
+        const rest = state.otherClubs.filter((item) => item.bundle.club.id !== clubId);
         set({
           ...next.bundle,
-          otherClubs: upsertShelf(rest, current).filter((item) => item.bundle.club.id !== next.bundle.club.id),
+          otherClubs: upsertShelf(rest, leaving).filter((item) => item.bundle.club.id !== next.bundle.club.id),
           activeClubId: next.bundle.club.id,
-          archivedClubs: fresh.archivedClubs,
-          profile: fresh.profile,
-          gpsConsent: fresh.gpsConsent,
+          archivedClubs: state.archivedClubs,
+          profile: state.profile,
+          gpsConsent: state.gpsConsent,
           activeId: memberIdOnTeam(next),
           reminder: null,
           hydrated: true,
           cloudStatus: "syncing",
+          dirty: false,
+          cloudError: null,
         });
+        void saveClubDoc({
+          data: { code: leaving.bundle.club.inviteCode, bundle: leaving.bundle },
+        }).catch(() => undefined);
         void get().syncFromCloud().then(() => get().applySharedPhoto());
       },
 
@@ -1718,23 +1720,32 @@ export const useFija = create<State>()(
       // Baja de la nube la última copia del equipo en el que ya estoy.
       syncFromCloud: async () => {
         if (syncingNow) return;
+        const epoch = cloudEpoch;
+        const generation = ++syncGeneration;
         const club = get().club;
         if (!club) {
           set({ cloudStatus: "ok" });
           return;
         }
+        const clubId = club.id;
+        const code = club.inviteCode;
         syncingNow = true;
         const quiet = get().cloudStatus === "ok";
         if (!quiet) set({ cloudStatus: "syncing" });
+        const stillHere = () => epoch === cloudEpoch && get().club?.id === clubId;
         try {
-          const remoteTeam = await loadClubDoc({ data: club.inviteCode });
+          const remoteTeam = await loadClubDoc({ data: code });
+          if (!stillHere()) return;
           if (remoteTeam.ok) {
             const current = get();
-            const local = toBundle({ ...current, club });
+            if (!current.club || current.club.id !== clubId) return;
+            const local = toBundle({ ...current, club: current.club });
             const merged = mergeClubBundles(local, remoteTeam.bundle, {
               activeId: current.activeId,
               staff: isStaffId(current),
+              dirty: current.dirty,
             });
+            if (!stillHere()) return;
             const extras = isStaffId(current) ? missingPlayingRsvps(merged) : [];
             applyingCloud = true;
             set({
@@ -1753,6 +1764,7 @@ export const useFija = create<State>()(
               bannedAccounts: merged.bannedAccounts ?? current.bannedAccounts,
             });
             applyingCloud = false;
+            if (!stillHere()) return;
             const remoteIds = new Set(remoteTeam.bundle.members.map((person) => person.id));
             const localOnly = local.members.some((person) => !remoteIds.has(person.id));
             const tournamentChanged =
@@ -1774,25 +1786,27 @@ export const useFija = create<State>()(
               await get().flushCloud();
             }
           } else if (remoteTeam.reason === "forbidden") {
-            if (!resumeTried.has(club.id)) {
-              resumeTried.add(club.id);
+            if (!resumeTried.has(clubId)) {
+              resumeTried.add(clubId);
               await get().ensureMySpot();
             } else if (!quiet) {
               set({ cloudStatus: "off" });
             }
           } else if (remoteTeam.reason === "missing") {
+            if (!stillHere()) return;
             const published = await get().publishClub();
-            if (!published && !quiet) set({ cloudStatus: "off" });
-          } else if (!quiet) {
+            if (!published && !quiet && stillHere()) set({ cloudStatus: "off" });
+          } else if (!quiet && stillHere()) {
             set({
               cloudStatus: "off",
               cloudError: remoteTeam.reason === "limited" ? "Demasiados intentos. Esperá un rato." : null,
             });
           }
         } catch {
-          if (!quiet) set({ cloudStatus: "off" });
+          if (!quiet && stillHere()) set({ cloudStatus: "off" });
         } finally {
-          syncingNow = false;
+          if (generation === syncGeneration) syncingNow = false;
+          if (!stillHere()) return;
           const after = get();
           const last = after.lastFlushErrorAt;
           const waited = last == null || Date.now() - last > flushRetryWait();
@@ -1805,10 +1819,11 @@ export const useFija = create<State>()(
         const epoch = cloudEpoch;
         const state = get();
         if (!state.club) return false;
+        const clubId = state.club.id;
         set({ cloudStatus: "syncing" });
         let lastError = "No se pudo guardar el equipo.";
         for (let attempt = 0; attempt < 3; attempt += 1) {
-          if (epoch !== cloudEpoch) return false;
+          if (epoch !== cloudEpoch || get().club?.id !== clubId) return false;
           const clubNow = get().club;
           if (!clubNow) return false;
           try {
@@ -1826,10 +1841,10 @@ export const useFija = create<State>()(
             } catch {
               remote = null;
             }
-            if (epoch !== cloudEpoch) return false;
+            if (epoch !== cloudEpoch || get().club?.id !== clubId) return false;
             const revAtSend = localRev;
             const current = get();
-            if (!current.club) return false;
+            if (!current.club || current.club.id !== clubId) return false;
             const local = toBundle({ ...current, club: current.club });
             const merged = remote
               ? mergeClubBundles(local, remote, { activeId: current.activeId, staff: isStaffId(current) })
@@ -1841,7 +1856,7 @@ export const useFija = create<State>()(
               },
             });
             if (result.ok && result.bundle) {
-              if (epoch !== cloudEpoch) return false;
+              if (epoch !== cloudEpoch || get().club?.id !== clubId) return false;
               flushFailStreak = 0;
               const notice = freshNotice(current.activeId, remote, merged);
               const pushNotice = () => {
@@ -1901,7 +1916,7 @@ export const useFija = create<State>()(
           }
           await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
         }
-        if (epoch !== cloudEpoch) return false;
+        if (epoch !== cloudEpoch || get().club?.id !== clubId) return false;
         flushFailStreak += 1;
         set({ cloudStatus: "off", cloudError: lastError, lastFlushErrorAt: Date.now(), dirty: true });
         noteQuiet("guardar", lastError);
@@ -2010,7 +2025,18 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let localRev = 0;
 let flushFailStreak = 0;
 let cloudEpoch = 0;
+let syncGeneration = 0;
 const resumeTried = new Set<string>();
+
+function abandonInFlightCloud() {
+  cloudEpoch += 1;
+  syncGeneration += 1;
+  syncingNow = false;
+  if (flushTimer) {
+    window.clearTimeout(flushTimer);
+    flushTimer = null;
+  }
+}
 
 export function wipeLocalTeamData({ keepInvite = false } = {}) {
   cloudEpoch += 1;
@@ -2115,6 +2141,15 @@ function isStaffId(state: { members: Member[]; activeId: string }): boolean {
   return me?.role === "dt" || me?.role === "ayudante";
 }
 
+function withRemoteRoles(merged: Member[], remote: Member[], trustLocal: boolean): Member[] {
+  if (trustLocal) return merged;
+  const roles = new Map(remote.map((person) => [person.id, person.role]));
+  return merged.map((person) => {
+    const role = roles.get(person.id);
+    return role ? { ...person, role } : person;
+  });
+}
+
 function keepAccountOwner(remote: Member[], merged: Member[]): Member[] {
   const owner = new Map<string, string>();
   for (const person of remote) {
@@ -2174,10 +2209,13 @@ function mergeSheets(remote: MatchSheet[], local: MatchSheet[], staff: boolean):
 function mergeClubBundles(
   local: ClubBundle,
   remote: ClubBundle,
-  who: { activeId: string; staff: boolean },
+  who: { activeId: string; staff: boolean; dirty?: boolean },
 ): ClubBundle {
-  const club = who.staff ? { ...remote.club, ...local.club } : { ...local.club, ...remote.club };
+  const trustLocal = Boolean(who.staff && who.dirty);
+  const club = trustLocal ? { ...remote.club, ...local.club } : { ...local.club, ...remote.club, ...(!who.staff ? {} : remote.club) };
   club.inviteCode = remote.club.inviteCode || local.club.inviteCode;
+  club.createdBy = trustLocal ? local.club.createdBy || remote.club.createdBy : remote.club.createdBy;
+  if (!trustLocal) club.crest = remote.club.crest || local.club.crest;
   if (!who.staff && local.club.crest) club.crest = local.club.crest;
   const droppedEvents = new Set([
     ...(remote.droppedEventIds ?? []),
@@ -2188,11 +2226,15 @@ function mergeClubBundles(
     withoutDroppedEvents(
       {
     club,
-    members: keepAccountOwner(
-      remote.members,
-      unionById(remote.members, local.members).filter(
-        (person) => !(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id),
+    members: withRemoteRoles(
+      keepAccountOwner(
+        remote.members,
+        unionById(remote.members, local.members).filter(
+          (person) => !(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id),
+        ),
       ),
+      remote.members,
+      trustLocal,
     ),
     events: mergeEvents(remote.events, local.events, who.staff),
     rsvps: mergeRsvps(remote.rsvps, local.rsvps),
