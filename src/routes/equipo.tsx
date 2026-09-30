@@ -214,6 +214,7 @@ function EquipoPage() {
       ) : null}
       {staff ? <CederMando /> : null}
       <MisEquipos />
+      <Sacados />
       <LeaveTeam />
     </main>
   );
@@ -439,21 +440,40 @@ function CederMando() {
 
 function LeaveTeam() {
   const club = useFija((s) => s.club);
+  const members = useFija((s) => s.members);
   const leaveClub = useFija((s) => s.leaveClub);
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   if (!club) return null;
+  const alone = members.length <= 1;
   return (
     <div className="mt-8">
       {open ? (
         <div className="rounded-xl bg-surface p-4 shadow-card">
           <p className="text-sm">
-            ¿Salís de {club.name}? Se va solo este equipo. Los otros, si tenés, quedan en el celular.
+            {alone
+              ? "Sos el único del equipo: si salís, el equipo se borra."
+              : `¿Salís de ${club.name}? Se va solo este equipo. Los otros, si tenés, quedan en el celular.`}
           </p>
+          {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
           <div className="mt-3 grid gap-2">
-            <Button variant="danger" className="h-12" onClick={() => leaveClub()}>
-              Salir del equipo
+            <Button
+              variant="danger"
+              className="h-12"
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                setError("");
+                void leaveClub().then((result) => {
+                  setBusy(false);
+                  if (!result.ok) setError(result.error || "No pudimos sacarte del equipo. Probá de nuevo.");
+                });
+              }}
+            >
+              {busy ? "Saliendo…" : "Salir del equipo"}
             </Button>
-            <Button variant="ghost" className="h-12" onClick={() => setOpen(false)}>
+            <Button variant="ghost" className="h-12" onClick={() => setOpen(false)} disabled={busy}>
               Cancelar
             </Button>
           </div>
@@ -464,6 +484,43 @@ function LeaveTeam() {
         </Button>
       )}
     </div>
+  );
+}
+
+function Sacados() {
+  const creator = useIsCreator();
+  const banned = useFija((s) => s.bannedAccounts);
+  const readmitAccount = useFija((s) => s.readmitAccount);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (!creator || banned.length === 0) return null;
+  return (
+    <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+      <button type="button" className="text-sm font-semibold" onClick={() => setOpen((value) => !value)}>
+        Sacados ({banned.length})
+      </button>
+      {open ? (
+        <ul className="mt-3 space-y-2">
+          {banned.map((item) => (
+            <li key={item.accountId} className="flex items-center justify-between gap-2">
+              <span className="truncate text-sm">{item.name}</span>
+              <Button
+                variant="outline"
+                className="h-11 shrink-0"
+                disabled={busy === item.accountId}
+                onClick={() => {
+                  setBusy(item.accountId);
+                  void readmitAccount(item.accountId).finally(() => setBusy(null));
+                }}
+              >
+                Dejar volver a entrar
+              </Button>
+            </li>
+          ))}
+          <p className="text-xs text-muted">Puede volver a entrar con el código.</p>
+        </ul>
+      ) : null}
+    </section>
   );
 }
 

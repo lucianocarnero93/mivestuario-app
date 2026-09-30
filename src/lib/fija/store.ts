@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useMemo } from "react";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { uid } from "./format";
 import { notifyApp, notifyReminder } from "./notify";
@@ -6,7 +7,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
 import { clampHours, hoursSince } from "./share";
-import { claimMember, closedMatchStillHeavy, lightenClosedMatches, loadClubDoc, mergeTournaments, pickEvent, pickSheet, saveClubDoc, useMyName, withoutDroppedEvents } from "./cloud";
+import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, loadClubDoc, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, useMyName, withoutDroppedEvents } from "./cloud";
 import { readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
@@ -50,6 +51,8 @@ type State = ReturnType<typeof createSeed> & {
   hydrated: boolean;
   cloudStatus: CloudStatus;
   cloudError: string | null;
+  clubNotice: string | null;
+  bannedAccounts: { accountId: string; name: string; at: string }[];
   setHydrated: () => void;
   setActive: (id: string) => void;
   viewAsRole: (role: Role) => void;
@@ -100,7 +103,10 @@ type State = ReturnType<typeof createSeed> & {
   finishTournament: (id: string) => void;
   markMatchResult: (eventId: string, done: boolean) => void;
   setGpsConsent: (value: GpsConsent) => void;
-  leaveClub: () => void;
+  leaveClub: () => Promise<{ ok: boolean; error?: string }>;
+  forgetClub: (clubId: string, message: string) => void;
+  clearClubNotice: () => void;
+  readmitAccount: (accountId: string) => Promise<boolean>;
   joinClub: (code: string) => Promise<boolean>;
   createClub: (name: string, crest?: string | null) => Promise<void>;
   setActiveClub: (clubId: string) => Promise<void>;
@@ -178,6 +184,8 @@ export const useFija = create<State>()(
       hydrated: false,
       cloudStatus: "idle" as CloudStatus,
       cloudError: null as string | null,
+      clubNotice: null as string | null,
+      bannedAccounts: [] as { accountId: string; name: string; at: string }[],
       // Marca que el celular ya recuperó lo guardado.
       setHydrated: () => set({ hydrated: true }),
 
@@ -1102,54 +1110,115 @@ export const useFija = create<State>()(
 
       // Sale solo del equipo activo. Si hay otros, entra al siguiente.
       // No borra el equipo de la nube: el plantel sigue ahí.
-      leaveClub: () => {
+      leaveClub: async () => {
         const state = get();
-        if (!state.club) return;
-        const peopleWhoStay = state.members.filter((person) => person.id !== state.activeId);
-        let club: Club = state.club;
-        let members = peopleWhoStay;
-        if (club.createdBy === state.activeId && peopleWhoStay[0]) {
-          const nextOwner =
-            peopleWhoStay.find((person) => person.role === "dt") ??
-            peopleWhoStay.find((person) => person.role === "ayudante") ??
-            peopleWhoStay[0];
-          club = { ...club, createdBy: nextOwner.id };
-          members = peopleWhoStay.map((person) =>
-            person.id === nextOwner.id && person.role === "jugador"
-              ? { ...person, role: "dt" }
-              : person,
-          );
+        if (!state.club) return { ok: true };
+        const code = state.club.inviteCode;
+        const result = await leaveClubDoc({ data: { code } });
+        if (!result.ok) return { ok: false, error: result.error || "No pudimos sacarte del equipo. Probá de nuevo." };
+        if (flushTimer) {
+          window.clearTimeout(flushTimer);
+          flushTimer = null;
         }
-        const savedCopy = toBundle({ ...state, club, members });
-        const archived = upsertBundle(state.archivedClubs, savedCopy);
+        forgetStoredMember(code);
         const others = state.otherClubs.filter((item) => item.bundle.club.id !== state.club?.id);
         const next = others[0];
         if (next) {
-          const rest = others.slice(1);
           set({
             ...next.bundle,
-            otherClubs: rest,
+            otherClubs: others.slice(1),
             activeClubId: next.bundle.club.id,
-            archivedClubs: archived,
+            archivedClubs: state.archivedClubs,
             profile: state.profile,
             gpsConsent: state.gpsConsent,
             activeId: memberIdOnTeam(next),
             reminder: null,
             hydrated: true,
+            cloudStatus: "ok",
+            cloudError: null,
           });
           void get().syncFromCloud();
+          return { ok: true };
+        }
+        set({
+          ...emptyClubState(),
+          otherClubs: [],
+          activeClubId: null,
+          archivedClubs: state.archivedClubs,
+          profile: state.profile,
+          gpsConsent: state.gpsConsent,
+          activeId: GUEST_ID,
+          hydrated: true,
+          cloudStatus: "idle",
+          cloudError: null,
+        });
+        return { ok: true };
+      },
+
+      forgetClub: (clubId, message) => {
+        const state = get();
+        if (flushTimer) {
+          window.clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+        const active = state.club?.id === clubId;
+        const code = active
+          ? state.club?.inviteCode
+          : state.otherClubs.find((item) => item.bundle.club.id === clubId)?.bundle.club.inviteCode;
+        if (code) forgetStoredMember(code);
+        if (!active) {
+          set({
+            otherClubs: state.otherClubs.filter((item) => item.bundle.club.id !== clubId),
+            clubNotice: message,
+          });
+          return;
+        }
+        const others = state.otherClubs.filter((item) => item.bundle.club.id !== clubId);
+        const next = others[0];
+        if (next) {
+          set({
+            ...next.bundle,
+            otherClubs: others.slice(1),
+            activeClubId: next.bundle.club.id,
+            archivedClubs: state.archivedClubs,
+            profile: state.profile,
+            gpsConsent: state.gpsConsent,
+            activeId: memberIdOnTeam(next),
+            reminder: null,
+            hydrated: true,
+            clubNotice: message,
+          });
           return;
         }
         set({
           ...emptyClubState(),
           otherClubs: [],
           activeClubId: null,
-          archivedClubs: archived,
+          archivedClubs: state.archivedClubs,
           profile: state.profile,
           gpsConsent: state.gpsConsent,
           activeId: GUEST_ID,
           hydrated: true,
+          clubNotice: message,
         });
+      },
+
+      clearClubNotice: () => set({ clubNotice: null }),
+
+      readmitAccount: async (accountId) => {
+        const club = get().club;
+        if (!club || !accountId) return false;
+        const result = await readmitAccountDoc({ data: { code: club.inviteCode, accountId } });
+        if (!result.ok || !result.bundle) return false;
+        applyingCloud = true;
+        set({
+          members: result.bundle.members,
+          bannedAccounts: result.bundle.bannedAccounts ?? [],
+          cloudStatus: "ok",
+          cloudError: null,
+        });
+        applyingCloud = false;
+        return true;
       },
       // Entra a un equipo. Si ya estás en otro, lo guarda y cambia a este.
       joinClub: async (code) => {
@@ -1205,8 +1274,16 @@ export const useFija = create<State>()(
             const name = (state.profile.name || "Jugador").trim() || "Jugador";
             const nick = (state.profile.nick || name.split(" ")[0] || "Jugador").trim();
             const claimed = await claimMember({
-              data: { code: inviteCode, member: { id: account, name, nick, number: null, menor: readMenor() } },
+              data: {
+                code: inviteCode,
+                mode: "join",
+                member: { id: account, name, nick, number: null, menor: readMenor() },
+              },
             });
+            if (claimed.removed) {
+              set({ cloudStatus: "off" });
+              throw new Error(claimed.error || "El DT te sacó de este equipo.");
+            }
             if (!claimed.ok) {
               set({ cloudStatus: "off" });
               throw new Error(claimed.error || "No se pudo entrar al equipo.");
@@ -1220,7 +1297,7 @@ export const useFija = create<State>()(
           }
         } catch (error) {
           if (error instanceof Error && error.message !== "No pudimos leer el equipo.") {
-            const known = error.message.includes("Demasiados") || error.message.includes("mail") || error.message.includes("entrar") || error.message.includes("anotar") || error.message.includes("sesión") || error.message.includes("Falta");
+            const known = error.message.includes("Demasiados") || error.message.includes("mail") || error.message.includes("entrar") || error.message.includes("anotar") || error.message.includes("sesión") || error.message.includes("Falta") || error.message.includes("sacó");
             if (known) throw error;
           }
           cloudFailed = true;
@@ -1308,9 +1385,35 @@ export const useFija = create<State>()(
         const claimed = await claimMember({
           data: {
             code: inviteCode,
+            mode: "join",
             member: { id: personId, name: me.name, nick: me.nick, number: me.number, menor: me.menor === true },
           },
         });
+        if (claimed.removed) {
+          set({
+            club: state.club,
+            members: state.members,
+            events: state.events,
+            rsvps: state.rsvps,
+            messages: state.messages,
+            charla: state.charla,
+            matchSheets: state.matchSheets,
+            invites: state.invites,
+            convocatorias: state.convocatorias,
+            inbox: state.inbox,
+            alertLog: state.alertLog,
+            reminderPolicy: state.reminderPolicy,
+            tournaments: state.tournaments,
+            droppedIds: state.droppedIds,
+            otherClubs: state.otherClubs,
+            activeClubId: state.activeClubId,
+            archivedClubs: state.archivedClubs,
+            activeId: state.activeId,
+            reminder: state.reminder,
+            cloudStatus: "off",
+          });
+          throw new Error(claimed.error || "El DT te sacó de este equipo.");
+        }
         if (!claimed.ok || !claimed.members?.some((person) => person.id === personId || (account != null && person.accountId === account))) {
           set({
             club: state.club,
@@ -1431,7 +1534,7 @@ export const useFija = create<State>()(
         const state = get();
         if (!clubId) return;
         if (state.club?.id === clubId) {
-          get().leaveClub();
+          void get().leaveClub();
           return;
         }
         set({
@@ -1463,6 +1566,7 @@ export const useFija = create<State>()(
           const result = await claimMember({
             data: {
               code: club.inviteCode,
+              mode: "resume",
               member: {
                 id: account.id,
                 name,
@@ -1472,6 +1576,20 @@ export const useFija = create<State>()(
               },
             },
           });
+          if (result.removed) {
+            get().forgetClub(
+              club.id,
+              `El DT te sacó de «${club.name}». Si fue un error, pedile que te deje volver a entrar.`,
+            );
+            return;
+          }
+          if (result.notMember) {
+            get().forgetClub(
+              club.id,
+              `Ya no estás en el plantel de «${club.name}». Si querés volver, pedile el código al DT.`,
+            );
+            return;
+          }
           if (!result.ok || !result.members) return;
           const mine = result.members.find(
             (person) => person.accountId === account.id || person.id === account.id,
@@ -1561,6 +1679,13 @@ export const useFija = create<State>()(
               (isStaffId(current) && closedMatchStillHeavy(remoteTeam.bundle))
             ) {
               await get().flushCloud();
+            }
+          } else if (remoteTeam.reason === "forbidden") {
+            if (!resumeTried.has(club.id)) {
+              resumeTried.add(club.id);
+              await get().ensureMySpot();
+            } else if (!quiet) {
+              set({ cloudStatus: "off" });
             }
           } else if (remoteTeam.reason === "missing") {
             const published = await get().publishClub();
@@ -1750,6 +1875,7 @@ export const useFija = create<State>()(
 );
 
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
+const resumeTried = new Set<string>();
 if (typeof window !== "undefined") {
   useFija.subscribe((state, prev) => {
     if (applyingCloud) return;
@@ -1896,6 +2022,7 @@ function mergeClubBundles(
     reminderPolicy: who.staff ? local.reminderPolicy : remote.reminderPolicy,
     tournaments: mergeTournaments(remote.tournaments, who.staff ? local.tournaments : []),
     droppedIds: [...new Set([...(remote.droppedIds ?? []), ...(local.droppedIds ?? [])])],
+    bannedAccounts: who.staff ? (remote.bannedAccounts ?? []) : [],
       },
       droppedEvents,
     ),
@@ -1998,6 +2125,15 @@ function memberIdForCode(inviteCode: string): { id: string; known: boolean } {
   }
 }
 
+function forgetStoredMember(inviteCode: string) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(`mv-member-${inviteCode}`);
+  } catch {
+    // Si el celular no deja borrar, igual se sale del equipo en memoria.
+  }
+}
+
 function rememberMemberId(inviteCode: string, personId: string) {
   if (typeof window === "undefined") return;
   try {
@@ -2042,12 +2178,6 @@ function toBundle(state: {
     droppedIds: state.droppedIds ?? [],
     droppedEventIds: state.droppedEventIds ?? [],
   };
-}
-
-// Guarda o reemplaza un equipo en la lista de equipos archivados.
-function upsertBundle(list: ClubBundle[], next: ClubBundle): ClubBundle[] {
-  const rest = list.filter((b) => b.club.id !== next.club.id && b.club.inviteCode !== next.club.inviteCode);
-  return [...rest, next];
 }
 
 // Cambia la respuesta de una persona en un evento, o la crea si no existía.
@@ -2240,15 +2370,13 @@ export const GUEST: Member = {
 
 // La persona que está usando la app en este momento.
 export function useMe(): Member {
-  return useFija((s) => {
-    const found = s.members.find((m) => m.id === s.activeId);
-    if (found) return found;
-    return {
-      ...GUEST,
-      name: s.profile.name || GUEST.name,
-      nick: s.profile.nick || GUEST.nick,
-    };
-  });
+  const found = useFija((s) => s.members.find((m) => m.id === s.activeId));
+  const name = useFija((s) => s.profile.name);
+  const nick = useFija((s) => s.profile.nick);
+  return useMemo(
+    () => found ?? { ...GUEST, name: name || GUEST.name, nick: nick || GUEST.nick },
+    [found, name, nick],
+  );
 }
 
 export function useIsStaff(): boolean {
@@ -2256,13 +2384,6 @@ export function useIsStaff(): boolean {
   const club = useFija((s) => s.club);
   if (!club) return false;
   return me.role === "dt" || me.role === "ayudante";
-}
-// Devuelve los miembros que juegan (cancha, planilla, convocatorias).
-// Incluye DT y ayudante que también juegan.
-export function useJugadores(): Member[] {
-  return useFija((s) =>
-    s.members.filter((p) => p.juega ?? p.role === "jugador"),
-  );
 }
 
 export function useIsCreator(): boolean {

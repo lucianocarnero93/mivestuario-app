@@ -4,6 +4,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { sanitizeCode } from "./sanitize";
+import {
+  decideClaim,
+  freshMemberId,
+  guardMember,
+  nextBannedAccounts,
+  readmitAccount,
+  removeMemberEverywhere,
+  withoutBanned,
+} from "./club-rules";
 import { vestuarioLog } from "@/lib/vestuario-log";
 import type { ClubBundle, ClubEvent, MatchSheet, Member, Rsvp, Tournament } from "./types";
 
@@ -12,12 +21,6 @@ const ATTEMPTS = "intentos";
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const ATTEMPT_LIMIT = 30;
 const MAX_BYTES = 350_000;
-
-function guardMember(person: Member, previous?: Member): Member {
-  const menor = Boolean(person.menor || previous?.menor);
-  if (!menor) return person;
-  return { ...person, menor: true, photo: null };
-}
 
 function asBundle(value: unknown): ClubBundle | null {
   if (!value || typeof value !== "object") return null;
@@ -106,6 +109,18 @@ async function readClub(code: string): Promise<ClubBundle | null> {
   return asBundle(raw);
 }
 
+export async function memberIdsInClub(code: string): Promise<string[] | null> {
+  const bundle = await readClub(code);
+  if (!bundle) return null;
+  return bundle.members.map((person) => person.id);
+}
+
+export async function memberIdInClub(code: string, userId: string): Promise<string | null> {
+  const bundle = await readClub(code);
+  if (!bundle) return null;
+  return memberFor(bundle.members, userId)?.id ?? null;
+}
+
 export async function isClubMember(code: string, userId: string): Promise<boolean> {
   if (!code || !userId) return false;
   const bundle = await readClub(code);
@@ -156,6 +171,8 @@ export const loadClubDoc = createServerFn({ method: "POST" })
       }
       return { ok: false, reason: "forbidden" };
     }
+    const me = memberFor(bundle.members, userId);
+    if (!isStaffMember(me)) return { ok: true, bundle: { ...bundle, bannedAccounts: undefined } };
     return { ok: true, bundle };
   });
 
@@ -373,15 +390,17 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       : (existing.droppedEventIds ?? []),
   );
   const previous = new Map(existing.members.map((person) => [person.id, person]));
-  const members = staff
-    ? unionById(existing.members, incoming.members)
-        .filter((person) => !dropped.has(person.id))
-        .map((person) => {
-          const old = previous.get(person.id);
-          const kept = guardMember(old?.accountId ? { ...person, accountId: old.accountId } : person, old);
-          return kept;
-        })
-    : existing.members.map((person) => {
+  const bannedAccounts = nextBannedAccounts(existing, incoming.droppedIds, staff, new Date().toISOString());
+  const members = withoutBanned(
+    staff
+      ? unionById(existing.members, incoming.members)
+          .filter((person) => !dropped.has(person.id))
+          .map((person) => {
+            const old = previous.get(person.id);
+            const kept = guardMember(old?.accountId ? { ...person, accountId: old.accountId } : person, old);
+            return kept;
+          })
+      : existing.members.map((person) => {
         if (person.accountId !== userId && person.id !== userId) return person;
         const mine = incoming.members.find((item) => item.id === person.id || item.accountId === userId);
         if (!mine) return person;
@@ -395,7 +414,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           },
           person,
         );
-      });
+      }),
+    bannedAccounts,
+  );
   const seenAccount = new Set<string>();
   const unique: Member[] = [];
   for (const person of members) {
@@ -430,6 +451,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       ? mergeTournaments(existing.tournaments, incoming.tournaments)
       : mergeTournaments(existing.tournaments, []),
     droppedIds: [...dropped],
+    bannedAccounts,
       },
       droppedEvents,
     ),
@@ -500,9 +522,11 @@ export const claimMember = createServerFn({ method: "POST" })
   .validator(
     (input: {
       code: string;
+      mode?: string;
       member: { id: string; name: string; nick: string; role?: string; number?: number | null; menor?: boolean };
     }) => ({
       code: sanitizeCode(input.code),
+      mode: input.mode === "resume" ? "resume" as const : "join" as const,
       id: String(input.member?.id ?? "").slice(0, 80),
       name: String(input.member?.name ?? "").slice(0, 80),
       nick: String(input.member?.nick ?? "").slice(0, 40),
@@ -510,7 +534,7 @@ export const claimMember = createServerFn({ method: "POST" })
       menor: input.member?.menor === true,
     }),
   )
-  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; members?: Member[] }> => {
+  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; members?: Member[]; removed?: boolean; notMember?: boolean }> => {
     if (!data.code || !data.name) return { ok: false, error: "Falta el jugador." };
     const accountId = String((context as { userId?: string }).userId ?? "");
     if (!accountId) return { ok: false, error: "No hay sesión." };
@@ -542,51 +566,122 @@ export const claimMember = createServerFn({ method: "POST" })
           accountId,
         ]);
         const menor = Boolean(accountRows[0]?.menor || data.menor);
-        const dropped = new Set(existing.droppedIds ?? []);
-        const byAccount = existing.members.find(
-          (person) => person.accountId === accountId || person.id === accountId,
-        );
-        const current = byAccount;
-        if (current && (dropped.has(current.id) || dropped.has(accountId))) {
-          return existing.members;
-        }
-        const next = guardMember(
-          current
-            ? {
-                ...current,
-                accountId,
-                number: current.number ?? data.number,
-                menor: menor || current.menor,
-              }
-            : {
-                id: accountId,
-                name: data.name,
-                nick: data.nick || data.name.split(" ")[0] || "Jugador",
-                role: "jugador" as const,
-                number: data.number,
-                accountId,
-                juega: true,
-                menor,
-              },
-          current,
-        );
-        const stripped = existing.members.map((person) =>
-          person.accountId === accountId && person.id !== next.id ? { ...person, accountId: null } : person,
-        );
-        const without = stripped.filter((person) => person.id !== next.id);
-        const list = [...without, next];
+        const decision = decideClaim({
+          members: existing.members,
+          droppedIds: existing.droppedIds,
+          bannedAccounts: existing.bannedAccounts,
+          accountId,
+          mode: data.mode,
+          draft: { name: data.name, nick: data.nick, number: data.number, menor },
+          freshId: freshMemberId(),
+        });
+        if (decision.kind === "removed") return { removed: true as const, members: existing.members };
+        if (decision.kind === "notMember") return { notMember: true as const, members: existing.members };
+        if (decision.kind === "keep") return { members: decision.members };
         await query(
           `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
-          [COLLECTION, data.code, JSON.stringify({ ...existing, members: list })],
+          [COLLECTION, data.code, JSON.stringify({ ...existing, members: decision.members })],
         );
-        return list;
+        return { members: decision.members };
       });
-      return { ok: true, members };
+      if ("removed" in members && members.removed) {
+        return { ok: false, removed: true, error: "El DT te sacó de este equipo." };
+      }
+      if ("notMember" in members && members.notMember) {
+        return { ok: false, notMember: true, error: "Ya no estás en el plantel de este equipo." };
+      }
+      return { ok: true, members: members.members };
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";
       vestuarioLog("plantel", message);
       if (message.includes("no está")) return { ok: false, error: message };
       return { ok: false, error: "No se pudo anotar en el plantel." };
+    }
+  });
+
+export const leaveClubDoc = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code: string }) => ({ code: sanitizeCode(input?.code) }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !data.code) return { ok: false, error: "No pudimos sacarte del equipo. Probá de nuevo." };
+    try {
+      await withTransaction(async (query) => {
+        const rows = await query<{ data: ClubBundle | string }>(
+          "select data from vestuario_docs where collection = $1 and id = $2 for update",
+          [COLLECTION, data.code],
+        );
+        if (!rows[0]) return;
+        const raw = rows[0].data;
+        const existing = typeof raw === "string" ? asBundle(JSON.parse(raw)) : asBundle(raw);
+        if (!existing) return;
+        const me = memberFor(existing.members, userId);
+        if (!me) return;
+        const removed = removeMemberEverywhere(existing, me.id);
+        if (removed.empty) {
+          await query("delete from vestuario_docs where collection = $1 and id = $2", [COLLECTION, data.code]);
+          await query("delete from vestuario_docs where collection = $1 and id = $2", ["pushes", data.code]);
+          return;
+        }
+        await query(
+          `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
+          [COLLECTION, data.code, JSON.stringify(removed.bundle)],
+        );
+        const pushes = await query<{ data: { subs?: { memberId: string }[] } | string }>(
+          "select data from vestuario_docs where collection = $1 and id = $2 for update",
+          ["pushes", data.code],
+        );
+        const pushRaw = pushes[0]?.data;
+        const parsed = typeof pushRaw === "string" ? JSON.parse(pushRaw) : pushRaw;
+        const subs = Array.isArray(parsed?.subs)
+          ? parsed.subs.filter((item: { memberId?: string }) => item.memberId !== me.id)
+          : [];
+        if (pushes[0]) {
+          await query(
+            `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
+            ["pushes", data.code, JSON.stringify({ subs })],
+          );
+        }
+      });
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "No pudimos sacarte del equipo. Probá de nuevo." };
+    }
+  });
+
+export const readmitAccountDoc = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code: string; accountId: string }) => ({
+    code: sanitizeCode(input?.code),
+    accountId: String(input?.accountId ?? "").slice(0, 80),
+  }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; bundle?: ClubBundle }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !data.code || !data.accountId) return { ok: false, error: "No se pudo dejar volver." };
+    try {
+      const bundle = await withTransaction(async (query) => {
+        const rows = await query<{ data: ClubBundle | string }>(
+          "select data from vestuario_docs where collection = $1 and id = $2 for update",
+          [COLLECTION, data.code],
+        );
+        if (!rows[0]) throw new Error("Ese equipo no está.");
+        const raw = rows[0].data;
+        const existing = typeof raw === "string" ? asBundle(JSON.parse(raw)) : asBundle(raw);
+        if (!existing) throw new Error("Ese equipo no está.");
+        const me = memberFor(existing.members, userId);
+        if (me?.id !== existing.club.createdBy) throw new Error("Solo quien creó el equipo puede dejar volver.");
+        const next = readmitAccount(existing, data.accountId);
+        await query(
+          `update vestuario_docs set data = $3::jsonb, updated_at = now() where collection = $1 and id = $2`,
+          [COLLECTION, data.code, JSON.stringify(next)],
+        );
+        return next;
+      });
+      return { ok: true, bundle };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("Solo") || message.includes("no está")) return { ok: false, error: message };
+      return { ok: false, error: "No se pudo dejar volver." };
     }
   });
 

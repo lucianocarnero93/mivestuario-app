@@ -189,6 +189,8 @@ export type ClubBundle = {
   droppedIds?: string[];
   /** Partidos que el DT sacó de la agenda. No vuelven al mezclar. */
   droppedEventIds?: string[];
+  /** Cuentas que el DT sacó. No las manda el celular: las escribe el servidor. */
+  bannedAccounts?: { accountId: string; name: string; at: string }[];
 };
 
 export type Profile = {

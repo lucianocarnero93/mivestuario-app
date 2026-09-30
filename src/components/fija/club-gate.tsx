@@ -36,6 +36,8 @@ export function ClubGate() {
   const [card, setCard] = useState<TeamCard | null>(null);
   const [cardStatus, setCardStatus] = useState<CardStatus>("loading");
   const [retry, setRetry] = useState(0);
+  const clubNotice = useFija((s) => s.clubNotice);
+  const clearClubNotice = useFija((s) => s.clearClubNotice);
 
   useEffect(() => {
     const clean = readRememberedInvite();
@@ -71,6 +73,14 @@ export function ClubGate() {
         <p className="mt-2 text-center text-sm text-muted">
           Organizá tu equipo de fútbol amateur.
         </p>
+        {clubNotice ? (
+          <div className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+            <p className="text-sm">{clubNotice}</p>
+            <Button className="mt-3 h-11" onClick={() => clearClubNotice()}>
+              Entendido
+            </Button>
+          </div>
+        ) : null}
 
         <div className="mt-8 space-y-4">
           <button

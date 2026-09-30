@@ -21,12 +21,15 @@ function SeguridadPage() {
   const consent = useFija((s) => s.gpsConsent);
   const setGpsConsent = useFija((s) => s.setGpsConsent);
   const leaveClub = useFija((s) => s.leaveClub);
+  const members = useFija((s) => s.members);
   const club = useFija((s) => s.club);
   const cloudStatus = useFija((s) => s.cloudStatus);
   const flushCloud = useFija((s) => s.flushCloud);
   const syncFromCloud = useFija((s) => s.syncFromCloud);
   const [gps, setGps] = useState<GpsPermission>("unknown");
   const [leaving, setLeaving] = useState(false);
+  const [leaveBusy, setLeaveBusy] = useState(false);
+  const [leaveError, setLeaveError] = useState("");
 
   // Cambiar nombre
   const [newName, setNewName] = useState(me.name ?? "");
@@ -205,12 +208,27 @@ function SeguridadPage() {
         <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Salir del equipo</h2>
           <p className="mt-2 text-sm text-muted">
-            {me.nick}, podés irte de {club.name} y entrar a otro con un código, o crear el tuyo.
+            {members.length <= 1
+              ? "Sos el único del equipo: si salís, el equipo se borra."
+              : `${me.nick}, podés irte de ${club.name} y entrar a otro con un código, o crear el tuyo.`}
           </p>
+          {leaveError ? <p className="mt-2 text-sm text-danger">{leaveError}</p> : null}
           {leaving ? (
             <div className="mt-3 grid gap-2">
-              <Button variant="danger" className="h-12" onClick={() => leaveClub()}>
-                Sí, salir de {club.name}
+              <Button
+                variant="danger"
+                className="h-12"
+                disabled={leaveBusy}
+                onClick={() => {
+                  setLeaveBusy(true);
+                  setLeaveError("");
+                  void leaveClub().then((result) => {
+                    setLeaveBusy(false);
+                    if (!result.ok) setLeaveError(result.error || "No pudimos sacarte del equipo. Probá de nuevo.");
+                  });
+                }}
+              >
+                {leaveBusy ? "Saliendo…" : `Sí, salir de ${club.name}`}
               </Button>
               <Button variant="ghost" className="h-12" onClick={() => setLeaving(false)}>
                 Cancelar

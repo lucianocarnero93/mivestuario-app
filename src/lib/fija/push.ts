@@ -1,7 +1,7 @@
 // Avisos del plantel. La clave pública se crea sola la primera vez y queda en la base.
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { isClubMember } from "./cloud";
+import { isClubMember, memberIdInClub, memberIdsInClub } from "./cloud";
 import { sanitizeCode } from "./sanitize";
 
 const PUSHES = "pushes";
@@ -105,12 +105,14 @@ export const savePushSubscription = createServerFn({ method: "POST" })
     const userId = String((context as { userId?: string }).userId ?? "");
     if (!data.code || !data.memberId || !data.endpoint || !data.p256dh || !data.auth) return { ok: false };
     if (!(await isClubMember(data.code, userId))) return { ok: false };
+    const realMemberId = await memberIdInClub(data.code, userId);
+    if (!realMemberId) return { ok: false };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
     const current = asPushes(await readJson(sql, PUSHES, data.code));
     const next = [
       ...current.filter((item) => item.endpoint !== data.endpoint),
-      { memberId: data.memberId, endpoint: data.endpoint, p256dh: data.p256dh, auth: data.auth },
+      { memberId: realMemberId, endpoint: data.endpoint, p256dh: data.p256dh, auth: data.auth },
     ].slice(-80);
     await sql.query(
       `insert into vestuario_docs (collection, id, data, updated_at)
@@ -144,9 +146,19 @@ export const notifyClub = createServerFn({ method: "POST" })
     webpush.setVapidDetails(VAPID_SUBJECT, keys.publicKey, keys.privateKey);
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    const subs = asPushes(await readJson(sql, PUSHES, data.code)).filter(
-      (item) => item.memberId !== data.exceptMemberId,
-    );
+    const alive = new Set((await memberIdsInClub(data.code)) ?? []);
+    const stored = asPushes(await readJson(sql, PUSHES, data.code));
+    const current = stored.filter((item) => alive.has(item.memberId));
+    if (current.length !== stored.length) {
+      await sql.query(
+        `insert into vestuario_docs (collection, id, data, updated_at)
+         values ($1, $2, $3::jsonb, now())
+         on conflict (collection, id)
+         do update set data = excluded.data, updated_at = now()`,
+        [PUSHES, data.code, JSON.stringify({ subs: current })],
+      );
+    }
+    const subs = current.filter((item) => item.memberId !== data.exceptMemberId);
     const gone: string[] = [];
     await Promise.all(
       subs.map(async (item) => {
