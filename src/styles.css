@@ -150,45 +150,44 @@
 
   @media (min-width: 1024px) {
     .pitch-shell {
-      background-color: #07140c;
+      background-color: #0c5a2a;
       background-image:
-        radial-gradient(920px 540px at 12% -8%, rgba(184, 242, 90, 0.16), transparent 58%),
-        radial-gradient(780px 560px at 100% 110%, rgba(20, 122, 58, 0.42), transparent 60%),
-        radial-gradient(circle at 74% 46%, transparent 210px, rgba(232, 243, 234, 0.07) 211px, rgba(232, 243, 234, 0.07) 212.5px, transparent 214px),
-        linear-gradient(165deg, #102418 0%, #07140c 42%, #0a1c12 100%);
+        radial-gradient(980px 420px at 62% -4%, rgba(184, 242, 90, 0.55), transparent 62%),
+        radial-gradient(circle at 62% 38%, transparent 150px, rgba(232, 243, 234, 0.85) 151px, rgba(232, 243, 234, 0.85) 154px, transparent 155px),
+        linear-gradient(
+          90deg,
+          transparent calc(62% - 1px),
+          rgba(232, 243, 234, 0.55) calc(62% - 1px),
+          rgba(232, 243, 234, 0.55) calc(62% + 1px),
+          transparent calc(62% + 1px)
+        ),
+        repeating-linear-gradient(
+          90deg,
+          rgba(12, 90, 42, 0.55) 0 72px,
+          rgba(26, 154, 74, 0.28) 72px 144px
+        ),
+        linear-gradient(180deg, #1a9a4a 0%, #0c5a2a 46%, #07140c 100%);
     }
 
     .desk-rail {
       background:
-        linear-gradient(180deg, rgba(184, 242, 90, 0.07), transparent 140px),
-        #0c1b13;
-      box-shadow: inset -1px 0 0 rgba(184, 242, 90, 0.08);
+        linear-gradient(180deg, rgba(184, 242, 90, 0.08), transparent 140px),
+        rgba(8, 22, 14, 0.94);
+      box-shadow: inset -1px 0 0 rgba(184, 242, 90, 0.16);
+      backdrop-filter: blur(8px);
     }
 
     .desk-stage {
-      margin: 14px 14px 14px 0;
-      border: 1px solid rgba(184, 242, 90, 0.14);
-      border-radius: 28px;
-      overflow: hidden;
-      background:
-        linear-gradient(180deg, rgba(184, 242, 90, 0.05), transparent 88px),
-        #0b1c12;
-      box-shadow:
-        0 24px 70px rgba(0, 0, 0, 0.38),
-        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      overflow: visible;
+      background: transparent;
+      box-shadow: none;
     }
 
     .desk-stage::before {
-      content: "";
-      display: block;
-      height: 7px;
-      flex: none;
-      background: repeating-linear-gradient(
-        90deg,
-        var(--color-pitch-deep) 0 18px,
-        var(--color-pitch) 18px 28px,
-        var(--color-pitch-top) 28px 40px
-      );
+      content: none;
     }
 
     .desk-panel {
