@@ -160,6 +160,8 @@ export const auth = betterAuth({
     max: 100,
     customRules: {
       "/get-session": false,
+      "/sign-up/*": { window: 60, max: 20 },
+      "/sign-in/*": { window: 60, max: 20 },
     },
   },
 
@@ -187,6 +189,9 @@ export const auth = betterAuth({
   advanced: {
     useSecureCookies: false,
     defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },
+    ipAddress: {
+      ipAddressHeaders: ["x-real-ip", "x-forwarded-for"],
+    },
   },
 
   plugins: [bearer(), tanstackStartCookies()],

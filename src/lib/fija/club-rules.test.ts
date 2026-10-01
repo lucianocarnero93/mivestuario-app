@@ -497,6 +497,21 @@ test("el apodo del DT no lo pisa el celular del jugador", () => {
     profileAt: "2026-09-30T15:00:00.000Z",
   });
   assert.equal(pickMemberIdentity(existing, edited, false).nick, "Juancho");
+  const future = person({
+    id: "j",
+    name: "Juan Pérez",
+    nick: "Juan",
+    profileAt: "2099-01-01T00:00:00.000Z",
+  });
+  const now = Date.parse("2026-09-30T16:00:00.000Z");
+  assert.equal(pickMemberIdentity(edited, future, false, now).nick, "Juancho");
+  const byStaff = person({
+    id: "j",
+    name: "Juan Pérez",
+    nick: "Juancito",
+    profileAt: "2026-09-30T16:00:00.000Z",
+  });
+  assert.equal(pickMemberIdentity(future, byStaff, true, now).nick, "Juancito");
 });
 
 test("el resultado no se carga antes del horario", () => {

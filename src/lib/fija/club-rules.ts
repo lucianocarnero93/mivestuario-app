@@ -317,33 +317,43 @@ export function resultIsOpen(startsAt: string, now = Date.now()): boolean {
   return Number.isFinite(start) && start <= now;
 }
 
+const FUTURE_SKEW_MS = 2 * 60 * 1000;
+
+function stampMillis(value: string | undefined, now: number): number | null {
+  const parsed = Date.parse(value ?? "");
+  if (!Number.isFinite(parsed) || parsed > now + FUTURE_SKEW_MS) return null;
+  return parsed;
+}
+
 /**
  * El apodo que puso el DT no lo pisa un celular viejo.
  * Sin marca de hora, un jugador no cambia el nombre que ya está en el equipo.
+ * Una fecha futura no deja el apodo trabado.
  */
 export function pickMemberIdentity(
   existing: Member,
   incoming: Member,
   staff: boolean,
+  now = Date.now(),
 ): Pick<Member, "name" | "nick" | "number" | "profileAt"> {
-  const existingAt = Date.parse(existing.profileAt ?? "");
-  const incomingAt = Date.parse(incoming.profileAt ?? "");
-  const existingHas = Number.isFinite(existingAt);
-  const incomingHas = Number.isFinite(incomingAt);
-  const takeIncoming = (incomingHas && (!existingHas || incomingAt >= existingAt)) || (!incomingHas && !existingHas && staff);
+  const existingAt = stampMillis(existing.profileAt, now);
+  const incomingAt = stampMillis(incoming.profileAt, now);
+  const takeIncoming =
+    (incomingAt != null && (existingAt == null || incomingAt >= existingAt)) ||
+    (incomingAt == null && existingAt == null && staff);
   if (!takeIncoming) {
     return {
       name: existing.name,
       nick: existing.nick,
       number: existing.number,
-      profileAt: existing.profileAt,
+      profileAt: existingAt == null ? undefined : existing.profileAt,
     };
   }
   return {
     name: incoming.name || existing.name,
     nick: incoming.nick || existing.nick,
     number: incoming.number === undefined ? existing.number : incoming.number,
-    profileAt: incoming.profileAt ?? existing.profileAt,
+    profileAt: incomingAt == null ? new Date(now).toISOString() : incoming.profileAt,
   };
 }
 

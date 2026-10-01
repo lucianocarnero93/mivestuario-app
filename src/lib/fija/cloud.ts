@@ -208,6 +208,9 @@ export const peekClubName = createServerFn({ method: "POST" })
   .validator((code: string) => sanitizeCode(code))
   .handler(async ({ data: code }): Promise<string | null> => {
     if (!code) return null;
+    const bundle = await readClub(code);
+    const name = bundle?.club.name?.trim() ?? "";
+    if (name) return name.slice(0, 80);
     const bucket = await peekBucket();
     if (bucket) {
       try {
@@ -216,17 +219,16 @@ export const peekClubName = createServerFn({ method: "POST" })
         return null;
       }
     }
-    const bundle = await readClub(code);
-    const name = bundle?.club.name?.trim() ?? "";
-    return name ? name.slice(0, 80) : null;
+    return null;
   });
 
 async function peekBucket(): Promise<string | null> {
   try {
     const { getRequest } = await import("@tanstack/react-start/server");
     const request = getRequest();
+    const real = request?.headers?.get("x-real-ip")?.trim() ?? "";
     const forwarded = request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
-    const ip = (forwarded || request?.headers?.get("x-real-ip") || "").slice(0, 80);
+    const ip = (real || forwarded).slice(0, 80);
     return ip ? `peek:${ip}` : "peek:comun";
   } catch {
     return "peek:comun";
