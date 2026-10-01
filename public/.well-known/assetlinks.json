@@ -3,8 +3,10 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "ar.com.mivestuario.twa",
-      "sha256_cert_fingerprints": ["REEMPLAZAR_CON_EL_SHA256_DEL_KEYSTORE"]
+      "package_name": "ar.com.mivestuario.app",
+      "sha256_cert_fingerprints": [
+        "74:D4:5A:A3:D9:F0:03:3D:DF:E4:BC:9E:6E:EC:4C:C3:A2:6E:8B:61:99:44:D8:3B:90:9F:06:12:D8:DC:6A:EF"
+      ]
     }
   }
 ]
