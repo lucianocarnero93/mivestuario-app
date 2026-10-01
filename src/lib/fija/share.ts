@@ -88,7 +88,7 @@ export async function shareOrCopy(payload: {
 }
 
 export function whatsAppClaimUrl(player: Member, event: ClubEvent, club: Club): string {
-  const text = `Che ${player.nick}, el DT te está esperando. Confirmá si vas a ${event.title} el ${formatWhen(event.startsAt)}. — ${club.name}`;
+  const text = `Che ${player.nick}, el DT de ${club.name} te está esperando en Mi Vestuario. Confirmá si vas a ${event.title} el ${formatWhen(event.startsAt)}.`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
