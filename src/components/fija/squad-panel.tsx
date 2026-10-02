@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { personLabel } from "@/lib/fija/format";
 import { useFija } from "@/lib/fija/store";
 import type { ClubEvent, Member } from "@/lib/fija/types";
@@ -23,10 +24,75 @@ export function SquadPanel({
   const banco = (event.suplentes ?? []).filter((id) => !titulares.has(id));
   const convocados = new Set(event.convocados ?? [...titulares, ...banco]);
   const sinAsignar = [...convocados].filter((id) => !titulares.has(id) && !banco.includes(id));
-  const afuera = plantel.filter((person) => !convocados.has(person.id));
+  const [abierto, setAbierto] = useState<"van" | "falta" | "no" | null>(null);
 
   function actuar(message: string | null) {
     onNotice(message);
+  }
+
+  function respuestaDe(personId: string) {
+    return rsvps.find((row) => row.eventId === event.id && row.memberId === personId)?.status;
+  }
+
+  const visibles = staff ? plantel : plantel.filter((person) => convocados.has(person.id));
+  const van = visibles.filter((person) => respuestaDe(person.id) === "voy");
+  const noVan = visibles.filter((person) => respuestaDe(person.id) === "no");
+  const sinContestar = visibles.filter((person) => respuestaDe(person.id) !== "voy" && respuestaDe(person.id) !== "no");
+
+  function fila(person: Member) {
+    const llamado = convocados.has(person.id);
+    const donde = titulares.has(person.id) ? "Titular" : banco.includes(person.id) ? "Suplente" : llamado ? "Sin puesto" : "No convocado";
+    return (
+      <li key={person.id} className="py-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-sm">
+            {personLabel(person, plantel)}
+            <span className="ml-2 text-xs text-muted">{donde}</span>
+          </span>
+          {staff ? (
+            <button
+              type="button"
+              className="h-10 shrink-0 rounded-md bg-bg px-3 text-xs font-semibold"
+              onClick={() => actuar(setConvocado(event.id, person.id, !llamado))}
+            >
+              {llamado ? "Sacar" : "Convocar"}
+            </button>
+          ) : null}
+        </div>
+        {staff ? (
+          <div className="mt-1 grid grid-cols-3 gap-1">
+            <button type="button" className="h-10 rounded-md bg-bg text-xs font-semibold" onClick={() => setMemberRsvp(event.id, person.id, "voy")}>
+              Va
+            </button>
+            <button type="button" className="h-10 rounded-md bg-bg text-xs font-semibold" onClick={() => setMemberRsvp(event.id, person.id, "no")}>
+              No va
+            </button>
+            <button type="button" className="h-10 rounded-md bg-bg text-xs font-semibold" onClick={() => setMemberRsvp(event.id, person.id, "pendiente")}>
+              Pendiente
+            </button>
+          </div>
+        ) : null}
+      </li>
+    );
+  }
+
+  function grupo(id: "van" | "falta" | "no", titulo: string, gente: Member[]) {
+    const abiertoEste = abierto === id;
+    return (
+      <section className="rounded-xl bg-surface shadow-card">
+        <button
+          type="button"
+          className="flex h-12 w-full items-center justify-between px-4 text-left"
+          aria-expanded={abiertoEste}
+          onClick={() => setAbierto(abiertoEste ? null : id)}
+        >
+          <span className="text-sm font-semibold">{titulo}</span>
+          <span className="text-sm text-muted">{abiertoEste ? "Cerrar" : gente.length}</span>
+        </button>
+        {abiertoEste && gente.length > 0 ? <ul className="space-y-1 px-4 pb-3">{gente.map(fila)}</ul> : null}
+        {abiertoEste && gente.length === 0 ? <p className="px-4 pb-3 text-sm text-muted">Nadie en este grupo.</p> : null}
+      </section>
+    );
   }
 
   return (
@@ -61,73 +127,20 @@ export function SquadPanel({
         </section>
       ) : null}
 
-      <section className="rounded-xl bg-surface p-4 shadow-card">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Convocados</p>
-          <span className="text-xs text-muted">{convocados.size}</span>
-        </div>
+      <section className="space-y-2">
         {staff ? (
           <button
             type="button"
-            className="mt-3 h-11 w-full rounded-md bg-accent text-sm font-semibold text-accent-fg"
+            className="h-11 w-full rounded-md bg-accent text-sm font-semibold text-accent-fg"
             onClick={() => actuar(convocarLosQueVan(event.id))}
           >
             Convocar a los que van
           </button>
         ) : null}
-        <ul className="mt-3 space-y-1">
-          {plantel.map((person) => {
-            const respuesta = rsvps.find((row) => row.eventId === event.id && row.memberId === person.id)?.status;
-            const va = respuesta === "voy";
-            const noVa = respuesta === "no";
-            const llamado = convocados.has(person.id);
-            const donde = titulares.has(person.id) ? "Titular" : banco.includes(person.id) ? "Suplente" : llamado ? "Sin puesto" : "";
-            const estado = va ? "Confirmó" : noVa ? "No va" : "No confirmó";
-            if (!staff && !llamado) return null;
-            return (
-              <li key={person.id} className="py-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-sm">
-                    {personLabel(person, plantel)}
-                    <span className="ml-2 text-xs text-muted">{donde ? `${donde} · ${estado}` : estado}</span>
-                  </span>
-                  {staff ? (
-                    <button
-                      type="button"
-                      className="h-10 shrink-0 rounded-md bg-bg px-3 text-xs font-semibold"
-                      onClick={() => actuar(setConvocado(event.id, person.id, !llamado))}
-                    >
-                      {llamado ? "Sacar" : "Convocar"}
-                    </button>
-                  ) : null}
-                </div>
-                {staff ? (
-                  <div className="mt-1 grid grid-cols-3 gap-1">
-                    <button type="button" className="h-10 rounded-md bg-bg text-xs font-semibold" onClick={() => setMemberRsvp(event.id, person.id, "voy")}>
-                      Va
-                    </button>
-                    <button type="button" className="h-10 rounded-md bg-bg text-xs font-semibold" onClick={() => setMemberRsvp(event.id, person.id, "no")}>
-                      No va
-                    </button>
-                    <button type="button" className="h-10 rounded-md bg-bg text-xs font-semibold" onClick={() => setMemberRsvp(event.id, person.id, "pendiente")}>
-                      Pendiente
-                    </button>
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+        {grupo("van", "Van", van)}
+        {grupo("falta", "Sin contestar", sinContestar)}
+        {grupo("no", "No van", noVan)}
       </section>
-
-      {event.convocados && afuera.length > 0 ? (
-        <section>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted">No convocados</p>
-          <p className="mt-1 text-sm text-muted">
-            {afuera.map((person) => person.nick).join(", ")}
-          </p>
-        </section>
-      ) : null}
     </div>
   );
 }
