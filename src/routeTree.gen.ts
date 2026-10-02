@@ -15,6 +15,7 @@ import { Route as CanchaRouteImport } from './routes/cancha'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as ContactoRouteImport } from './routes/contacto'
 import { Route as EquipoRouteImport } from './routes/equipo'
+import { Route as EliminarCuentaRouteImport } from './routes/eliminar-cuenta'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OlvideRouteImport } from './routes/olvide'
 import { Route as PrivacidadRouteImport } from './routes/privacidad'
@@ -52,6 +53,11 @@ const ContactoRoute = ContactoRouteImport.update({
 const EquipoRoute = EquipoRouteImport.update({
   id: '/equipo',
   path: '/equipo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EliminarCuentaRoute = EliminarCuentaRouteImport.update({
+  id: '/eliminar-cuenta',
+  path: '/eliminar-cuenta',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/chat': typeof ChatRoute
   '/contacto': typeof ContactoRoute
   '/equipo': typeof EquipoRoute
+  '/eliminar-cuenta': typeof EliminarCuentaRoute
   '/login': typeof LoginRoute
   '/olvide': typeof OlvideRoute
   '/privacidad': typeof PrivacidadRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/chat': typeof ChatRoute
   '/contacto': typeof ContactoRoute
   '/equipo': typeof EquipoRoute
+  '/eliminar-cuenta': typeof EliminarCuentaRoute
   '/login': typeof LoginRoute
   '/olvide': typeof OlvideRoute
   '/privacidad': typeof PrivacidadRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/chat': typeof ChatRoute
   '/contacto': typeof ContactoRoute
   '/equipo': typeof EquipoRoute
+  '/eliminar-cuenta': typeof EliminarCuentaRoute
   '/login': typeof LoginRoute
   '/olvide': typeof OlvideRoute
   '/privacidad': typeof PrivacidadRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/contacto'
     | '/equipo'
+    | '/eliminar-cuenta'
     | '/login'
     | '/olvide'
     | '/privacidad'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/contacto'
     | '/equipo'
+    | '/eliminar-cuenta'
     | '/login'
     | '/olvide'
     | '/privacidad'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/chat'
     | '/contacto'
     | '/equipo'
+    | '/eliminar-cuenta'
     | '/login'
     | '/olvide'
     | '/privacidad'
@@ -202,6 +214,7 @@ export interface RootRouteChildren {
   ChatRoute: typeof ChatRoute
   ContactoRoute: typeof ContactoRoute
   EquipoRoute: typeof EquipoRoute
+  EliminarCuentaRoute: typeof EliminarCuentaRoute
   LoginRoute: typeof LoginRoute
   OlvideRoute: typeof OlvideRoute
   PrivacidadRoute: typeof PrivacidadRoute
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/equipo'
       fullPath: '/equipo'
       preLoaderRoute: typeof EquipoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/eliminar-cuenta': {
+      id: '/eliminar-cuenta'
+      path: '/eliminar-cuenta'
+      fullPath: '/eliminar-cuenta'
+      preLoaderRoute: typeof EliminarCuentaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -322,6 +342,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRoute,
   ContactoRoute: ContactoRoute,
   EquipoRoute: EquipoRoute,
+  EliminarCuentaRoute: EliminarCuentaRoute,
   LoginRoute: LoginRoute,
   OlvideRoute: OlvideRoute,
   PrivacidadRoute: PrivacidadRoute,

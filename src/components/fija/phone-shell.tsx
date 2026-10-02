@@ -32,6 +32,7 @@ const BARE_PATHS = [
   "/reset",
   "/login",
   "/privacidad",
+  "/eliminar-cuenta",
   "/contacto",
   "/terminos",
 ] as const;
