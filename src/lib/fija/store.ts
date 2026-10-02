@@ -56,6 +56,7 @@ type State = ReturnType<typeof createSeed> & {
   clubNotice: string | null;
   bannedAccounts: { accountId: string; name: string; at: string }[];
   dirty: boolean;
+  seenCodes: string[];
   lastFlushErrorAt: number | null;
   cloudWeight: number | null;
   savedMine: Record<string, RsvpStatus>;
@@ -121,7 +122,7 @@ type State = ReturnType<typeof createSeed> & {
   joinClub: (code: string) => Promise<boolean>;
   createClub: (name: string, crest?: string | null) => Promise<void>;
   setActiveClub: (clubId: string) => Promise<void>;
-  removeClub: (clubId: string) => void;
+  removeClub: (clubId: string) => Promise<{ ok: boolean; error?: string }>;
   setProfile: (profile: { name: string; nick: string }) => void;
   setMyPhoto: (photo: string | null) => void;
   applyMyEdad: (menor: boolean) => void;
@@ -155,7 +156,7 @@ const blank = {
   - joinClub          entrar con el código. Si ya estás en otro, lo guarda y cambia.
   - leaveClub         salir solo del equipo activo. Los otros quedan.
   - setActiveClub     cambiar de equipo sin salir.
-  - removeClub        sacar un equipo de este celular. No lo borra de la nube.
+  - removeClub        salir de un equipo guardado. Sale también en los otros aparatos.
   - invitePlayer      sumar un jugador al plantel.
   - assignRole        pasar a alguien a DT, ayudante o jugador.
   - createEvent       anotar un partido, entrenamiento o reunión.
@@ -208,6 +209,7 @@ export const useFija = create<State>()(
       clubNotice: null as string | null,
       bannedAccounts: [] as { accountId: string; name: string; at: string }[],
       dirty: false,
+      seenCodes: [] as string[],
       lastFlushErrorAt: null as number | null,
       cloudWeight: null as number | null,
       savedMine: {} as Record<string, RsvpStatus>,
@@ -1563,16 +1565,22 @@ export const useFija = create<State>()(
         void get().syncFromCloud().then(() => get().applySharedPhoto());
       },
 
-      removeClub: (clubId) => {
+      removeClub: async (clubId) => {
         const state = get();
-        if (!clubId) return;
-        if (state.club?.id === clubId) {
-          void get().leaveClub();
-          return;
-        }
+        if (!clubId) return { ok: true };
+        if (state.club?.id === clubId) return get().leaveClub();
+        const shelved = state.otherClubs.find((item) => item.bundle.club.id === clubId);
+        if (!shelved) return { ok: true };
+        const code = shelved.bundle.club.inviteCode;
+        const result = await leaveClubDoc({ data: { code } });
+        if (!result.ok) return { ok: false, error: result.error || "No pudimos sacarte de ese equipo. Probá de nuevo." };
+        forgetStoredMember(code);
+        const clean = code.trim().toUpperCase();
         set({
-          otherClubs: state.otherClubs.filter((item) => item.bundle.club.id !== clubId),
+          otherClubs: get().otherClubs.filter((item) => item.bundle.club.id !== clubId),
+          seenCodes: [...new Set([...(get().seenCodes ?? []), clean])].slice(-40),
         });
+        return { ok: true };
       },
 
       // Si la cuenta ya está en alguien, no se crea otra persona ni se mueve sola.
@@ -1666,6 +1674,35 @@ export const useFija = create<State>()(
           listed = await listMyClubs();
         } catch {
           return;
+        }
+        const listedCodes = new Set(listed.map((item) => item.code.toUpperCase()));
+        const before = get();
+        const suspects: { id: string; code: string; name: string; active: boolean }[] = [];
+        if (before.club && !listedCodes.has(before.club.inviteCode.toUpperCase())) {
+          suspects.push({
+            id: before.club.id,
+            code: before.club.inviteCode,
+            name: before.club.name,
+            active: true,
+          });
+        }
+        for (const item of before.otherClubs) {
+          const code = item.bundle.club.inviteCode;
+          if (!listedCodes.has(code.toUpperCase())) {
+            suspects.push({ id: item.bundle.club.id, code, name: item.bundle.club.name, active: false });
+          }
+        }
+        for (const team of suspects) {
+          try {
+            const remote = await loadClubDoc({ data: team.code });
+            if (remote.ok || remote.reason === "limited") continue;
+            const seen = (get().seenCodes ?? []).includes(team.code.trim().toUpperCase());
+            if (remote.reason === "forbidden" || (remote.reason === "missing" && (!team.active || seen))) {
+              get().forgetClub(team.id, `Ya no estás en «${team.name}».`);
+            }
+          } catch {
+            // Sin red, el equipo queda en este aparato.
+          }
         }
         if (!listed.length) return;
         const account = await currentAccount();
@@ -1778,6 +1815,10 @@ export const useFija = create<State>()(
           if (remoteTeam.ok) {
             const current = get();
             if (!current.club || current.club.id !== clubId) return;
+            const seen = code.trim().toUpperCase();
+            if (seen && !(current.seenCodes ?? []).includes(seen)) {
+              set({ seenCodes: [...(current.seenCodes ?? []), seen].slice(-40) });
+            }
             const local = toBundle({ ...current, club: current.club });
             const merged = mergeClubBundles(local, remoteTeam.bundle, {
               activeId: current.activeId,
@@ -1833,6 +1874,10 @@ export const useFija = create<State>()(
             }
           } else if (remoteTeam.reason === "missing") {
             if (!stillHere()) return;
+            if ((get().seenCodes ?? []).includes(code.trim().toUpperCase())) {
+              get().forgetClub(clubId, `«${club.name}» ya no está.`);
+              return;
+            }
             const published = await get().publishClub();
             if (!published && !quiet && stillHere()) set({ cloudStatus: "off" });
           } else if (!quiet && stillHere()) {
@@ -1900,6 +1945,10 @@ export const useFija = create<State>()(
             });
             if (result.ok && result.bundle) {
               if (epoch !== cloudEpoch || get().club?.id !== clubId) return false;
+              const seen = merged.club.inviteCode.trim().toUpperCase();
+              if (seen && !(get().seenCodes ?? []).includes(seen)) {
+                set({ seenCodes: [...(get().seenCodes ?? []), seen].slice(-40) });
+              }
               flushFailStreak = 0;
               const notice = freshNotice(current.activeId, remote, merged);
               const pushNotice = () => {
@@ -2030,6 +2079,7 @@ export const useFija = create<State>()(
         dirty: s.dirty,
         savedMine: s.savedMine,
         ownerAccountId: s.ownerAccountId,
+        seenCodes: s.seenCodes ?? [],
       }),
             onRehydrateStorage: () => (state) => {
         if (!state) return;
@@ -2043,6 +2093,7 @@ export const useFija = create<State>()(
           state.archivedClubs = createSeed().archivedClubs;
         }
         if (!Array.isArray(state.otherClubs)) state.otherClubs = [];
+        if (!Array.isArray(state.seenCodes)) state.seenCodes = [];
         if (!state.activeClubId) state.activeClubId = state.club?.id ?? null;
         if (!Array.isArray(state.droppedIds)) state.droppedIds = [];
         if (!Array.isArray(state.droppedEventIds)) state.droppedEventIds = [];

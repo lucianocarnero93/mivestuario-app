@@ -661,6 +661,8 @@ function MisEquipos() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [leavingId, setLeavingId] = useState<string | null>(null);
+  const [leaveError, setLeaveError] = useState("");
 
   const saved = otherClubs.map((item) => item.bundle.club);
 
@@ -695,8 +697,20 @@ function MisEquipos() {
               >
                 {switchingId === item.id ? "Cambiando…" : "Cambiar a este equipo"}
               </Button>
-              <Button variant="ghost" className="h-11 w-full text-muted" onClick={() => removeClub(item.id)}>
-                Quitar de este celular
+              <Button
+                variant="ghost"
+                className="h-11 w-full text-muted"
+                disabled={leavingId !== null}
+                onClick={() => {
+                  setLeavingId(item.id);
+                  setLeaveError("");
+                  void removeClub(item.id).then((result) => {
+                    setLeavingId(null);
+                    if (!result.ok) setLeaveError(result.error || "No pudimos sacarte de ese equipo.");
+                  });
+                }}
+              >
+                {leavingId === item.id ? "Saliendo…" : "Salir de este equipo"}
               </Button>
             </div>
           </li>
@@ -711,8 +725,9 @@ function MisEquipos() {
           Crear un equipo nuevo
         </Button>
       </div>
+      {leaveError ? <p className="mt-2 text-sm text-danger">{leaveError}</p> : null}
       <p className="mt-2 text-xs text-muted">
-        Quitar un equipo de acá no lo borra para el resto. Sigue en la nube.
+        Salís de ese equipo en este aparato y en los demás. Si hay más gente, el equipo sigue para ellos.
       </p>
 
       <Dialog
