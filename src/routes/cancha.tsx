@@ -154,17 +154,15 @@ function CanchaPage() {
             El DT todavía no publicó la formación.
           </p>
         )}
+        {staff ? (
+          <p className="mt-2 text-center text-xs text-muted">Tocá un puesto para poner o sacar a alguien.</p>
+        ) : null}
       </div>
-      {staff || event.lineupPublishedAt ? <SquadPanel event={event} staff={staff} onNotice={setNote} /> : null}
-      </div>
-      {staff ? (
-        <p className="mt-2 text-center text-xs text-muted">Tocá un puesto para poner o sacar a alguien.</p>
-      ) : null}
-
-      {note ? <p className="mt-3 text-center text-sm font-semibold text-accent">{note}</p> : null}
+      <div className="desk:sticky desk:top-4">
+      {note ? <p className="mt-3 text-center text-sm font-semibold text-accent desk:mt-0">{note}</p> : null}
       {staff ? (
         <Button
-          className="mt-3 h-14 w-full text-base desk:mx-auto desk:block desk:max-w-sm"
+          className="mt-3 h-14 w-full text-base desk:mt-0"
           disabled={filled === 0}
           onClick={() => {
             publishLineup(event.id);
@@ -177,6 +175,9 @@ function CanchaPage() {
       {event.lineupPublishedAt && !staff ? (
         <p className="mt-2 text-center text-xs text-muted">Formación publicada.</p>
       ) : null}
+      {staff || event.lineupPublishedAt ? <SquadPanel event={event} staff={staff} onNotice={setNote} /> : null}
+      </div>
+      </div>
 
       {staff ? (
         <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
