@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { EnCancha, FiguraPartido } from "@/components/fija/partido";
+import { EnCancha, FiguraPartido, ParaLaFamilia } from "@/components/fija/partido";
 import { Button } from "@/components/ui/button";
 import { enJuego, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
 import { leerFamilia } from "@/lib/fija/familia";
@@ -96,6 +96,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
       )}
       {goleadores ? <p className="mt-2 text-sm">Goles: {goleadores}</p> : null}
       {staff && !cerrado ? <EnCancha event={event} /> : null}
+      {staff ? <ParaLaFamilia event={event} /> : null}
       <div className="mt-3 grid gap-2">
         {staff && !cerrado ? (
           <Button
