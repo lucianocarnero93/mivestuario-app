@@ -112,6 +112,8 @@ type State = ReturnType<typeof createSeed> & {
     saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">, options?: { confirmClosed?: boolean }) => void;
   anotarEnCancha: (eventId: string, kind: "gol" | "gol-rival" | "tarjeta", memberId?: string) => void;
   voteFigura: (eventId: string, pickId: string) => void;
+  abrirEnVivo: (eventId: string) => string | null;
+  cerrarEnVivo: (eventId: string) => void;
   asignarEquipamiento: (eventId: string, item: ItemEquipamiento, memberId: string | null) => void;
   ultimoEquipamiento: (beforeEventId: string, item: ItemEquipamiento) => string | null;
   createTournament: (name: string) => string | null;
@@ -1031,6 +1033,34 @@ export const useFija = create<State>()(
           ),
         });
       },
+
+      abrirEnVivo: (eventId) => {
+        if (!isStaffId(get())) return null;
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event || event.kind !== "partido") return null;
+        const current = event.liveToken ?? "";
+        const token = /^[a-f0-9]{32}$/.test(current) ? current : crypto.randomUUID().replace(/-/g, "");
+        const now = new Date().toISOString();
+        if (event.liveToken !== token) {
+          set({
+            events: get().events.map((item) =>
+              item.id === eventId ? { ...item, liveToken: token, liveUpdatedAt: now } : item,
+            ),
+          });
+        }
+        return token;
+      },
+
+      cerrarEnVivo: (eventId) => {
+        if (!isStaffId(get())) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((item) =>
+            item.id === eventId ? { ...item, liveToken: null, liveUpdatedAt: now } : item,
+          ),
+        });
+      },
+
       // El DT o el ayudante asignan quién lleva un item del equipamiento.
       // También puede ser un jugador del plantel (DT/ayudante que juegan).
       asignarEquipamiento: (eventId, item, memberId) => {

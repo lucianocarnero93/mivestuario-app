@@ -4,7 +4,7 @@ import { Chalkboard } from "@/components/fija/chalkboard";
 import { EventCard } from "@/components/fija/event-card";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { InviteShareButton } from "@/components/fija/invite-share";
-import { CopiarResultado, EnCancha, FiguraPartido } from "@/components/fija/partido";
+import { CopiarResultado, EnCancha, FiguraPartido, ParaLaFamilia } from "@/components/fija/partido";
 import { ConfirmGroups, StaffCallup } from "@/components/fija/staff-callup";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABEL } from "@/lib/fija/format";
@@ -129,6 +129,7 @@ function HomePage() {
         result={sheet ? { gf: sheet.goalsFor, ga: sheet.goalsAgainst } : undefined}
         showGear
       />
+      {staff && event.kind === "partido" ? <ParaLaFamilia event={event} /> : null}
       {staff && event.kind === "partido" && resultIsOpen(event.startsAt) && !event.resultClosedAt ? (
         <EnCancha event={event} />
       ) : null}

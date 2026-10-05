@@ -101,6 +101,19 @@ export function whatsAppSinConfirmar(club: Club, event: ClubEvent, names: string
   return `Falta confirmar ${event.title} (${formatWhen(event.startsAt)}). ${quienes}: contesten en Mi Vestuario si van. — ${club.name}`;
 }
 
+export function vivoUrl(token: string): string {
+  if (typeof window === "undefined") return `/vivo?t=${token}`;
+  const url = new URL(window.location.href);
+  url.pathname = "/vivo";
+  url.search = `?t=${encodeURIComponent(token)}`;
+  url.hash = "";
+  return url.toString();
+}
+
+export function whatsAppEnVivo(event: ClubEvent, url: string): string {
+  return `Seguí ${event.title} en vivo, en Mi Vestuario: ${url}`;
+}
+
 export function whatsAppResultado(
   club: Club,
   event: ClubEvent,

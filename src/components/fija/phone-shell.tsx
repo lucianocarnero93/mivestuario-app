@@ -35,6 +35,7 @@ const BARE_PATHS = [
   "/eliminar-cuenta",
   "/contacto",
   "/terminos",
+  "/vivo",
 ] as const;
 
 export function PhoneShell() {

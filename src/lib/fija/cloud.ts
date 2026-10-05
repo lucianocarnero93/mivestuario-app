@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { mergeFiguraVotes } from "./figura";
+import { estadoMarcador, sanitizeLiveToken } from "./vivo";
 import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
@@ -236,6 +237,113 @@ async function peekBucket(): Promise<string | null> {
   }
 }
 
+const VIVO = "vivo";
+
+export type MarcadorPublico =
+  | {
+      ok: true;
+      club: string;
+      title: string;
+      place: string;
+      startsAt: string;
+      goalsFor: number;
+      goalsAgainst: number;
+      estado: "espera" | "juego" | "final";
+    }
+  | { ok: false; reason: "missing" | "limited" };
+
+export const publicarMarcador = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code?: string; token?: string }) => ({
+    code: sanitizeCode(String(input?.code ?? "")),
+    token: sanitizeLiveToken(input?.token),
+  }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean; reason?: "esperando" }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !data.code || !data.token) return { ok: false };
+    const bundle = await readClub(data.code);
+    const me = memberFor(bundle?.members ?? [], userId);
+    if (!bundle || !isStaffMember(me)) return { ok: false };
+    const event = bundle.events.find((item) => item.kind === "partido" && item.liveToken === data.token);
+    if (!event) return { ok: false, reason: "esperando" };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    await sql.query(
+      `insert into vestuario_docs (collection, id, data, updated_at)
+       values ($1, $2, $3::jsonb, now())
+       on conflict (collection, id)
+       do update set data = excluded.data, updated_at = now()`,
+      [VIVO, data.token, JSON.stringify({ code: data.code, eventId: event.id })],
+    );
+    return { ok: true };
+  });
+
+export const cerrarMarcador = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code?: string; token?: string }) => ({
+    code: sanitizeCode(String(input?.code ?? "")),
+    token: sanitizeLiveToken(input?.token),
+  }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !data.code || !data.token) return { ok: false };
+    const bundle = await readClub(data.code);
+    const me = memberFor(bundle?.members ?? [], userId);
+    if (!bundle || !isStaffMember(me)) return { ok: false };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [VIVO, data.token]);
+    return { ok: true };
+  });
+
+export const leerMarcador = createServerFn({ method: "POST" })
+  .validator((token: string) => sanitizeLiveToken(token))
+  .handler(async ({ data: token }): Promise<MarcadorPublico> => {
+    if (!token) return { ok: false, reason: "missing" };
+    const bucket = await peekBucket();
+    if (bucket && bucket !== "peek:comun") {
+      try {
+        await noteLookup(`vivo:${bucket.slice(5)}`, 600);
+      } catch {
+        return { ok: false, reason: "limited" };
+      }
+    }
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql.query<{ data: { code?: string; eventId?: string } | string }>(
+      "select data from vestuario_docs where collection = $1 and id = $2",
+      [VIVO, token],
+    );
+    const raw = rows[0]?.data;
+    let pointer: { code?: string; eventId?: string } | null = null;
+    if (typeof raw === "string") {
+      try {
+        pointer = JSON.parse(raw) as { code?: string; eventId?: string };
+      } catch {
+        pointer = null;
+      }
+    } else if (raw && typeof raw === "object") {
+      pointer = raw;
+    }
+    const code = sanitizeCode(String(pointer?.code ?? ""));
+    const eventId = String(pointer?.eventId ?? "");
+    if (!code || !eventId) return { ok: false, reason: "missing" };
+    const bundle = await readClub(code);
+    const event = bundle?.events.find((item) => item.id === eventId && item.liveToken === token);
+    if (!bundle || !event) return { ok: false, reason: "missing" };
+    const sheet = bundle.matchSheets.find((item) => item.eventId === event.id);
+    return {
+      ok: true,
+      club: bundle.club.name.slice(0, 80),
+      title: event.title.slice(0, 80),
+      place: (event.place || "").slice(0, 80),
+      startsAt: event.startsAt,
+      goalsFor: sheet?.goalsFor ?? 0,
+      goalsAgainst: sheet?.goalsAgainst ?? 0,
+      estado: estadoMarcador(event),
+    };
+  });
+
 export const listMyClubs = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }): Promise<{ code: string; name: string }[]> => {
@@ -441,7 +549,15 @@ export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
         : boardChanged || incomingSpots >= previousSpots
           ? { ...previous, ...incoming }
           : { ...incoming, ...previous, lineup: previous.lineup };
-  return tidySquad(keepResultMark(previous, incoming, merged));
+  const tidy = tidySquad(keepResultMark(previous, incoming, merged));
+  const prevLive = boardStamp(previous.liveUpdatedAt);
+  const nextLive = boardStamp(incoming.liveUpdatedAt);
+  const liveSource = nextLive >= prevLive ? incoming : previous;
+  return {
+    ...tidy,
+    liveToken: liveSource.liveToken ?? null,
+    liveUpdatedAt: liveSource.liveUpdatedAt,
+  };
 }
 
 function tidySquad(event: ClubEvent): ClubEvent {
