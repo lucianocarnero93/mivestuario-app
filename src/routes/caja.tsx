@@ -112,7 +112,6 @@ function CajaPage() {
             gasto={gasto}
             meId={me.id}
             tesorero={Boolean(tesorero)}
-            conectado={conectado}
             code={club?.inviteCode ?? ""}
             nombre={nombre}
             alias={caja?.alias ?? ""}
@@ -315,7 +314,6 @@ function GastoCard({
   gasto,
   meId,
   tesorero,
-  conectado,
   code,
   nombre,
   alias,
@@ -326,7 +324,6 @@ function GastoCard({
   gasto: Gasto;
   meId: string;
   tesorero: boolean;
-  conectado: boolean;
   code: string;
   nombre: (id: string) => string;
   alias: string;
@@ -349,18 +346,27 @@ function GastoCard({
   }
 
   async function pagar(memberId: string) {
-    const result = await crearLinkPago({ data: { code, gastoId: gasto.id, memberId } });
-    if (!result.url) {
-      setAviso("No se pudo armar el cupón.");
-      return;
+    const ventana = window.open("about:blank", "_blank");
+    setAviso("Abriendo Mercado Pago…");
+    try {
+      await useFija.getState().flushCloud();
+      const result = await crearLinkPago({ data: { code, gastoId: gasto.id, memberId } });
+      if (!result.url) {
+        ventana?.close();
+        setAviso(
+          result.reason === "sin-deuda"
+            ? "Ese cupón no tiene nada para cobrar."
+            : "No se abrió Mercado Pago. El tesorero tiene que conectar la cuenta de nuevo.",
+        );
+        return;
+      }
+      if (ventana) ventana.location.replace(result.url);
+      else window.location.assign(result.url);
+      setAviso("");
+    } catch {
+      ventana?.close();
+      setAviso("No se pudo abrir Mercado Pago.");
     }
-    if (memberId === meId) {
-      window.location.href = result.url;
-      return;
-    }
-    const cupon = cupones.find((item) => item.id === memberId);
-    const texto = `Te toca pagar $${cupon?.monto ?? ""} de ${gasto.titulo}. ${result.url}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank", "noopener,noreferrer");
   }
 
   function avisar() {
@@ -392,19 +398,16 @@ function GastoCard({
         })}
       </ul>
       {mia && deuda > 0 ? (
-        <div className="mt-3 grid gap-2">
-          <p className="text-sm font-semibold">Te tocan ${deuda}</p>
-          {conectado ? <Button className="h-12" onClick={() => void pagar(meId)}>Pagar ${deuda}</Button> : <p className="text-sm text-muted">El tesorero todavía no conectó Mercado Pago.</p>}
-        </div>
+        <Button className="mt-3 h-12 w-full" onClick={() => void pagar(meId)}>Pagar ${deuda}</Button>
       ) : null}
       {tesorero && !gasto.cerrado ? (
         <div className="mt-3 grid gap-2">
           <Button variant="outline" className="h-12" onClick={avisar}>Avisar por WhatsApp</Button>
-          {conectado ? pagables.filter((cupon) => deudaDe(caja, gasto.id, cupon.id) > 0).map((cupon) => (
+          {pagables.filter((cupon) => deudaDe(caja, gasto.id, cupon.id) > 0).map((cupon) => (
             <Button key={cupon.id} variant="secondary" className="h-12" onClick={() => void pagar(cupon.id)}>
-              Link para {etiqueta(cupon)}
+              Cobrar ${cupon.monto} a {etiqueta(cupon)}
             </Button>
-          )) : null}
+          ))}
         </div>
       ) : null}
       {aviso ? <p className="mt-2 text-sm text-muted">{aviso}</p> : null}
