@@ -12,6 +12,7 @@ import {
   claimExistingName,
   canAssignRoles,
   repairCreatedBy,
+  allowedDrops,
   capRoster,
   clipInbox,
   clipTextList,
@@ -814,7 +815,8 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   const me = memberFor(existing.members, userId);
   const staff = isStaffMember(me);
   const creatorId = repairCreatedBy(existing.members, existing.club.createdBy);
-  const requestedDrops = (staff ? (incoming.droppedIds ?? []) : []).filter((id) => id !== creatorId);
+  const isOwner = canAssignRoles(existing.members, creatorId, userId);
+  const requestedDrops = staff ? allowedDrops(existing.members, creatorId, incoming.droppedIds ?? [], isOwner) : [];
   const dropped = new Set(
     staff
       ? [...(existing.droppedIds ?? []).filter((id) => id !== creatorId), ...requestedDrops]

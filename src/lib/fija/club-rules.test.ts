@@ -4,6 +4,7 @@ import {
   alertsDue,
   canAssignRoles,
   repairCreatedBy,
+  allowedDrops,
   claimExistingName,
   decideClaim,
   equipmentHeading,
@@ -172,6 +173,17 @@ test("solo el creador designa; si ya no está, el mando pasa a un DT con cuenta"
     ),
     "ayu",
   );
+});
+
+test("el ayudante no saca ni banea a un DT", () => {
+  const members = [
+    person({ id: "crea", name: "Lucho", role: "dt", accountId: "acc-l" }),
+    person({ id: "ayu", name: "Ayuda", role: "ayudante", accountId: "acc-a" }),
+    person({ id: "otro", name: "Otro", role: "dt", accountId: "acc-o" }),
+    person({ id: "pibe", name: "Pibe", accountId: "acc-p" }),
+  ];
+  assert.deepEqual(allowedDrops(members, "crea", ["otro", "ayu", "pibe", "crea"], false), ["pibe"]);
+  assert.deepEqual(allowedDrops(members, "crea", ["otro", "ayu", "pibe", "crea"], true), ["otro", "ayu", "pibe"]);
 });
 
 test("sacar a alguien banea su cuenta y un jugador no banea", () => {

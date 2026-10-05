@@ -375,6 +375,17 @@ export function repairCreatedBy(members: Member[], createdBy: string): string {
   return cuenta?.id ?? createdBy;
 }
 
+/** El ayudante no saca ni banea al creador, a un DT ni a otro ayudante. */
+export function allowedDrops(members: Member[], createdBy: string, droppedIds: string[], isCreator: boolean): string[] {
+  const owner = repairCreatedBy(members, createdBy);
+  return droppedIds.filter((id) => {
+    if (id === owner) return false;
+    if (isCreator) return true;
+    const person = members.find((item) => item.id === id);
+    return !person || (person.role !== "dt" && person.role !== "ayudante");
+  });
+}
+
 export function dedupeBanned(list: BannedAccount[]): BannedAccount[] {
   const map = new Map<string, BannedAccount>();
   for (const item of list) {
