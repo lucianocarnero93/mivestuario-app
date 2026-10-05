@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Lienzo } from "@/components/fija/jugada-panel";
 import { leerMarcador, type MarcadorPublico } from "@/lib/fija/cloud";
 import { formatWhen } from "@/lib/fija/format";
 
@@ -69,11 +68,25 @@ function VivoPage() {
           </p>
           {marcador.titulares.length > 0 ? (
             <section className="mt-6">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted">La jugada</p>
-              <JugadaPublica marcador={marcador} />
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted">Formación</p>
+              <div className="relative mt-2 aspect-[5/7] overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep">
+                {marcador.titulares.map((puesto) => (
+                  <div
+                    key={`${puesto.puesto}-${puesto.x}-${puesto.y}`}
+                    className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                    style={{ left: `${puesto.x}%`, top: `${puesto.y}%` }}
+                  >
+                    <span className="grid size-9 place-items-center rounded-full border border-line bg-surface text-[10px] font-bold text-accent">
+                      {puesto.puesto}
+                    </span>
+                    <span className="mt-0.5 max-w-16 truncate text-[10px] font-semibold text-line">{puesto.nick}</span>
+                  </div>
+                ))}
+              </div>
               {marcador.banco.length > 0 ? (
                 <p className="mt-3 text-sm text-muted">Banco: {marcador.banco.join(", ")}</p>
               ) : null}
+              <JugadaPublica marcador={marcador} />
             </section>
           ) : (
             <p className="mt-6 text-sm text-muted">El DT todavía no publicó la formación.</p>
@@ -88,60 +101,30 @@ function VivoPage() {
 }
 
 function JugadaPublica({ marcador }: { marcador: Extract<MarcadorPublico, { ok: true }> }) {
-  const pasos = marcador.pasos.length ? marcador.pasos : [{ id: "p1", nota: "", trazos: [] }];
+  const notas = marcador.notas.filter((nota) => nota.texto);
   const [indice, setIndice] = useState(0);
-  const [sigue, setSigue] = useState(pasos.length > 1);
-  const paso = pasos[Math.min(indice, pasos.length - 1)] ?? pasos[0];
-
-  useEffect(() => {
-    if (!sigue || pasos.length < 2) return;
-    const id = window.setInterval(() => setIndice((actual) => (actual + 1) % pasos.length), 1600);
-    return () => window.clearInterval(id);
-  }, [sigue, pasos.length]);
+  const nota = notas[Math.min(indice, Math.max(notas.length - 1, 0))];
+  if (!nota && !marcador.tactica) return null;
 
   return (
-    <>
-      <div className="relative mt-2 aspect-[5/7] overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep">
-        {marcador.titulares.map((puesto) => (
-          <div
-            key={`${puesto.puesto}-${puesto.x}-${puesto.y}`}
-            className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
-            style={{ left: `${puesto.x}%`, top: `${puesto.y}%` }}
-          >
-            <span className="grid size-9 place-items-center rounded-full border border-line bg-surface text-[10px] font-bold text-accent">
-              {puesto.puesto}
-            </span>
-            <span className="mt-0.5 max-w-16 truncate text-[10px] font-semibold text-line">{puesto.nick}</span>
-          </div>
-        ))}
-        <Lienzo trazos={paso?.trazos ?? []} />
-      </div>
-      {paso?.nota ? <p className="mt-3 text-center text-lg font-medium leading-snug">{paso.nota}</p> : null}
-      {marcador.tactica ? <p className="mt-2 text-sm text-muted">{marcador.tactica}</p> : null}
-      {pasos.length > 1 ? (
-        <div className="mt-3 flex items-center justify-center gap-2">
-          {pasos.map((item, i) => (
+    <section className="chalkboard mt-3 rounded-xl p-4">
+      <p className="font-display text-xs font-semibold uppercase tracking-[0.22em] text-chalk/70">Jugadas</p>
+      {notas.length > 1 ? (
+        <div className="mt-3 flex gap-2 overflow-x-auto">
+          {notas.map((item, i) => (
             <button
               key={item.id}
               type="button"
-              className={`h-11 min-w-11 rounded-full px-3 text-xs font-semibold ${i === indice ? "bg-accent text-accent-fg" : "bg-surface text-muted"}`}
-              onClick={() => {
-                setSigue(false);
-                setIndice(i);
-              }}
+              className={`h-11 shrink-0 rounded-md px-3 text-xs font-semibold ${i === indice ? "bg-accent text-accent-fg" : "bg-black/30 text-chalk"}`}
+              onClick={() => setIndice(i)}
             >
               {i + 1}
             </button>
           ))}
-          <button
-            type="button"
-            className="h-11 rounded-md bg-accent px-3 text-xs font-semibold text-accent-fg"
-            onClick={() => setSigue((valor) => !valor)}
-          >
-            {sigue ? "Pausa" : "Ver jugada"}
-          </button>
         </div>
       ) : null}
-    </>
+      {nota ? <p className="mano mt-3 whitespace-pre-wrap">{nota.texto}</p> : null}
+      {marcador.tactica ? <p className="mt-3 text-sm text-chalk/80">{marcador.tactica}</p> : null}
+    </section>
   );
 }

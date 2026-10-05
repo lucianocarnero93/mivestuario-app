@@ -201,6 +201,13 @@
       0 12px 28px color-mix(in oklab, var(--color-fg) 14%, transparent);
   }
 
+  .mano {
+    font-family: "Caveat", cursive;
+    font-size: 1.85rem;
+    line-height: 1.25;
+    color: var(--color-chalk);
+  }
+
   .whiteboard {
     background:
       linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 28%),

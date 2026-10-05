@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { FORMATIONS } from "@/lib/fija/formations";
 import { initials } from "@/lib/fija/format";
 import type { Member, Modality } from "@/lib/fija/types";
@@ -11,7 +10,6 @@ export function Pitch({
   members,
   onSlot,
   editable,
-  capa,
 }: {
   modality: Modality;
   formacionId?: string;
@@ -19,7 +17,6 @@ export function Pitch({
   members: Member[];
   onSlot?: (key: string) => void;
   editable?: boolean;
-  capa?: ReactNode;
 }) {
   const formaciones = FORMATIONS[modality];
   const formacion = formaciones.find((f) => f.id === formacionId) ?? formaciones[0];
@@ -97,7 +94,6 @@ export function Pitch({
             </Comp>
           );
         })}
-        {capa}
       </div>
     </div>
   );

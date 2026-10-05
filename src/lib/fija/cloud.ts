@@ -6,7 +6,7 @@ import { withTransaction } from "@/lib/db";
 import { mergeFiguraVotes } from "./figura";
 import { FORMATIONS } from "./formations";
 import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, type PuestoPublico } from "./vivo";
-import { jugadaVisible, preferirJugada, type PasoJugada } from "./jugada";
+import { notasVisibles, preferirJugada } from "./jugada";
 import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
@@ -254,7 +254,7 @@ export type MarcadorPublico =
       titulares: PuestoPublico[];
       banco: string[];
       tactica: string;
-      pasos: PasoJugada[];
+      notas: { id: string; texto: string }[];
     }
   | { ok: false; reason: "missing" | "limited" };
 
@@ -364,7 +364,9 @@ export const leerMarcador = createServerFn({ method: "POST" })
       titulares: formacion.titulares,
       banco: formacion.banco,
       tactica: event.lineupPublishedAt ? (event.tactics ?? "").slice(0, 180) : "",
-      pasos: event.lineupPublishedAt ? jugadaVisible(event.jugada) : [],
+      notas: event.lineupPublishedAt
+        ? notasVisibles(event.jugada).map((nota) => ({ id: nota.id, texto: nota.texto }))
+        : [],
     };
   });
 
@@ -450,6 +452,83 @@ export const loadPortrait = createServerFn({ method: "POST" })
     const photo = parsed?.photo;
     if (!photo || !photo.startsWith("data:image/") || photo.length > 30_000) return { photo: null };
     return { photo };
+  });
+
+const AUDIOS = "audios";
+
+function audioValido(value: unknown): string | null {
+  const audio = String(value ?? "");
+  if (!audio.startsWith("data:audio/") || audio.length > 80_000) return null;
+  return audio;
+}
+
+function claveAudio(code: string, eventId: string, notaId: string): string {
+  return `${code}:${eventId}:${notaId}`.slice(0, 96);
+}
+
+export const saveAudioJugada = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code?: string; eventId?: string; notaId?: string; audio?: string | null }) => ({
+    code: sanitizeCode(String(input?.code ?? "")),
+    eventId: String(input?.eventId ?? "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40),
+    notaId: String(input?.notaId ?? "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 16),
+    audio: input?.audio == null || input.audio === "" ? null : audioValido(input.audio),
+    invalido: !(input?.audio == null || input.audio === "") && !audioValido(input?.audio),
+  }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !data.code || !data.eventId || !data.notaId || data.invalido) return { ok: false };
+    const bundle = await readClub(data.code);
+    const me = memberFor(bundle?.members ?? [], userId);
+    if (!bundle || !isStaffMember(me)) return { ok: false };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const id = claveAudio(data.code, data.eventId, data.notaId);
+    if (!data.audio) {
+      await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [AUDIOS, id]);
+      return { ok: true };
+    }
+    await sql.query(
+      `insert into vestuario_docs (collection, id, data, updated_at)
+       values ($1, $2, $3::jsonb, now())
+       on conflict (collection, id)
+       do update set data = excluded.data, updated_at = now()`,
+      [AUDIOS, id, JSON.stringify({ audio: data.audio })],
+    );
+    return { ok: true };
+  });
+
+export const loadAudioJugada = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code?: string; eventId?: string; notaId?: string }) => ({
+    code: sanitizeCode(String(input?.code ?? "")),
+    eventId: String(input?.eventId ?? "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40),
+    notaId: String(input?.notaId ?? "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 16),
+  }))
+  .handler(async ({ data, context }): Promise<{ audio: string | null }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !data.code || !data.eventId || !data.notaId) return { audio: null };
+    const bundle = await readClub(data.code);
+    const me = memberFor(bundle?.members ?? [], userId);
+    if (!bundle || !me) return { audio: null };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql.query<{ data: { audio?: string } | string }>(
+      "select data from vestuario_docs where collection = $1 and id = $2",
+      [AUDIOS, claveAudio(data.code, data.eventId, data.notaId)],
+    );
+    const raw = rows[0]?.data;
+    let parsed: { audio?: string } | null = null;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw) as { audio?: string };
+      } catch {
+        parsed = null;
+      }
+    } else if (raw && typeof raw === "object") {
+      parsed = raw;
+    }
+    return { audio: audioValido(parsed?.audio) };
   });
 
 function unionById<T extends { id: string }>(kept: T[], incoming: T[]): T[] {

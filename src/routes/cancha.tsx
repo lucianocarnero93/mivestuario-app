@@ -25,6 +25,7 @@ function CanchaPage() {
   const setBoardShape = useFija((s) => s.setBoardShape);
   const setTactics = useFija((s) => s.setTactics);
   const setJugada = useFija((s) => s.setJugada);
+  const code = useFija((s) => s.club?.inviteCode ?? "");
   const rsvps = useFija((s) => s.rsvps);
   const publishLineup = useFija((s) => s.publishLineup);
     const setJuega = useFija((s) => s.setJuega);
@@ -140,24 +141,24 @@ function CanchaPage() {
                   Jugar yo también
                 </label>
               ) : null}
-              <JugadaPanel staff={staff} jugada={event.jugada} onChange={(pasos) => setJugada(event.id, pasos)}>
-                {(lienzo, editaEquipo) => (
-                  <Pitch
-                    modality={event.modality}
-                    formacionId={event.formacion}
-                    lineup={event.lineup}
-                    members={members}
-                    editable={staff && editaEquipo}
-                    onSlot={staff && editaEquipo ? setSlot : undefined}
-                    capa={lienzo}
-                  />
-                )}
-              </JugadaPanel>
+              <Pitch
+                modality={event.modality}
+                formacionId={event.formacion}
+                lineup={event.lineup}
+                members={members}
+                editable={staff}
+                onSlot={staff ? setSlot : undefined}
+              />
               {staff ? (
-                <p className="mt-2 text-center text-xs text-line/80">
-                  En Equipo elegís jugadores. En Jugada dibujás el movimiento.
-                </p>
+                <p className="mt-2 text-center text-xs text-line/80">Tocá un puesto para poner o sacar a alguien.</p>
               ) : null}
+              <JugadaPanel
+                staff={staff}
+                code={code}
+                eventId={event.id}
+                jugada={event.jugada}
+                onChange={(notas) => setJugada(event.id, notas)}
+              />
             </div>
             <div className="mt-3 rounded-2xl border border-line/25 bg-black/30 p-4">
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Indicaciones</p>
