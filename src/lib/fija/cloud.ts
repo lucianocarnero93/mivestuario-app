@@ -5,7 +5,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { mergeFiguraVotes } from "./figura";
 import { FORMATIONS } from "./formations";
-import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, type PuestoPublico } from "./vivo";
+import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoPointerAllows, type PuestoPublico } from "./vivo";
 import { notasVisibles, preferirJugada } from "./jugada";
 import { sanitizeCode } from "./sanitize";
 import {
@@ -241,6 +241,24 @@ async function peekBucket(): Promise<string | null> {
 
 const VIVO = "vivo";
 
+async function vivoCodeOf(
+  sql: { query: (text: string, params?: unknown[]) => Promise<{ data: { code?: string } | string }[]> },
+  token: string,
+): Promise<string | null> {
+  const rows = await sql.query("select data from vestuario_docs where collection = $1 and id = $2", [VIVO, token]);
+  const raw = rows[0]?.data;
+  let pointer: { code?: string } | null = null;
+  if (typeof raw === "string") {
+    try {
+      pointer = JSON.parse(raw) as { code?: string };
+    } catch {
+      pointer = null;
+    }
+  } else if (raw && typeof raw === "object") pointer = raw;
+  const code = sanitizeCode(String(pointer?.code ?? ""));
+  return code || null;
+}
+
 export type MarcadorPublico =
   | {
       ok: true;
@@ -274,6 +292,8 @@ export const publicarMarcador = createServerFn({ method: "POST" })
     if (!event) return { ok: false, reason: "esperando" };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
+    const owner = await vivoCodeOf(sql, data.token);
+    if (!vivoPointerAllows(owner, data.code)) return { ok: false };
     await sql.query(
       `insert into vestuario_docs (collection, id, data, updated_at)
        values ($1, $2, $3::jsonb, now())
@@ -298,6 +318,8 @@ export const cerrarMarcador = createServerFn({ method: "POST" })
     if (!bundle || !isStaffMember(me)) return { ok: false };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
+    const owner = await vivoCodeOf(sql, data.token);
+    if (owner !== data.code) return { ok: false };
     await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [VIVO, data.token]);
     return { ok: true };
   });

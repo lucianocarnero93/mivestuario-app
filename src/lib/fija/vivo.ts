@@ -19,6 +19,11 @@ export function estadoMarcador(
   return "juego";
 }
 
+export function vivoPointerAllows(existingCode: string | null, requestedCode: string): boolean {
+  if (!existingCode) return true;
+  return existingCode === requestedCode;
+}
+
 export function sanitizeLiveToken(value: unknown): string {
   const token = String(value ?? "");
   return /^[a-f0-9]{32}$/.test(token) ? token : "";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken } from "./vivo.ts";
+import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoPointerAllows } from "./vivo.ts";
 
 const kick = "2026-10-04T15:00:00-03:00";
 
@@ -14,6 +14,12 @@ test("en el horario queda en juego hasta que el DT cierra la planilla", () => {
     estadoMarcador({ startsAt: kick, resultClosedAt: "2026-10-04T17:00:00-03:00" }, Date.parse("2026-10-04T18:00:00-03:00")),
     "final",
   );
+});
+
+test("otro equipo no puede pisar ni borrar el link en vivo", () => {
+  assert.equal(vivoPointerAllows(null, "SIETE"), true);
+  assert.equal(vivoPointerAllows("SIETE", "SIETE"), true);
+  assert.equal(vivoPointerAllows("SIETE", "OTRO"), false);
 });
 
 test("el link público solo acepta un token largo", () => {
