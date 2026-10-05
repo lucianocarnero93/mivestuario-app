@@ -105,6 +105,10 @@ export type ClubEvent = {
   modality: Modality;
   lineup: Record<string, string>;
   tactics: string;
+  /** Cómo juega el rival, en la historia del partido. */
+  rival?: string;
+  /** Una frase por jugador. La ve todo el equipo. */
+  notas?: Record<string, string>;
   lineupPublishedAt: string | null;
   tournamentId: string | null;
   /** Quién lleva qué, solo para partidos. */

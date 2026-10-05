@@ -89,6 +89,8 @@ type State = ReturnType<typeof createSeed> & {
   convocarLosQueVan: (eventId: string) => string | null;
   setBoardShape: (eventId: string, modality: Modality, formacionId: string) => string | null;
   setTactics: (eventId: string, tactics: string) => void;
+  setRival: (eventId: string, rival: string) => void;
+  setNota: (eventId: string, memberId: string, nota: string) => void;
   publishLineup: (eventId: string) => void;
   sendChat: (text: string) => void;
   postCharla: (text: string) => void;
@@ -573,6 +575,35 @@ export const useFija = create<State>()(
               ? { ...event, tactics, lineupUpdatedAt: new Date().toISOString() }
               : event,
           ),
+        });
+      },
+
+      setRival: (eventId, rival) => {
+        if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) =>
+            event.id === eventId
+              ? { ...event, rival: sanitizeText(rival, 180), lineupUpdatedAt: now }
+              : event,
+          ),
+        });
+      },
+
+      setNota: (eventId, memberId, nota) => {
+        if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
+        const clean = sanitizeText(nota, 80);
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) => {
+            if (event.id !== eventId) return event;
+            const notas = { ...(event.notas ?? {}) };
+            if (!clean) delete notas[memberId];
+            else notas[memberId] = clean;
+            return { ...event, notas, lineupUpdatedAt: now };
+          }),
         });
       },
 
