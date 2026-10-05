@@ -208,6 +208,30 @@
     color: #1c2b22;
     box-shadow: inset 0 0 0 8px #efeae0;
   }
+
+  .vestuario-board {
+    background:
+      radial-gradient(480px 220px at 50% 0%, rgba(184, 242, 90, 0.18), transparent 62%),
+      linear-gradient(180deg, #123222 0%, #07140c 100%);
+    box-shadow:
+      inset 0 0 0 1px rgba(184, 242, 90, 0.3),
+      0 18px 40px rgba(0, 0, 0, 0.28);
+  }
+
+  .vestuario-led {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: #b8f25a;
+    box-shadow: 0 0 10px #b8f25a;
+    animation: vestuario-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes vestuario-pulse {
+  50% {
+    opacity: 0.4;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

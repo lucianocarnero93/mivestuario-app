@@ -1,7 +1,6 @@
 // Pizarra: el DT y el ayudante arman la formación del partido.
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { Historias } from "@/components/fija/historias";
+import { useMemo, useState } from "react";
 import { Pitch } from "@/components/fija/pitch";
 import { SquadPanel } from "@/components/fija/squad-panel";
 import { Segmented } from "@/components/fija/segmented";
@@ -24,8 +23,6 @@ function CanchaPage() {
   const setSpot = useFija((s) => s.setSpot);
   const setBoardShape = useFija((s) => s.setBoardShape);
   const setTactics = useFija((s) => s.setTactics);
-  const setRival = useFija((s) => s.setRival);
-  const setNota = useFija((s) => s.setNota);
   const rsvps = useFija((s) => s.rsvps);
   const publishLineup = useFija((s) => s.publishLineup);
     const setJuega = useFija((s) => s.setJuega);
@@ -45,12 +42,7 @@ function CanchaPage() {
   const event = matchEvents.find((e) => e.id === eventId) ?? fallback;
   const [slot, setSlot] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [historia, setHistoria] = useState(0);
-  const historiaDe = event?.id ?? "";
-  useEffect(() => {
-    setHistoria(0);
-  }, [historiaDe]);
-   const players = members.filter((m) => m.juega ?? m.role === "jugador");
+  const players = members.filter((m) => m.juega ?? m.role === "jugador");
   const used = useMemo(() => new Set(Object.values(event?.lineup ?? {})), [event]);
   const filled = Object.keys(event?.lineup ?? {}).length;
   function cambiarFormacion(nuevaId: string) {
@@ -77,8 +69,6 @@ function CanchaPage() {
   }
 
   const forma = FORMATIONS[event.modality].find((item) => item.id === event.formacion) ?? FORMATIONS[event.modality][0];
-  const titulares = forma.slots.map((item) => event.lineup[item.key]).filter((id): id is string => Boolean(id));
-  const enCancha = [...titulares, ...(event.suplentes ?? []).filter((id) => !titulares.includes(id))];
 
   return (
     <main className="px-4 py-5">
@@ -103,13 +93,16 @@ function CanchaPage() {
       ) : null}
 
       {staff || event.lineupPublishedAt ? (
-        <Historias
-          pagina={historia}
-          titulos={["Formación", "El partido", "Para cada uno"]}
-          onPagina={setHistoria}
-        >
-          {historia === 0 ? (
-            <div>
+        <section className="vestuario-board mt-4 rounded-3xl p-3">
+          <div className="flex items-center justify-between px-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-line">Vestuario</p>
+            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-accent">
+              <span className="vestuario-led" aria-hidden />
+              {event.lineupPublishedAt ? "En la pared" : "Armando"}
+            </p>
+          </div>
+          <p className="mt-1 px-1 text-lg font-semibold text-line">{event.title}</p>
+          <div className="mt-3">
               {staff ? (
                 <Segmented
                   className="mt-1"
@@ -142,7 +135,7 @@ function CanchaPage() {
                 </div>
               ) : null}
               {staff && me ? (
-                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-muted">
+                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-line/80">
                   <input
                     type="checkbox"
                     className="size-5 accent-accent"
@@ -163,77 +156,27 @@ function CanchaPage() {
                 />
               </div>
               {staff ? (
-                <p className="mt-2 text-center text-xs text-muted">Tocá un puesto para poner o sacar a alguien.</p>
+                <p className="mt-2 text-center text-xs text-line/80">Tocá un puesto para poner o sacar a alguien.</p>
               ) : null}
             </div>
-          ) : null}
-          {historia === 1 ? (
-            <div className="whiteboard rounded-xl p-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#3d5c49]">Ellos</p>
+            <div className="mt-3 rounded-2xl border border-line/25 bg-black/30 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Indicaciones</p>
               {staff ? (
                 <Textarea
-                  className="mt-2 min-h-20 border-[#d7d1c4] bg-white text-[#1c2b22] placeholder:text-[#1c2b22]/40"
-                  rows={3}
-                  maxLength={180}
-                  value={event.rival ?? ""}
-                  onChange={(e) => setRival(event.id, e.target.value)}
-                  placeholder="Cómo juega el que viene."
-                />
-              ) : (
-                <p className="mt-1 whitespace-pre-wrap text-sm">{event.rival || "Sin notas del rival."}</p>
-              )}
-              <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-[#3d5c49]">Cómo jugamos</p>
-              {staff ? (
-                <Textarea
-                  className="mt-2 min-h-20 border-[#d7d1c4] bg-white text-[#1c2b22] placeholder:text-[#1c2b22]/40"
-                  rows={3}
+                  className="mt-2 min-h-28 border-line/30 bg-transparent text-base text-line placeholder:text-line/40"
+                  rows={4}
                   maxLength={180}
                   value={event.tactics}
                   onChange={(e) => setTactics(event.id, e.target.value)}
-                  placeholder="Tres líneas para todo el equipo."
+                  placeholder="Lo que se dice en el vestuario, antes de salir."
                 />
               ) : (
-                <p className="mt-1 whitespace-pre-wrap text-sm">
-                  {event.tactics || "El DT todavía no escribió la pauta."}
+                <p className="mt-2 whitespace-pre-wrap text-xl font-medium leading-snug text-line">
+                  {event.tactics || "El DT todavía no dejó la charla."}
                 </p>
               )}
             </div>
-          ) : null}
-          {historia === 2 ? (
-            <div>
-              <p className="text-sm text-muted">Lo lee todo el equipo.</p>
-              {enCancha.length === 0 ? (
-                <p className="mt-3 text-sm">Primero hay que armar la formación.</p>
-              ) : (
-                <ul className="mt-3 space-y-3">
-                  {enCancha.map((id) => {
-                    const person = members.find((item) => item.id === id);
-                    if (!person) return null;
-                    return (
-                      <li key={id}>
-                        <p className="text-sm font-semibold">
-                          {personLabel(person, members)}
-                          {id === me?.id ? " · vos" : ""}
-                        </p>
-                        {staff ? (
-                          <input
-                            className="mt-1 h-11 w-full rounded-md border border-border bg-bg px-3 text-sm"
-                            maxLength={80}
-                            value={event.notas?.[id] ?? ""}
-                            placeholder="Una frase para este jugador"
-                            onChange={(e) => setNota(event.id, id, e.target.value)}
-                          />
-                        ) : (
-                          <p className="text-sm text-muted">{event.notas?.[id] || "Sin indicación."}</p>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          ) : null}
-        </Historias>
+        </section>
       ) : (
         <p className="mt-4 rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">
           El DT todavía no publicó la formación.
@@ -254,7 +197,7 @@ function CanchaPage() {
         </Button>
       ) : null}
       {event.lineupPublishedAt && !staff ? (
-        <p className="mt-2 text-center text-xs text-muted">Formación publicada. Deslizá para ver el partido y las indicaciones.</p>
+        <p className="mt-2 text-center text-xs text-muted">Formación publicada.</p>
       ) : null}
       {staff || event.lineupPublishedAt ? <SquadPanel event={event} staff={staff} onNotice={setNote} /> : null}
 
