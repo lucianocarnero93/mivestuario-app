@@ -1,6 +1,6 @@
 // Pizarra: el DT y el ayudante arman la formación del partido.
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Chalkboard } from "@/components/fija/chalkboard";
 import { Pitch } from "@/components/fija/pitch";
 import { SquadPanel } from "@/components/fija/squad-panel";
@@ -10,6 +10,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
 import { formatWhen, personLabel } from "@/lib/fija/format";
+import { ETIQUETAS, leyendaDe } from "@/lib/fija/pizarra";
+import { compartirPizarra } from "@/lib/fija/pizarra-imagen";
 import { matchSettled, nextEvent, sheetFor, useFija, useIsStaff } from "@/lib/fija/store";
 import type { Modality } from "@/lib/fija/types";
 
@@ -24,6 +26,8 @@ function CanchaPage() {
   const setSpot = useFija((s) => s.setSpot);
   const setBoardShape = useFija((s) => s.setBoardShape);
   const setTactics = useFija((s) => s.setTactics);
+  const setIndicacion = useFija((s) => s.setIndicacion);
+  const setRival = useFija((s) => s.setRival);
   const rsvps = useFija((s) => s.rsvps);
   const publishLineup = useFija((s) => s.publishLineup);
     const setJuega = useFija((s) => s.setJuega);
@@ -42,10 +46,26 @@ function CanchaPage() {
   const [eventId, setEventId] = useState(fallback?.id ?? "");
   const event = matchEvents.find((e) => e.id === eventId) ?? fallback;
   const [slot, setSlot] = useState<string | null>(null);
+  const [cambiar, setCambiar] = useState(false);
+  const [frase, setFrase] = useState("");
+  const [rivalDraft, setRivalDraft] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
    const players = members.filter((m) => m.juega ?? m.role === "jugador");
-  const used = useMemo(() => new Set(Object.values(event?.lineup ?? {})), [event]);
+  const ocupanteId = slot && event ? event.lineup[slot] : undefined;
+  useEffect(() => {
+    setFrase(event?.indicaciones?.[ocupanteId ?? ""]?.nota ?? "");
+    setCambiar(false);
+  }, [slot, ocupanteId, event?.id]);
   const filled = Object.keys(event?.lineup ?? {}).length;
+  const used = useMemo(() => new Set(Object.values(event?.lineup ?? {})), [event]);
+  const leyenda = leyendaDe(
+    event?.indicaciones,
+    [...Object.values(event?.lineup ?? {}), ...(event?.suplentes ?? [])],
+    members,
+  );
+  useEffect(() => {
+    setRivalDraft(null);
+  }, [event?.id]);
   function cambiarFormacion(nuevaId: string) {
     if (!event) return;
     const actual = event.formacion ?? FORMATIONS[event.modality][0].id;
@@ -147,7 +167,8 @@ function CanchaPage() {
             lineup={event.lineup}
             members={members}
             editable={staff}
-            onSlot={setSlot}
+            marked={new Set(Object.keys(event.indicaciones ?? {}))}
+            onSlot={staff || event.lineupPublishedAt ? setSlot : undefined}
           />
         ) : (
           <p className="rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">
@@ -155,7 +176,11 @@ function CanchaPage() {
           </p>
         )}
         {staff ? (
-          <p className="mt-2 text-center text-xs text-muted">Tocá un puesto para poner o sacar a alguien.</p>
+          <p className="mt-2 text-center text-xs text-muted">
+            Tocá un puesto para elegir jugador o dejarle una indicación.
+          </p>
+        ) : event.lineupPublishedAt ? (
+          <p className="mt-2 text-center text-xs text-muted">El punto amarillo es una indicación. Tocalo para leerla.</p>
         ) : null}
       </div>
       <div className="desk:sticky desk:top-4">
@@ -181,14 +206,35 @@ function CanchaPage() {
 
       {staff ? (
         <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted">
-            Mensaje de aliento / pauta táctica
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Ellos</p>
           <Textarea
-            className="mt-2 min-h-28"
+            className="mt-2 min-h-20"
+            rows={3}
+            maxLength={180}
+            value={rivalDraft ?? event.rival ?? ""}
+            onChange={(e) => setRivalDraft(e.target.value)}
+            onBlur={() => {
+              if (rivalDraft != null) setRival(event.id, rivalDraft);
+            }}
+            placeholder="Cómo juega el que viene. Tres líneas."
+          />
+        </section>
+      ) : event.lineupPublishedAt && event.rival ? (
+        <Chalkboard title="Ellos" className="mt-4">
+          {event.rival}
+        </Chalkboard>
+      ) : null}
+
+      {staff ? (
+        <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Pauta del equipo</p>
+          <Textarea
+            className="mt-2 min-h-20"
+            rows={3}
+            maxLength={180}
             value={event.tactics}
             onChange={(e) => setTactics(event.id, e.target.value)}
-            placeholder="Cómo vamos a jugar, quién presiona, un empujón al grupo…"
+            placeholder="Tres líneas. Cómo salimos, a quién marcar, qué no hacer."
           />
         </section>
       ) : event.lineupPublishedAt ? (
@@ -197,8 +243,109 @@ function CanchaPage() {
         </Chalkboard>
       ) : null}
 
+      {(staff || event.lineupPublishedAt) && leyenda.length > 0 ? (
+        <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Indicaciones</p>
+          <ul className="mt-2 space-y-2">
+            {leyenda.map((item) => (
+              <li key={item.id} className={item.id === me?.id ? "text-accent" : ""}>
+                <p className="text-sm font-semibold">
+                  {item.nick}
+                  {item.etiqueta ? ` · ${item.etiqueta}` : ""}
+                </p>
+                {item.nota ? <p className="text-sm text-muted">{item.nota}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {staff || event.lineupPublishedAt ? (
+        <Button
+          variant="outline"
+          className="mt-3 h-12 w-full"
+          onClick={() => {
+            const list = FORMATIONS[event.modality];
+            const slots = (list.find((item) => item.id === event.formacion) ?? list[0]).slots;
+            const puestos = slots
+              .map((item) => {
+                const id = event.lineup[item.key];
+                const person = members.find((member) => member.id === id);
+                if (!person) return null;
+                return {
+                  x: item.x,
+                  y: item.y,
+                  nick: person.nick || person.name,
+                  etiqueta: event.indicaciones?.[id]?.etiqueta ?? "",
+                };
+              })
+              .filter((item): item is { x: number; y: number; nick: string; etiqueta: string } => Boolean(item));
+            void compartirPizarra({
+              title: event.title,
+              rival: event.rival ?? "",
+              pauta: event.tactics,
+              puestos,
+            })
+              .then((mode) => setNote(mode === "shared" ? "Pizarra lista para mandar." : "Imagen guardada en el celular."))
+              .catch((error: unknown) => {
+                if (error instanceof DOMException && error.name === "AbortError") return;
+                setNote("No se pudo armar la imagen.");
+              });
+          }}
+        >
+          Compartir pizarra
+        </Button>
+      ) : null}
+
       <Dialog open={slot != null} onOpenChange={(o) => !o && setSlot(null)}>
-        <DialogContent title="Elegí jugador">
+        <DialogContent title={ocupanteId ? "Indicación" : "Elegí jugador"}>
+          {ocupanteId ? (
+            <div className="mb-4">
+              <p className="text-sm font-semibold">
+                {members.find((person) => person.id === ocupanteId)?.nick}
+              </p>
+              {staff ? (
+                <>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {ETIQUETAS.map((etiqueta) => {
+                      const activa = event.indicaciones?.[ocupanteId]?.etiqueta === etiqueta;
+                      return (
+                        <button
+                          key={etiqueta}
+                          type="button"
+                          className={`h-11 rounded-md px-3 text-xs font-semibold ${
+                            activa ? "bg-accent text-accent-fg" : "bg-bg text-muted"
+                          }`}
+                          onClick={() => setIndicacion(event.id, ocupanteId, activa ? "" : etiqueta, frase)}
+                        >
+                          {etiqueta}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Textarea
+                    className="mt-3 min-h-16"
+                    maxLength={80}
+                    value={frase}
+                    onChange={(e) => setFrase(e.target.value)}
+                    onBlur={() =>
+                      setIndicacion(event.id, ocupanteId, event.indicaciones?.[ocupanteId]?.etiqueta ?? "", frase)
+                    }
+                    placeholder="Una línea más, si hace falta."
+                  />
+                  <Button variant="ghost" className="mt-2 h-11 px-0" onClick={() => setCambiar((open) => !open)}>
+                    {cambiar ? "Ocultar jugadores" : "Cambiar jugador"}
+                  </Button>
+                </>
+              ) : (
+                <p className="mt-2 text-sm">
+                  {[event.indicaciones?.[ocupanteId]?.etiqueta, event.indicaciones?.[ocupanteId]?.nota]
+                    .filter(Boolean)
+                    .join(". ") || "El DT no le dejó una indicación."}
+                </p>
+              )}
+            </div>
+          ) : null}
+          {staff && (!ocupanteId || cambiar) ? (
           <ul className="max-h-80 space-y-1 overflow-auto">
             {slot ? (
               <li>
@@ -245,6 +392,7 @@ function CanchaPage() {
               </li>
             ))}
           </ul>
+          ) : null}
         </DialogContent>
       </Dialog>
     </main>

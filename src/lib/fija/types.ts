@@ -105,6 +105,10 @@ export type ClubEvent = {
   modality: Modality;
   lineup: Record<string, string>;
   tactics: string;
+  /** Frase corta por jugador. La cancha solo muestra un punto. */
+  indicaciones?: Record<string, { etiqueta: string; nota: string }>;
+  /** Cómo juega el rival, en pocas líneas. */
+  rival?: string;
   lineupPublishedAt: string | null;
   tournamentId: string | null;
   /** Quién lleva qué, solo para partidos. */

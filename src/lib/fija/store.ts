@@ -16,6 +16,7 @@ import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
 import { mergeFiguraVotes } from "./figura";
+import { etiquetaValida } from "./pizarra";
 import { safeStorage } from "./storage";
 import type {
   AlertLog,
@@ -89,6 +90,8 @@ type State = ReturnType<typeof createSeed> & {
   convocarLosQueVan: (eventId: string) => string | null;
   setBoardShape: (eventId: string, modality: Modality, formacionId: string) => string | null;
   setTactics: (eventId: string, tactics: string) => void;
+  setIndicacion: (eventId: string, memberId: string, etiqueta: string, nota: string) => void;
+  setRival: (eventId: string, rival: string) => void;
   publishLineup: (eventId: string) => void;
   sendChat: (text: string) => void;
   postCharla: (text: string) => void;
@@ -570,7 +573,37 @@ export const useFija = create<State>()(
         set({
           events: get().events.map((event) =>
             event.id === eventId
-              ? { ...event, tactics, lineupUpdatedAt: new Date().toISOString() }
+              ? { ...event, tactics: sanitizeText(tactics, 180), lineupUpdatedAt: new Date().toISOString() }
+              : event,
+          ),
+        });
+      },
+
+      setIndicacion: (eventId, memberId, etiqueta, nota) => {
+        if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
+        const cleanEtiqueta = etiquetaValida(etiqueta);
+        const cleanNota = sanitizeText(nota, 80);
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) => {
+            if (event.id !== eventId) return event;
+            const indicaciones = { ...(event.indicaciones ?? {}) };
+            if (!cleanEtiqueta && !cleanNota) delete indicaciones[memberId];
+            else indicaciones[memberId] = { etiqueta: cleanEtiqueta, nota: cleanNota };
+            return { ...event, indicaciones, lineupUpdatedAt: now };
+          }),
+        });
+      },
+
+      setRival: (eventId, rival) => {
+        if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) =>
+            event.id === eventId
+              ? { ...event, rival: sanitizeText(rival, 180), lineupUpdatedAt: now }
               : event,
           ),
         });

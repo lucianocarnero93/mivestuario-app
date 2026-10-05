@@ -10,6 +10,7 @@ export function Pitch({
   members,
   onSlot,
   editable,
+  marked,
 }: {
   modality: Modality;
   formacionId?: string;
@@ -17,6 +18,7 @@ export function Pitch({
   members: Member[];
   onSlot?: (key: string) => void;
   editable?: boolean;
+  marked?: ReadonlySet<string>;
 }) {
   const formaciones = FORMATIONS[modality];
   const formacion = formaciones.find((f) => f.id === formacionId) ?? formaciones[0];
@@ -55,12 +57,12 @@ export function Pitch({
       <div className="absolute inset-0">
         {slots.map((slot) => {
           const member = byId.get(lineup[slot.key] ?? "");
-          const Comp = editable ? "button" : "div";
+          const Comp = onSlot ? "button" : "div";
           return (
             <Comp
               key={slot.key}
-              type={editable ? "button" : undefined}
-              onClick={editable ? () => onSlot?.(slot.key) : undefined}
+              type={onSlot ? "button" : undefined}
+              onClick={onSlot ? () => onSlot(slot.key) : undefined}
               className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
               style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
             >
@@ -86,6 +88,9 @@ export function Pitch({
                   <span className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full bg-bg text-[9px] text-fg">
                     {member.number}
                   </span>
+                ) : null}
+                {member && marked?.has(member.id) ? (
+                  <span className="absolute -left-1 -top-1 size-3 rounded-full border border-bg bg-warning" />
                 ) : null}
               </span>
               <span className="mt-0.5 max-w-14 truncate text-center text-xs font-semibold text-line drop-shadow">
