@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aplicarCobro, armarGasto, cajaVacia, deudaDe, liquidar, partesIguales, saldosDe } from "./caja.ts";
+import { aplicarCobro, armarCupones, armarGasto, cajaVacia, deudaDe, liquidar, pagoAlcanza, partesIguales, saldosDe } from "./caja.ts";
 
 test("reparte en partes iguales y el resto va a los primeros", () => {
   assert.deepEqual(partesIguales(10, ["a", "b", "c"]), [
@@ -77,4 +77,44 @@ test("un gasto sin monto o sin gente no se crea", () => {
     }),
     null,
   );
+});
+
+test("el cupón fijo y el exento no deben", () => {
+  const cupones = armarCupones({
+    modo: "fijo",
+    monto: 3000,
+    gente: [
+      { id: "a" },
+      { id: "inv-1", nombre: "Gabi", exento: true },
+    ],
+  });
+  assert.ok(cupones);
+  const gasto = armarGasto({
+    id: "g2",
+    titulo: "Cancha",
+    monto: 1,
+    categoria: "cancha",
+    fecha: "2026-10-08",
+    pagadoPor: "dt",
+    personas: [],
+    cupones: cupones!,
+    at: "2026-10-08T20:00:00Z",
+  });
+  assert.equal(gasto?.monto, 3000);
+  const caja = { ...cajaVacia("dt"), gastos: [gasto!] };
+  assert.equal(deudaDe(caja, "g2", "a"), 3000);
+  assert.equal(deudaDe(caja, "g2", "inv-1"), 0);
+  assert.equal(pagoAlcanza(3000, 2999), false);
+  assert.equal(pagoAlcanza(3000, 3000), true);
+  const paga = aplicarCobro(caja, {
+    id: "c1",
+    gastoId: "g2",
+    memberId: "a",
+    monto: 3000,
+    medio: "mp",
+    estado: "confirmado",
+    paymentId: "pay-2",
+    at: "2026-10-08T21:00:00Z",
+  });
+  assert.equal(paga.gastos[0]?.cerrado, true);
 });

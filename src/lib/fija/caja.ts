@@ -1,4 +1,4 @@
-import type { Caja, CategoriaGasto, Cobro, Gasto } from "./types.ts";
+import type { Caja, CategoriaGasto, Cobro, Cupon, Gasto } from "./types.ts";
 
 export const CATEGORIAS: CategoriaGasto[] = ["cancha", "arbitro", "indumentaria", "social", "otro"];
 
@@ -27,6 +27,53 @@ export function partesIguales(monto: number, ids: string[]): { memberId: string;
   });
 }
 
+export function armarCupones(input: {
+  modo: "iguales" | "fijo" | "propio";
+  monto: number;
+  gente: { id: string; nombre?: string; monto?: number; exento?: boolean }[];
+}): Cupon[] | null {
+  const vistos = new Set<string>();
+  const gente = input.gente.filter((persona) => {
+    const id = persona.id.trim();
+    if (!id || vistos.has(id)) return false;
+    vistos.add(id);
+    return true;
+  });
+  if (gente.length === 0 || gente.length > 80) return null;
+  const libres = gente
+    .filter((persona) => persona.exento)
+    .map((persona) => ({ id: persona.id, nombre: persona.nombre?.trim().slice(0, 40) || undefined, monto: 0, exento: true }));
+  const pagan = gente.filter((persona) => !persona.exento);
+  if (pagan.length === 0) return null;
+  if (input.modo === "iguales") {
+    const partes = partesIguales(input.monto, pagan.map((persona) => persona.id));
+    if (partes.length === 0) return null;
+    return [
+      ...partes.map((parte) => ({
+        id: parte.memberId,
+        nombre: pagan.find((persona) => persona.id === parte.memberId)?.nombre?.trim().slice(0, 40) || undefined,
+        monto: parte.monto,
+      })),
+      ...libres,
+    ];
+  }
+  if (input.modo === "fijo") {
+    const cada = Math.round(input.monto);
+    if (cada < 1 || cada > 10_000_000) return null;
+    return [
+      ...pagan.map((persona) => ({ id: persona.id, nombre: persona.nombre?.trim().slice(0, 40) || undefined, monto: cada })),
+      ...libres,
+    ];
+  }
+  const propios = pagan.map((persona) => ({
+    id: persona.id,
+    nombre: persona.nombre?.trim().slice(0, 40) || undefined,
+    monto: Math.round(persona.monto ?? 0),
+  }));
+  if (propios.some((cupon) => cupon.monto < 1 || cupon.monto > 10_000_000)) return null;
+  return [...propios, ...libres];
+}
+
 export function armarGasto(input: {
   id: string;
   titulo: string;
@@ -35,11 +82,20 @@ export function armarGasto(input: {
   fecha: string;
   pagadoPor: string;
   personas: string[];
+  cupones?: Cupon[];
   at: string;
 }): Gasto | null {
   const titulo = input.titulo.trim().slice(0, 60);
-  const monto = Math.round(input.monto);
-  const personas = [...new Set(input.personas)].filter(Boolean).slice(0, 80);
+  const cupones = input.cupones?.length
+    ? input.cupones.slice(0, 80).map((cupon) => ({
+        id: cupon.id,
+        nombre: cupon.nombre,
+        monto: cupon.exento ? 0 : Math.round(cupon.monto),
+        exento: cupon.exento || undefined,
+      }))
+    : undefined;
+  const monto = cupones ? cupones.reduce((suma, cupon) => suma + cupon.monto, 0) : Math.round(input.monto);
+  const personas = cupones ? cupones.map((cupon) => cupon.id) : [...new Set(input.personas)].filter(Boolean).slice(0, 80);
   if (!titulo || monto < 1 || monto > 10_000_000) return null;
   if (!input.pagadoPor || personas.length === 0) return null;
   if (!CATEGORIAS.includes(input.categoria)) return null;
@@ -51,6 +107,7 @@ export function armarGasto(input: {
     fecha: input.fecha.slice(0, 40),
     pagadoPor: input.pagadoPor,
     personas,
+    cupones,
     at: input.at,
   };
 }
@@ -63,15 +120,18 @@ export function saldosDe(caja: Caja): { memberId: string; saldo: number }[] {
   };
   for (const gasto of caja.gastos) {
     if (gasto.anulado) continue;
-    const partes = partesIguales(gasto.monto, gasto.personas);
+    const partes = cuponesDe(gasto);
     sumar(gasto.pagadoPor, gasto.monto);
-    for (const parte of partes) sumar(parte.memberId, -parte.monto);
+    for (const parte of partes) {
+      if (parte.exento) continue;
+      sumar(parte.id, -parte.monto);
+    }
     for (const cobro of caja.cobros) {
       if (cobro.gastoId !== gasto.id || cobro.estado !== "confirmado") continue;
-      const parte = partes.find((item) => item.memberId === cobro.memberId);
+      const parte = partes.find((item) => item.id === cobro.memberId);
       if (!parte) continue;
       const monto = Math.min(cobro.monto, parte.monto);
-      sumar(cobro.memberId, monto);
+      sumar(parte.id, monto);
       sumar(gasto.pagadoPor, -monto);
     }
   }
@@ -109,7 +169,7 @@ export function aplicarCobro(caja: Caja, cobro: Cobro): Caja {
   const cobros = ya
     ? caja.cobros.map((item) => (item === ya ? { ...cobro, id: ya.id } : item))
     : [...caja.cobros, cobro];
-  return { ...caja, cobros: cobros.slice(-400) };
+  return { ...caja, cobros: cobros.slice(-400), gastos: conCierre({ ...caja, cobros }).gastos };
 }
 
 export function mergeCaja(previous?: Caja, incoming?: Caja): Caja {
@@ -131,18 +191,54 @@ export function mergeCaja(previous?: Caja, incoming?: Caja): Caja {
   }
   return {
     tesoreroId: incoming.tesoreroId || previous.tesoreroId,
+    alias: incoming.alias || previous.alias,
     gastos: [...gastos.values()].slice(-80),
     cobros: [...cobros.values()].slice(-400),
   };
 }
 
+export function cuponesDe(gasto: Gasto): Cupon[] {
+  if (gasto.cupones?.length) return gasto.cupones;
+  return partesIguales(gasto.monto, gasto.personas).map((parte) => ({ id: parte.memberId, monto: parte.monto }));
+}
+
+export function pagoAlcanza(deuda: number, amount: number): boolean {
+  return deuda >= 1 && Math.round(amount) === deuda;
+}
+
 export function deudaDe(caja: Caja, gastoId: string, memberId: string): number {
   const gasto = caja.gastos.find((item) => item.id === gastoId && !item.anulado);
   if (!gasto || gasto.pagadoPor === memberId) return 0;
-  const parte = partesIguales(gasto.monto, gasto.personas).find((item) => item.memberId === memberId);
-  if (!parte) return 0;
+  const parte = cuponesDe(gasto).find((item) => item.id === memberId);
+  if (!parte || parte.exento) return 0;
   const pago = caja.cobros.find((item) => item.gastoId === gastoId && item.memberId === memberId && item.estado === "confirmado");
   return Math.max(parte.monto - (pago?.monto ?? 0), 0);
+}
+
+export function conCierre(caja: Caja): Caja {
+  let cambio = false;
+  const gastos = caja.gastos.map((gasto) => {
+    if (gasto.anulado) return gasto;
+    const cerrado = cuponesDe(gasto).every((cupon) => deudaDe(caja, gasto.id, cupon.id) === 0);
+    if (Boolean(gasto.cerrado) === cerrado) return gasto;
+    cambio = true;
+    return { ...gasto, cerrado };
+  });
+  return cambio ? { ...caja, gastos } : caja;
+}
+
+export function textoCupones(
+  caja: Caja,
+  gasto: Gasto,
+  nombre: (cupon: Cupon) => string,
+): string {
+  const faltan = cuponesDe(gasto)
+    .map((cupon) => ({ cupon, deuda: deudaDe(caja, gasto.id, cupon.id) }))
+    .filter((fila) => fila.deuda > 0);
+  const alias = caja.alias ? `\nAlias Mercado Pago: ${caja.alias}` : "";
+  if (faltan.length === 0) return `${gasto.titulo}: todos pagaron.`;
+  const lineas = faltan.map((fila) => `${nombre(fila.cupon)} $${fila.deuda}`);
+  return `${gasto.titulo}${alias}\nFalta pagar:\n${lineas.join("\n")}`;
 }
 
 export function textoLiquidacion(

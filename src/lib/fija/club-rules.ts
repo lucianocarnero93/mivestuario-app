@@ -264,7 +264,7 @@ export function safeAppPath(url: string): string {
 }
 
 export function pushCopy(clubName: string, item: InboxItem): { title: string; body: string; url: string } {
-  const url = item.kind === "formacion" ? "/cancha" : item.kind === "charla" ? "/cancha" : "/";
+  const url = item.kind === "formacion" || item.kind === "charla" ? "/cancha" : item.kind === "caja" ? "/caja" : "/";
   return {
     title: `${clubName}: ${item.title}`.slice(0, 80),
     body: item.body.slice(0, 180),

@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { CATEGORIA_LABEL, CATEGORIAS, cajaCsv, deudaDe, liquidar, partesIguales, saldosDe, textoLiquidacion } from "@/lib/fija/caja";
+import { CATEGORIA_LABEL, CATEGORIAS, armarCupones, cajaCsv, cuponesDe, deudaDe, liquidar, saldosDe, textoCupones, textoLiquidacion } from "@/lib/fija/caja";
+import { uid } from "@/lib/fija/format";
 import { crearLinkPago, empezarMp, estadoMp } from "@/lib/fija/mercadopago";
 import { useFija, useMe } from "@/lib/fija/store";
-import type { CategoriaGasto, Gasto } from "@/lib/fija/types";
+import type { Caja, CategoriaGasto, Cupon, Gasto } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/caja")({
   component: CajaPage,
@@ -21,9 +22,9 @@ function CajaPage() {
   const events = useFija((s) => s.events);
   const rsvps = useFija((s) => s.rsvps);
   const definirTesorero = useFija((s) => s.definirTesorero);
+  const definirAlias = useFija((s) => s.definirAlias);
   const crearGasto = useFija((s) => s.crearGasto);
   const anularGasto = useFija((s) => s.anularGasto);
-  const marcarPagado = useFija((s) => s.marcarPagado);
   const confirmarCobro = useFija((s) => s.confirmarCobro);
   const flushCloud = useFija((s) => s.flushCloud);
   const { mp } = Route.useSearch();
@@ -91,6 +92,18 @@ function CajaPage() {
           </Button>
         </div>
       ) : null}
+      {tesorero ? (
+        <label className="mt-4 block text-sm">
+          Alias de Mercado Pago
+          <input
+            className="mt-1 h-12 w-full rounded-md bg-surface px-3"
+            placeholder="equipo.mp"
+            defaultValue={caja?.alias ?? ""}
+            maxLength={40}
+            onBlur={(event) => definirAlias(event.target.value)}
+          />
+        </label>
+      ) : null}
       {tesorero ? <NuevoGasto members={members} events={events} rsvps={rsvps} onCreate={crearGasto} onSave={() => void flushCloud()} /> : null}
       <ul className="mt-4 space-y-3">
         {(caja?.gastos ?? []).filter((gasto) => !gasto.anulado).map((gasto) => (
@@ -102,10 +115,7 @@ function CajaPage() {
             conectado={conectado}
             code={club?.inviteCode ?? ""}
             nombre={nombre}
-            onMarcar={() => {
-              marcarPagado(gasto.id);
-              void flushCloud();
-            }}
+            alias={caja?.alias ?? ""}
             onConfirmar={(memberId) => {
               confirmarCobro(gasto.id, memberId);
               void flushCloud();
@@ -148,34 +158,60 @@ function NuevoGasto({
   members: { id: string; nick: string; role: string; juega?: boolean }[];
   events: { id: string; title: string; kind: string }[];
   rsvps: { eventId: string; memberId: string; status: string }[];
-  onCreate: (input: { titulo: string; monto: number; categoria: CategoriaGasto; fecha: string; pagadoPor: string; personas: string[] }) => boolean;
+  onCreate: (input: {
+    titulo: string;
+    monto: number;
+    categoria: CategoriaGasto;
+    fecha: string;
+    pagadoPor: string;
+    personas: string[];
+    cupones?: Cupon[];
+  }) => boolean;
   onSave: () => void;
 }) {
   const [titulo, setTitulo] = useState("");
   const [monto, setMonto] = useState("");
   const [categoria, setCategoria] = useState<CategoriaGasto>("cancha");
   const [pagadoPor, setPagadoPor] = useState(members[0]?.id ?? "");
+  const [reparto, setReparto] = useState<"iguales" | "fijo" | "propio">("iguales");
   const [modo, setModo] = useState<"plantel" | "voy" | "elegir">("plantel");
   const [partido, setPartido] = useState(events.find((event) => event.kind === "partido")?.id ?? "");
   const [elegidos, setElegidos] = useState<string[]>([]);
+  const [exentos, setExentos] = useState<string[]>([]);
+  const [propios, setPropios] = useState<Record<string, string>>({});
+  const [invitados, setInvitados] = useState<{ id: string; nombre: string }[]>([]);
+  const [invitado, setInvitado] = useState("");
+  const [error, setError] = useState("");
   const plantel = members.filter((person) => person.juega ?? person.role === "jugador");
-  const personas = modo === "voy"
+  const base = modo === "voy"
     ? rsvps.filter((row) => row.eventId === partido && row.status === "voy").map((row) => row.memberId)
     : modo === "elegir"
       ? elegidos
       : plantel.map((person) => person.id);
+  const ids = [...base, ...invitados.map((persona) => persona.id)];
+
+  function etiqueta(id: string) {
+    return invitados.find((persona) => persona.id === id)?.nombre ?? plantel.find((persona) => persona.id === id)?.nick ?? id;
+  }
 
   return (
     <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted">Nuevo gasto</p>
       <input className="mt-2 h-12 w-full rounded-md bg-bg px-3" placeholder="Qué se pagó" value={titulo} maxLength={60} onChange={(event) => setTitulo(event.target.value)} />
-      <input className="mt-2 h-12 w-full rounded-md bg-bg px-3" inputMode="numeric" placeholder="Monto" value={monto} onChange={(event) => setMonto(event.target.value)} />
+      <input className="mt-2 h-12 w-full rounded-md bg-bg px-3" inputMode="numeric" placeholder={reparto === "fijo" ? "Monto por persona" : "Monto total"} value={monto} onChange={(event) => setMonto(event.target.value)} />
       <select className="mt-2 h-12 w-full rounded-md bg-bg px-3" value={categoria} onChange={(event) => setCategoria(event.target.value as CategoriaGasto)}>
         {CATEGORIAS.map((item) => <option key={item} value={item}>{CATEGORIA_LABEL[item]}</option>)}
       </select>
       <select className="mt-2 h-12 w-full rounded-md bg-bg px-3" value={pagadoPor} onChange={(event) => setPagadoPor(event.target.value)}>
         {members.map((person) => <option key={person.id} value={person.id}>Pagó {person.nick}</option>)}
       </select>
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        {(["iguales", "fijo", "propio"] as const).map((item) => (
+          <button key={item} type="button" className={`h-11 rounded-md text-xs font-semibold ${reparto === item ? "bg-accent text-accent-fg" : "bg-bg"}`} onClick={() => setReparto(item)}>
+            {item === "iguales" ? "Iguales" : item === "fijo" ? "Fijo" : "Cada uno"}
+          </button>
+        ))}
+      </div>
       <div className="mt-2 grid grid-cols-3 gap-2">
         {(["plantel", "voy", "elegir"] as const).map((item) => (
           <button key={item} type="button" className={`h-11 rounded-md text-xs font-semibold ${modo === item ? "bg-accent text-accent-fg" : "bg-bg"}`} onClick={() => setModo(item)}>
@@ -191,38 +227,85 @@ function NuevoGasto({
       {modo === "elegir" ? (
         <ul className="mt-2 max-h-40 space-y-1 overflow-auto">
           {plantel.map((person) => (
-            <li key={person.id}>
-              <label className="flex h-10 items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={elegidos.includes(person.id)}
-                  onChange={() => setElegidos((list) => list.includes(person.id) ? list.filter((id) => id !== person.id) : [...list, person.id])}
-                />
-                {person.nick}
-              </label>
+            <li key={person.id} className="flex h-10 items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={elegidos.includes(person.id)}
+                onChange={() => setElegidos((list) => list.includes(person.id) ? list.filter((id) => id !== person.id) : [...list, person.id])}
+              />
+              <span className="flex-1">{person.nick}</span>
+              <button type="button" className="text-xs text-muted" onClick={() => setExentos((list) => list.includes(person.id) ? list.filter((id) => id !== person.id) : [...list, person.id])}>
+                {exentos.includes(person.id) ? "Exento" : "Eximir"}
+              </button>
             </li>
           ))}
         </ul>
       ) : null}
+      <div className="mt-2 flex gap-2">
+        <input className="h-12 flex-1 rounded-md bg-bg px-3" placeholder="Invitado" value={invitado} maxLength={40} onChange={(event) => setInvitado(event.target.value)} />
+        <Button
+          variant="outline"
+          className="h-12"
+          onClick={() => {
+            const nombre = invitado.trim();
+            if (!nombre) return;
+            setInvitados((list) => [...list, { id: uid("inv"), nombre }]);
+            setInvitado("");
+          }}
+        >
+          Sumar
+        </Button>
+      </div>
+      {ids.length > 0 && reparto === "propio" ? (
+        <ul className="mt-2 space-y-1">
+          {ids.map((id) => (
+            <li key={id} className="flex items-center gap-2">
+              <span className="w-28 truncate text-sm">{etiqueta(id)}</span>
+              <input className="h-10 flex-1 rounded-md bg-bg px-3" inputMode="numeric" placeholder="Monto" value={propios[id] ?? ""} onChange={(event) => setPropios((map) => ({ ...map, [id]: event.target.value }))} />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {invitados.length > 0 ? <p className="mt-2 text-sm text-muted">Invitados: {invitados.map((persona) => persona.nombre).join(", ")}</p> : null}
+      {error ? <p className="mt-2 text-sm text-muted">{error}</p> : null}
       <Button
         className="mt-3 h-12 w-full"
         onClick={() => {
+          const cupones = armarCupones({
+            modo: reparto,
+            monto: Number(monto),
+            gente: ids.map((id) => ({
+              id,
+              nombre: invitados.find((persona) => persona.id === id)?.nombre,
+              monto: Number(propios[id] ?? 0),
+              exento: modo === "elegir" && exentos.includes(id),
+            })),
+          });
+          if (!cupones) {
+            setError("Revisá el monto y quiénes entran.");
+            return;
+          }
           const ok = onCreate({
             titulo,
-            monto: Number(monto),
+            monto: cupones.reduce((suma, cupon) => suma + cupon.monto, 0),
             categoria,
             fecha: new Date().toISOString().slice(0, 10),
             pagadoPor,
-            personas,
+            personas: cupones.map((cupon) => cupon.id),
+            cupones,
           });
-          if (ok) {
-            setTitulo("");
-            setMonto("");
-            onSave();
+          if (!ok) {
+            setError("No se pudo guardar el gasto.");
+            return;
           }
+          setTitulo("");
+          setMonto("");
+          setError("");
+          setInvitados([]);
+          onSave();
         }}
       >
-        Guardar gasto
+        Armar cupones
       </Button>
     </section>
   );
@@ -235,8 +318,8 @@ function GastoCard({
   conectado,
   code,
   nombre,
+  alias,
   cobros,
-  onMarcar,
   onConfirmar,
   onAnular,
 }: {
@@ -246,48 +329,85 @@ function GastoCard({
   conectado: boolean;
   code: string;
   nombre: (id: string) => string;
-  cobros: { gastoId: string; memberId: string; estado: string }[];
-  onMarcar: () => void;
+  alias: string;
+  cobros: { gastoId: string; memberId: string; estado: string; monto: number }[];
   onConfirmar: (memberId: string) => void;
   onAnular: () => void;
 }) {
-  const partes = partesIguales(gasto.monto, gasto.personas);
-  const mia = partes.find((parte) => parte.memberId === meId);
-  const mio = cobros.find((cobro) => cobro.gastoId === gasto.id && cobro.memberId === meId);
-  const deuda = deudaDe({ tesoreroId: "", gastos: [gasto], cobros: cobros as never }, gasto.id, meId);
+  const [aviso, setAviso] = useState("");
+  const caja: Caja = { tesoreroId: "", alias, gastos: [gasto], cobros: cobros as Caja["cobros"] };
+  const cupones = cuponesDe(gasto);
+  const pagables = cupones.filter((cupon) => cupon.id !== gasto.pagadoPor && !cupon.exento && cupon.monto > 0);
+  const pagos = pagables.filter((cupon) => deudaDe(caja, gasto.id, cupon.id) === 0).length;
+  const deuda = deudaDe(caja, gasto.id, meId);
+  const mia = cupones.find((cupon) => cupon.id === meId);
+  const recaudado = pagables.reduce((suma, cupon) => suma + (deudaDe(caja, gasto.id, cupon.id) === 0 ? cupon.monto : 0), 0);
+  const ancho = pagables.length === 0 ? 100 : Math.round((pagos / pagables.length) * 100);
 
-  async function pagar() {
-    const result = await crearLinkPago({ data: { code, gastoId: gasto.id, memberId: meId } });
-    if (result.url) window.location.href = result.url;
+  function etiqueta(cupon: Cupon) {
+    return cupon.nombre || nombre(cupon.id);
+  }
+
+  async function pagar(memberId: string) {
+    const result = await crearLinkPago({ data: { code, gastoId: gasto.id, memberId } });
+    if (!result.url) {
+      setAviso("No se pudo armar el cupón.");
+      return;
+    }
+    if (memberId === meId) {
+      window.location.href = result.url;
+      return;
+    }
+    const cupon = cupones.find((item) => item.id === memberId);
+    const texto = `Te toca pagar $${cupon?.monto ?? ""} de ${gasto.titulo}. ${result.url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank", "noopener,noreferrer");
+  }
+
+  function avisar() {
+    const texto = textoCupones(caja, gasto, etiqueta);
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank", "noopener,noreferrer");
   }
 
   return (
     <li className="rounded-xl bg-surface p-4 shadow-card">
       <p className="text-xs text-muted">{CATEGORIA_LABEL[gasto.categoria]} · pagó {nombre(gasto.pagadoPor)}</p>
       <p className="text-lg font-semibold">{gasto.titulo}</p>
-      <p className="text-sm">${gasto.monto} entre {gasto.personas.length}</p>
+      <p className="text-sm">{gasto.cerrado ? "Cerrado" : `$${recaudado} de $${pagables.reduce((suma, cupon) => suma + cupon.monto, 0)}`}</p>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-bg">
+        <div className="h-full bg-accent" style={{ width: `${ancho}%` }} />
+      </div>
+      {alias ? <p className="mt-2 text-sm">Alias {alias}</p> : null}
       <ul className="mt-2 space-y-1 text-sm">
-        {partes.map((parte) => {
-          const cobro = cobros.find((item) => item.gastoId === gasto.id && item.memberId === parte.memberId);
-          const estado = cobro?.estado === "confirmado" ? "Pagó" : cobro?.estado === "marcado" ? "Avisó" : "Pendiente";
+        {cupones.map((cupon) => {
+          const debe = deudaDe(caja, gasto.id, cupon.id);
+          const estado = cupon.exento ? "Exento" : cupon.id === gasto.pagadoPor ? "Puso la plata" : debe === 0 ? "Pagó" : "Debe";
           return (
-            <li key={parte.memberId} className="flex items-center justify-between gap-2">
-              <span>{nombre(parte.memberId)} · ${parte.monto} · {estado}</span>
-              {tesorero && cobro?.estado === "marcado" ? (
-                <button type="button" className="h-10 font-semibold text-accent" onClick={() => onConfirmar(parte.memberId)}>Confirmar</button>
+            <li key={cupon.id} className="flex items-center justify-between gap-2">
+              <span>{etiqueta(cupon)} · ${cupon.monto} · {estado}</span>
+              {tesorero && debe > 0 ? (
+                <button type="button" className="h-10 shrink-0 font-semibold text-accent" onClick={() => onConfirmar(cupon.id)}>Ya cobré</button>
               ) : null}
             </li>
           );
         })}
       </ul>
-      {mia && gasto.pagadoPor !== meId && deuda > 0 ? (
+      {mia && deuda > 0 ? (
         <div className="mt-3 grid gap-2">
-          {conectado ? <Button className="h-12" onClick={() => void pagar()}>Pagar con Mercado Pago</Button> : null}
-          {mio?.estado === "marcado" ? <p className="text-sm text-muted">Avisaste que pagaste. Falta que el tesorero lo confirme.</p> : (
-            <Button variant="outline" className="h-12" onClick={onMarcar}>Marqué que pagué</Button>
-          )}
+          <p className="text-sm font-semibold">Te tocan ${deuda}</p>
+          {conectado ? <Button className="h-12" onClick={() => void pagar(meId)}>Pagar ${deuda}</Button> : <p className="text-sm text-muted">El tesorero todavía no conectó Mercado Pago.</p>}
         </div>
       ) : null}
+      {tesorero && !gasto.cerrado ? (
+        <div className="mt-3 grid gap-2">
+          <Button variant="outline" className="h-12" onClick={avisar}>Avisar por WhatsApp</Button>
+          {conectado ? pagables.filter((cupon) => deudaDe(caja, gasto.id, cupon.id) > 0).map((cupon) => (
+            <Button key={cupon.id} variant="secondary" className="h-12" onClick={() => void pagar(cupon.id)}>
+              Link para {etiqueta(cupon)}
+            </Button>
+          )) : null}
+        </div>
+      ) : null}
+      {aviso ? <p className="mt-2 text-sm text-muted">{aviso}</p> : null}
       {tesorero ? <Button variant="ghost" className="mt-2 h-11" onClick={onAnular}>Anular gasto</Button> : null}
     </li>
   );

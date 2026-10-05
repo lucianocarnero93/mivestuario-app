@@ -16,7 +16,7 @@ import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
 import { mergeFiguraVotes } from "./figura";
-import { aplicarCobro, armarGasto, cajaVacia, mergeCaja, partesIguales } from "./caja";
+import { aplicarCobro, armarGasto, cajaVacia, conCierre, cuponesDe, mergeCaja } from "./caja";
 import { ponerReaccion, votarEncuesta } from "./fecha";
 import { sanitizeJugada, type NotaJugada } from "./jugada";
 import { safeStorage } from "./storage";
@@ -126,6 +126,7 @@ type State = ReturnType<typeof createSeed> & {
   abrirEncuesta: (eventId: string, pregunta: string, opciones: string[]) => void;
   votarFecha: (eventId: string, opcion: number) => void;
   definirTesorero: (memberId: string) => void;
+  definirAlias: (alias: string) => void;
   crearGasto: (input: {
     titulo: string;
     monto: number;
@@ -133,6 +134,7 @@ type State = ReturnType<typeof createSeed> & {
     fecha: string;
     pagadoPor: string;
     personas: string[];
+    cupones?: { id: string; nombre?: string; monto: number; exento?: boolean }[];
   }) => boolean;
   anularGasto: (gastoId: string) => void;
   marcarPagado: (gastoId: string) => void;
@@ -1195,17 +1197,35 @@ export const useFija = create<State>()(
         set({ caja: { ...(get().caja ?? cajaVacia()), tesoreroId: memberId } });
       },
 
+      definirAlias: (alias) => {
+        if (!puedeCaja(get())) return;
+        const limpio = alias.trim().replace(/\s+/g, "").slice(0, 40);
+        set({ caja: { ...(get().caja ?? cajaVacia()), alias: limpio } });
+      },
+
       crearGasto: (input) => {
         if (!puedeCaja(get())) return false;
         const caja = get().caja ?? cajaVacia(get().activeId);
         const gasto = armarGasto({ ...input, id: uid("ga"), at: new Date().toISOString() });
         if (!gasto) return false;
+        const aviso: InboxItem = {
+          id: uid("in"),
+          kind: "caja",
+          title: "Nuevo gasto",
+          body: `${gasto.titulo}. Mirá tu cupón en Caja.`,
+          audience: "all",
+          at: gasto.at,
+          readBy: [get().activeId],
+        };
+        const armada = conCierre({
+          tesoreroId: caja.tesoreroId || get().activeId,
+          alias: caja.alias,
+          gastos: [...caja.gastos, gasto].slice(-80),
+          cobros: caja.cobros,
+        });
         set({
-          caja: {
-            tesoreroId: caja.tesoreroId || get().activeId,
-            gastos: [...caja.gastos, gasto].slice(-80),
-            cobros: caja.cobros,
-          },
+          caja: armada,
+          inbox: [...get().inbox, aviso],
         });
         return true;
       },
@@ -1227,7 +1247,7 @@ export const useFija = create<State>()(
         const caja = get().caja ?? cajaVacia();
         const gasto = caja.gastos.find((item) => item.id === gastoId && !item.anulado);
         if (!gasto || !me || gasto.pagadoPor === me) return;
-        const parte = partesIguales(gasto.monto, gasto.personas).find((item) => item.memberId === me);
+        const parte = cuponesDe(gasto).find((item) => item.id === me && !item.exento);
         if (!parte) return;
         set({
           caja: aplicarCobro(caja, {
@@ -1246,8 +1266,8 @@ export const useFija = create<State>()(
         if (!puedeCaja(get())) return;
         const caja = get().caja ?? cajaVacia();
         const gasto = caja.gastos.find((item) => item.id === gastoId && !item.anulado);
-        const parte = gasto ? partesIguales(gasto.monto, gasto.personas).find((item) => item.memberId === memberId) : undefined;
-        if (!parte) return;
+        const parte = gasto ? cuponesDe(gasto).find((item) => item.id === memberId && !item.exento) : undefined;
+        if (!parte || parte.monto < 1) return;
         const previo = caja.cobros.find((item) => item.gastoId === gastoId && item.memberId === memberId);
         set({
           caja: aplicarCobro(caja, {
@@ -2766,7 +2786,7 @@ function freshNotice(
     .reverse()
     .find((item) => !remoteInbox.has(item.id) && fresh(item.at) && item.readBy.includes(activeId));
   if (!note) return null;
-  const url = note.kind === "formacion" ? "/cancha" : note.kind === "charla" ? "/chat" : "/";
+  const url = note.kind === "formacion" || note.kind === "charla" ? "/cancha" : note.kind === "caja" ? "/caja" : "/";
   return { title: note.title, body: note.body, url, tag: `in-${note.id}`, noticeId: note.id };
 }
 

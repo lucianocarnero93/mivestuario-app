@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { deudaDe, aplicarCobro } from "./caja";
+import { deudaDe, aplicarCobro, pagoAlcanza } from "./caja";
 import { readClub } from "./cloud";
 import { sanitizeCode } from "./sanitize";
 import type { Caja, ClubBundle } from "./types";
@@ -151,6 +151,7 @@ export const crearLinkPago = createServerFn({ method: "POST" })
       body: JSON.stringify({
         items: [{ title: gasto?.titulo || "Caja del equipo", quantity: 1, currency_id: "ARS", unit_price: monto }],
         external_reference: `${data.code}:${data.gastoId}:${memberId}`,
+        notification_url: "https://www.mivestuario.com.ar/api/mp/webhook",
       }),
     });
     if (!preference.ok) return { ok: false, reason: "sin-mp" };
@@ -173,6 +174,8 @@ export async function marcarPagoMp(reference: string, paymentId: string, status:
     const bundle = typeof raw === "string" ? safeJson<ClubBundle>(raw) : raw;
     if (!bundle?.club) return;
     const caja: Caja = bundle.caja ?? { tesoreroId: "", gastos: [], cobros: [] };
+    const deuda = deudaDe(caja, gastoId, memberId);
+    if (!pagoAlcanza(deuda, amount)) return;
     const next = aplicarCobro(caja, {
       id: `mp-${paymentId}`.slice(0, 40),
       gastoId,

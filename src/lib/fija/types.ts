@@ -19,7 +19,7 @@ export type Role = "dt" | "ayudante" | "jugador";
 export type Modality = "f5" | "f7" | "f8" | "f9" | "f11";
 export type EventKind = "partido" | "entrenamiento" | "reunion";
 export type RsvpStatus = "pendiente" | "voy" | "no";
-export type InboxKind = "convocatoria" | "recordatorio" | "formacion" | "charla" | "equipamiento";
+export type InboxKind = "convocatoria" | "recordatorio" | "formacion" | "charla" | "equipamiento" | "caja";
 export type InboxAudience = "all" | "pending" | "staff" | "miembro";
 export type AlertKind = "first" | "second" | "equipment";
 export type TournamentStatus = "active" | "finished";
@@ -260,6 +260,13 @@ export type Encuesta = {
 
 export type CategoriaGasto = "cancha" | "arbitro" | "indumentaria" | "social" | "otro";
 
+export type Cupon = {
+  id: string;
+  nombre?: string;
+  monto: number;
+  exento?: boolean;
+};
+
 export type Gasto = {
   id: string;
   titulo: string;
@@ -268,6 +275,8 @@ export type Gasto = {
   fecha: string;
   pagadoPor: string;
   personas: string[];
+  cupones?: Cupon[];
+  cerrado?: boolean;
   anulado?: boolean;
   at: string;
 };
@@ -285,6 +294,7 @@ export type Cobro = {
 
 export type Caja = {
   tesoreroId: string;
+  alias?: string;
   gastos: Gasto[];
   cobros: Cobro[];
 };
