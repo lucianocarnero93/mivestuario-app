@@ -11,7 +11,7 @@ test("una jugada guarda el texto y si tiene audio", () => {
     ],
   });
   assert.equal(jugada?.notas.length, 1);
-  assert.equal(jugada?.notas[0]?.texto, "Salimos cortos por abajo");
+  assert.equal(jugada?.notas[0]?.texto, "  Salimos cortos por abajo  ");
   assert.equal(jugada?.notas[0]?.audio, true);
 });
 

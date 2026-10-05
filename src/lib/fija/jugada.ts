@@ -30,7 +30,7 @@ export function sanitizeJugada(value: unknown): Jugada | undefined {
       if (!id) continue;
       notas.push({
         id,
-        texto: String(row.texto ?? "").replace(/\s+/g, " ").trim().slice(0, 160),
+        texto: String(row.texto ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "").slice(0, 160),
         audio: row.audio === true,
       });
     }
@@ -45,5 +45,5 @@ export function preferirJugada(previous: Jugada | undefined, incoming: Jugada | 
 }
 
 export function notasVisibles(jugada: Jugada | undefined): NotaJugada[] {
-  return (sanitizeJugada(jugada)?.notas ?? []).filter((nota) => nota.texto || nota.audio);
+  return (sanitizeJugada(jugada)?.notas ?? []).filter((nota) => nota.texto.trim() || nota.audio);
 }
