@@ -5,6 +5,7 @@ import {
   canAssignRoles,
   repairCreatedBy,
   allowedDrops,
+  patchKeepsMenor,
   claimExistingName,
   decideClaim,
   equipmentHeading,
@@ -184,6 +185,11 @@ test("el ayudante no saca ni banea a un DT", () => {
   ];
   assert.deepEqual(allowedDrops(members, "crea", ["otro", "ayu", "pibe", "crea"], false), ["pibe"]);
   assert.deepEqual(allowedDrops(members, "crea", ["otro", "ayu", "pibe", "crea"], true), ["otro", "ayu", "pibe"]);
+});
+
+test("una cuenta menor no puede pasar a mayor por API", () => {
+  assert.equal(patchKeepsMenor(true, { menor: false, name: "Nico" }).menor, true);
+  assert.equal(patchKeepsMenor(false, { menor: false }).menor, false);
 });
 
 test("sacar a alguien banea su cuenta y un jugador no banea", () => {

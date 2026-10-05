@@ -415,6 +415,11 @@ export const savePortrait = createServerFn({ method: "POST" })
     if (!userId) return { ok: false };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
+    const users = await sql.query<{ menor: boolean | null }>(`select menor from "user" where id = $1`, [userId]);
+    if (users[0]?.menor === true) {
+      await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [PORTRAITS, userId]);
+      return { ok: false };
+    }
     if (!data) {
       await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [PORTRAITS, userId]);
       return { ok: true };

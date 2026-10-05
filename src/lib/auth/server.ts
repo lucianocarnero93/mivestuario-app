@@ -168,12 +168,21 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       update: {
-        before: async (data: { menor?: boolean }) => {
-          if (data?.menor === false) {
-            const { menor: _ignored, ...rest } = data;
-            return { data: rest };
+        before: async (
+          data: { menor?: boolean },
+          context: { context?: { session?: { user?: { id?: string } } } } | null,
+        ) => {
+          const userId = context?.context?.session?.user?.id;
+          if (!userId) return { data };
+          try {
+            const { getSql } = await import("@/lib/db");
+            const { patchKeepsMenor } = await import("@/lib/fija/club-rules");
+            const sql = await getSql();
+            const rows = await sql.query<{ menor: boolean | null }>(`select menor from "user" where id = $1`, [userId]);
+            return { data: patchKeepsMenor(rows[0]?.menor === true, data) };
+          } catch {
+            return { data };
           }
-          return { data };
         },
       },
       delete: {

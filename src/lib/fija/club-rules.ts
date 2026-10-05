@@ -357,7 +357,11 @@ export function pickMemberIdentity(
   };
 }
 
-/** Solo quien creó el equipo designa puestos y el nombre. Un DT designado no hereda el mando. */
+/** Una cuenta marcada menor no puede volver a false por un pedido del cliente. */
+export function patchKeepsMenor<T extends { menor?: boolean }>(currentMenor: boolean, patch: T): T {
+  if (!currentMenor) return patch;
+  return { ...patch, menor: true };
+}
 export function canAssignRoles(members: Member[], createdBy: string, userId: string): boolean {
   if (!userId) return false;
   const creator = members.find((person) => person.id === createdBy);
