@@ -259,6 +259,26 @@ export function safeAppPath(url: string): string {
   return APP_PATHS.has(path) ? path : "/";
 }
 
+export function pushCopy(clubName: string, item: InboxItem): { title: string; body: string; url: string } {
+  const url = item.kind === "formacion" ? "/cancha" : item.kind === "charla" ? "/chat" : "/";
+  return {
+    title: `${clubName}: ${item.title}`.slice(0, 80),
+    body: item.body.slice(0, 180),
+    url: safeAppPath(url),
+  };
+}
+
+export function memberGetsPush(
+  item: InboxItem,
+  member: Member,
+  status: "voy" | "no" | "pendiente" | null,
+): boolean {
+  if (item.audience === "staff") return member.role === "dt" || member.role === "ayudante";
+  if (item.audience === "miembro") return Boolean(item.memberId && item.memberId === member.id);
+  if (item.audience === "pending") return status !== "voy" && status !== "no";
+  return true;
+}
+
 export function noticeFits(
   bundle: ClubBundle,
   memberId: string,

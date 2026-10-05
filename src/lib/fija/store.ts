@@ -2088,10 +2088,7 @@ export const useFija = create<State>()(
                   data: {
                     code: merged.club.inviteCode,
                     exceptMemberId: current.activeId,
-                    title: notice.title,
-                    body: notice.body,
-                    url: notice.url,
-                    tag: notice.tag,
+                    noticeId: notice.noticeId ?? "",
                   },
                 });
               };
@@ -2530,7 +2527,7 @@ function freshNotice(
   activeId: string,
   remote: ClubBundle | null,
   merged: ClubBundle,
-): { title: string; body: string; url: string; tag: string } | null {
+): { title: string; body: string; url: string; tag: string; noticeId?: string } | null {
   const now = Date.now();
   const fresh = (at: string) => now - new Date(at).getTime() < 3 * 60 * 1000;
   const remoteMessages = new Set((remote?.messages ?? []).map((item) => item.id));
@@ -2552,7 +2549,7 @@ function freshNotice(
     .find((item) => !remoteInbox.has(item.id) && fresh(item.at) && item.readBy.includes(activeId));
   if (!note) return null;
   const url = note.kind === "formacion" ? "/cancha" : note.kind === "charla" ? "/chat" : "/";
-  return { title: note.title, body: note.body, url, tag: `in-${note.id}` };
+  return { title: note.title, body: note.body, url, tag: `in-${note.id}`, noticeId: note.id };
 }
 
 // True si la persona actual es quien creó el equipo.

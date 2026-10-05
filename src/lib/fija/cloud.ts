@@ -111,7 +111,7 @@ async function noteLookup(userId: string, limit = ATTEMPT_LIMIT): Promise<void> 
   });
 }
 
-async function readClub(code: string): Promise<ClubBundle | null> {
+export async function readClub(code: string): Promise<ClubBundle | null> {
   const { getSql } = await import("@/lib/db");
   const sql = await getSql();
   const rows = await sql.query<{ data: ClubBundle | string }>(

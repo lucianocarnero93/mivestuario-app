@@ -6,6 +6,8 @@ import {
   repairCreatedBy,
   allowedDrops,
   patchKeepsMenor,
+  pushCopy,
+  memberGetsPush,
   claimExistingName,
   decideClaim,
   equipmentHeading,
@@ -190,6 +192,25 @@ test("el ayudante no saca ni banea a un DT", () => {
 test("una cuenta menor no puede pasar a mayor por API", () => {
   assert.equal(patchKeepsMenor(true, { menor: false, name: "Nico" }).menor, true);
   assert.equal(patchKeepsMenor(false, { menor: false }).menor, false);
+});
+
+test("el aviso nombra al club y no le llega a quien no corresponde", () => {
+  const item = {
+    id: "n1",
+    kind: "convocatoria" as const,
+    title: "Hoy hay partido",
+    body: "Confirmá",
+    audience: "pending" as const,
+    at: "",
+    readBy: [],
+  };
+  assert.equal(pushCopy("Siete", item).title, "Siete: Hoy hay partido");
+  const dt = person({ id: "d", name: "DT", role: "dt" });
+  const pibe = person({ id: "p", name: "Pibe" });
+  assert.equal(memberGetsPush(item, pibe, "pendiente"), true);
+  assert.equal(memberGetsPush(item, pibe, "voy"), false);
+  assert.equal(memberGetsPush({ ...item, audience: "staff" }, pibe, null), false);
+  assert.equal(memberGetsPush({ ...item, audience: "staff" }, dt, null), true);
 });
 
 test("sacar a alguien banea su cuenta y un jugador no banea", () => {

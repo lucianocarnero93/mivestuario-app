@@ -1,10 +1,12 @@
 // Avisos del plantel. La clave pública se crea sola la primera vez y queda en la base.
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { isClubMember, memberIdInClub, memberIdsInClub, noticeForMember } from "./cloud";
+import { isClubMember, memberIdsInClub, readClub } from "./cloud";
+import { memberGetsPush, pushCopy } from "./club-rules";
 import { sanitizeCode } from "./sanitize";
 
 const PUSHES = "pushes";
+const SENT = "push-enviados";
 const CONFIG = "config";
 const VAPID_ID = "vapid";
 const VAPID_SUBJECT = "mailto:contacto@mivestuario.com.ar";
@@ -155,28 +157,55 @@ export const dropPushSubscription = createServerFn({ method: "POST" })
 
 export const notifyClub = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator(
-    (input: { code: string; exceptMemberId: string; title: string; body: string; url: string; tag: string }) => ({
-      code: sanitizeCode(input.code),
-      exceptMemberId: String(input.exceptMemberId ?? "").slice(0, 40),
-      title: String(input.title ?? "Mi Vestuario").slice(0, 80),
-      body: String(input.body ?? "").slice(0, 180),
-      url: String(input.url ?? "/").slice(0, 80),
-      tag: String(input.tag ?? "vestuario").slice(0, 80),
-    }),
-  )
+  .validator((input: { code?: string; noticeId?: string; exceptMemberId?: string }) => ({
+    code: sanitizeCode(String(input?.code ?? "")),
+    noticeId: String(input?.noticeId ?? "").replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40),
+    exceptMemberId: String(input?.exceptMemberId ?? "").slice(0, 40),
+  }))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
     const userId = String((context as { userId?: string }).userId ?? "");
-    if (!data.code || !data.body) return { ok: false };
+    if (!data.code) return { ok: false };
     if (!(await isClubMember(data.code, userId))) return { ok: false };
-    const notice = await noticeForMember(data.code, userId, data.title, data.body);
-    if (!notice) return { ok: false };
+    const bundle = await readClub(data.code);
+    if (!bundle) return { ok: false };
+    const me = bundle.members.find((person) => person.accountId === userId || person.id === userId);
+    if (!me) return { ok: false };
+    const note = data.noticeId ? (bundle.inbox ?? []).find((item) => item.id === data.noticeId) : undefined;
+    if (data.noticeId && !note) return { ok: false };
+    if (!data.noticeId && me.role !== "dt" && me.role !== "ayudante") return { ok: false };
+    const copy = note
+      ? pushCopy(bundle.club.name, note)
+      : { title: `${bundle.club.name}: Aviso`.slice(0, 80), body: "Hay una novedad en el vestuario.", url: "/" };
     const keys = await ensureVapid();
     if (!keys) return { ok: false };
     const webpush = (await import("web-push")).default;
     webpush.setVapidDetails(VAPID_SUBJECT, keys.publicKey, keys.privateKey);
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
+    if (data.noticeId) {
+      const rows = await sql.query<{ data: { ids?: string[] } | string }>(
+        "select data from vestuario_docs where collection = $1 and id = $2",
+        [SENT, data.code],
+      );
+      const raw = rows[0]?.data;
+      let parsed: { ids?: string[] } | null = null;
+      if (typeof raw === "string") {
+        try {
+          parsed = JSON.parse(raw) as { ids?: string[] };
+        } catch {
+          parsed = null;
+        }
+      } else if (raw && typeof raw === "object") parsed = raw;
+      const ids = Array.isArray(parsed?.ids) ? parsed.ids : [];
+      if (ids.includes(data.noticeId)) return { ok: true };
+      await sql.query(
+        `insert into vestuario_docs (collection, id, data, updated_at)
+         values ($1, $2, $3::jsonb, now())
+         on conflict (collection, id)
+         do update set data = excluded.data, updated_at = now()`,
+        [SENT, data.code, JSON.stringify({ ids: [...ids, data.noticeId].slice(-80) })],
+      );
+    }
     const alive = new Set((await memberIdsInClub(data.code)) ?? []);
     const stored = asPushes(await readJson(sql, PUSHES, data.code));
     const current = stored.filter((item) => alive.has(item.memberId));
@@ -189,7 +218,17 @@ export const notifyClub = createServerFn({ method: "POST" })
         [PUSHES, data.code, JSON.stringify({ subs: current })],
       );
     }
-    const subs = current.filter((item) => item.memberId !== data.exceptMemberId);
+    const subs = current.filter((item) => {
+      if (item.memberId === data.exceptMemberId) return false;
+      const person = bundle.members.find((member) => member.id === item.memberId);
+      if (!person) return false;
+      if (!note) return person.role === "dt" || person.role === "ayudante";
+      const status = (bundle.rsvps ?? []).find(
+        (row) => row.eventId === note.eventId && row.memberId === person.id,
+      )?.status;
+      const known = status === "voy" || status === "no" || status === "pendiente" ? status : null;
+      return memberGetsPush(note, person, known);
+    });
     const gone: string[] = [];
     await Promise.all(
       subs.map(async (item) => {
@@ -197,10 +236,10 @@ export const notifyClub = createServerFn({ method: "POST" })
           await webpush.sendNotification(
             { endpoint: item.endpoint, keys: { p256dh: item.p256dh, auth: item.auth } },
             JSON.stringify({
-              title: notice.title,
-              body: data.body.slice(0, 180),
-              tag: data.tag,
-              data: { url: notice.url },
+              title: copy.title,
+              body: copy.body,
+              tag: data.noticeId || "vestuario",
+              data: { url: copy.url },
             }),
           );
         } catch (error) {
