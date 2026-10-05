@@ -5,9 +5,7 @@ import { candidatosFigura, figuraDe } from "@/lib/fija/figura";
 import { personLabel } from "@/lib/fija/format";
 import { vivoUrl, whatsAppEnVivo, whatsAppResultado, whatsAppSinConfirmar } from "@/lib/fija/share";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
-import { listarFotos } from "@/lib/fija/fotos";
-import { compartirTarjeta, puestoEnTarjeta } from "@/lib/fija/tarjeta";
-import type { ClubEvent, Member } from "@/lib/fija/types";
+import type { ClubEvent } from "@/lib/fija/types";
 
 export function ParaLaFamilia({ event }: { event: ClubEvent }) {
   const staff = useIsStaff();
@@ -142,43 +140,12 @@ export function FiguraPartido({ event }: { event: ClubEvent }) {
   const sheets = useFija((s) => s.matchSheets);
   const votes = useFija((s) => s.figuraVotes);
   const voteFigura = useFija((s) => s.voteFigura);
-  const [nota, setNota] = useState("");
   const sheet = sheetFor(event.id, sheets);
   if (!sheet || !club) return null;
   const candidatos = candidatosFigura(event, members).filter((person) => person.id !== me.id);
   const mio = (votes ?? []).find((row) => row.eventId === event.id && row.voterId === me.id);
   const figura = figuraDe(votes, event.id);
   const byId = new Map(members.map((person) => [person.id, person]));
-
-  async function tarjetaDe(player: Member) {
-    const goles = sheet?.players.find((row) => row.memberId === player.id)?.goals ?? 0;
-    let fotoEquipo: string | null = null;
-    if (!player.menor && club?.inviteCode) {
-      try {
-        const fotos = await listarFotos({ data: { code: club.inviteCode, eventId: event.id } });
-        fotoEquipo = fotos.find((item) => item.status === "ok")?.image ?? null;
-      } catch {
-        fotoEquipo = null;
-      }
-    }
-    try {
-      const mode = await compartirTarjeta({
-        club: club?.name ?? "",
-        event,
-        sheet: sheet!,
-        player,
-        puesto: puestoEnTarjeta(event, player.id),
-        goles,
-        figura: Boolean(figura?.ids.includes(player.id)),
-        escudo: club?.crest,
-        fotoEquipo,
-      });
-      setNota(mode === "shared" ? "Tarjeta lista para compartir." : "Tarjeta guardada en el celular.");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setNota("No se pudo armar la tarjeta.");
-    }
-  }
 
   return (
     <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
@@ -206,17 +173,6 @@ export function FiguraPartido({ event }: { event: ClubEvent }) {
           </li>
         ))}
       </ul>
-      <div className="mt-3 grid gap-2">
-        <Button variant="secondary" className="h-12" onClick={() => void tarjetaDe(me)}>
-          Compartir mi tarjeta
-        </Button>
-        {figura?.ids[0] && figura.ids[0] !== me.id && byId.get(figura.ids[0]) ? (
-          <Button variant="outline" className="h-12" onClick={() => void tarjetaDe(byId.get(figura.ids[0])!)}>
-            Compartir la figura
-          </Button>
-        ) : null}
-      </div>
-      {nota ? <p className="mt-2 text-sm text-accent">{nota}</p> : null}
     </section>
   );
 }

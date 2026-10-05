@@ -8,7 +8,6 @@ import { CopiarResultado, FiguraPartido } from "@/components/fija/partido";
 import { ConfirmGroups, StaffCallup } from "@/components/fija/staff-callup";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABEL } from "@/lib/fija/format";
-import { teamRecord } from "@/lib/fija/stats";
 import { nextEvent, sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
 
 export const Route = createFileRoute("/")({
@@ -36,7 +35,6 @@ function HomePage() {
   const navigate = Route.useNavigate();
   const event = nextEvent(events, { tournaments, sheets });
   const players = members.filter((m) => m.juega ?? m.role === "jugador");
-  const record = teamRecord(sheets);
   const inviteOk = Boolean(
     club && search.invite && search.invite.toUpperCase() === club.inviteCode,
   );
@@ -104,22 +102,6 @@ function HomePage() {
       ) : null}
 
       {staff ? <div className="mt-4"><InviteShareButton /></div> : null}
-
-      <Link
-        to="/stats"
-        className="mt-4 flex items-center justify-between rounded-xl bg-surface px-4 py-3 shadow-card"
-        search={{ partido: undefined, torneo: "general" }}
-      >
-        <span>
-          <span className="block text-xs font-semibold uppercase tracking-widest text-muted">
-            El equipo
-          </span>
-          <span className="text-sm">
-            {record.won} ganados · {record.drawn} empatados · {record.lost} perdidos
-          </span>
-        </span>
-        <span className="text-sm font-semibold text-accent">Stats</span>
-      </Link>
 
       <div className="contents desk:grid desk:grid-cols-2 desk:items-start desk:gap-6">
       <EventCard

@@ -1,13 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { FotosFecha } from "@/components/fija/fotos-fecha";
 import { EnCancha, FiguraPartido, ParaLaFamilia } from "@/components/fija/partido";
 import { Button } from "@/components/ui/button";
-import { enJuego, fotoAbierta, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
+import { enJuego, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
 import { leerFamilia } from "@/lib/fija/familia";
 import { figuraDe } from "@/lib/fija/figura";
 import { compartirStory } from "@/lib/fija/stories";
-import { compartirTarjetaEquipo, lineasDelPartido } from "@/lib/fija/tarjeta";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
 import type { ClubEvent, ReaccionFecha } from "@/lib/fija/types";
 
@@ -37,7 +35,7 @@ function FechaPage() {
   return (
     <main className="px-4 py-5">
       <h1 className="text-2xl font-semibold">Fecha</h1>
-      <p className="mt-1 text-sm text-muted">El partido, las fotos y la card. Sin chat.</p>
+      <p className="mt-1 text-sm text-muted">El partido. Sin chat.</p>
       {recap.pj > 0 ? (
         <p className="mt-3 rounded-xl bg-surface px-4 py-3 text-sm shadow-card">
           Esta semana: {recap.pj} {recap.pj === 1 ? "partido" : "partidos"} · {recap.gf} goles a favor.
@@ -60,8 +58,6 @@ function FechaViva({ event }: { event: ClubEvent }) {
   const markMatchResult = useFija((s) => s.markMatchResult);
   const reaccionarFecha = useFija((s) => s.reaccionarFecha);
   const ocultarFecha = useFija((s) => s.ocultarFecha);
-  const abrirEncuesta = useFija((s) => s.abrirEncuesta);
-  const votarFecha = useFija((s) => s.votarFecha);
   const flushCloud = useFija((s) => s.flushCloud);
   const [familias, setFamilias] = useState(0);
   const [nota, setNota] = useState("");
@@ -82,35 +78,6 @@ function FechaViva({ event }: { event: ClubEvent }) {
     void leerFamilia({ data: event.liveToken }).then((result) => setFamilias(result.n)).catch(() => setFamilias(0));
   }, [event.liveToken, event.resultClosedAt]);
   const invicto = rachaInvicto(sheets, useFija.getState().events);
-
-  async function compartirEquipo() {
-    if (!club || !sheet) {
-      setNota("Primero tiene que haber un marcador.");
-      return;
-    }
-    const lineas = lineasDelPartido(
-      (sheet.players ?? []).map((fila) => ({
-        nick: byId.get(fila.memberId)?.nick || "Jugador",
-        goals: fila.goals,
-        assists: fila.assists,
-        yellow: fila.yellow,
-        red: fila.red,
-      })),
-    );
-    try {
-      const mode = await compartirTarjetaEquipo({
-        club: club.name,
-        titulo: event.title,
-        marcador: `${sheet.goalsFor}–${sheet.goalsAgainst}`,
-        lineas,
-        escudo: club.crest,
-      });
-      setNota(mode === "shared" ? "Tarjeta lista para WhatsApp." : "Tarjeta guardada en el celular.");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setNota("No se pudo armar la tarjeta.");
-    }
-  }
 
   async function compartir(kind: "convocados" | "vivo" | "final" | "figura") {
     if (!club || (!sheet && kind !== "convocados")) {
@@ -181,7 +148,6 @@ function FechaViva({ event }: { event: ClubEvent }) {
         </Button>
       </div>
       {cerrado ? <FiguraPartido event={event} /> : null}
-      <FotosFecha eventId={event.id} abierta={fotoAbierta(event)} />
       <div className="mt-4 flex gap-2">
         {EMOJIS.map((emoji) => {
           const cuenta = event.reacciones?.filter((item) => item.emoji === emoji.id).length ?? 0;
@@ -197,12 +163,8 @@ function FechaViva({ event }: { event: ClubEvent }) {
           );
         })}
       </div>
-      <Encuesta event={event} staff={staff} onAbrir={abrirEncuesta} onVotar={votarFecha} />
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button variant="outline" className="h-12" onClick={() => void compartir("convocados")}>Convocados</Button>
-        <Button variant="outline" className="h-12" onClick={() => void compartirEquipo()}>
-          {cerrado ? "Tarjeta del equipo" : "Marcador"}
-        </Button>
         <Button variant="outline" className="h-12" onClick={() => void compartir("figura")}>Figura</Button>
         {staff ? (
           <Button variant="ghost" className="h-12" onClick={() => ocultarFecha(event.id, !event.fechaOculta)}>
@@ -211,53 +173,6 @@ function FechaViva({ event }: { event: ClubEvent }) {
         ) : null}
       </div>
       {nota ? <p className="mt-2 text-sm text-accent">{nota}</p> : null}
-    </section>
-  );
-}
-
-function Encuesta({
-  event,
-  staff,
-  onAbrir,
-  onVotar,
-}: {
-  event: ClubEvent;
-  staff: boolean;
-  onAbrir: (eventId: string, pregunta: string, opciones: string[]) => void;
-  onVotar: (eventId: string, opcion: number) => void;
-}) {
-  const [pregunta, setPregunta] = useState("¿Vamos el domingo?");
-  const encuesta = event.encuesta;
-  return (
-    <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted">Encuesta</p>
-      {encuesta ? (
-        <div className="mt-2 grid gap-2">
-          <p className="text-sm font-semibold">{encuesta.pregunta}</p>
-          {encuesta.opciones.map((opcion, index) => {
-            const votos = encuesta.votos.filter((voto) => voto.opcion === index).length;
-            return (
-              <Button key={opcion} variant="secondary" className="h-12" onClick={() => onVotar(event.id, index)}>
-                {opcion} · {votos}
-              </Button>
-            );
-          })}
-        </div>
-      ) : staff ? (
-        <div className="mt-2 grid gap-2">
-          <input
-            className="h-12 rounded-md bg-bg px-3"
-            value={pregunta}
-            maxLength={80}
-            onChange={(eventInput) => setPregunta(eventInput.target.value)}
-          />
-          <Button className="h-12" onClick={() => onAbrir(event.id, pregunta, ["Sí", "No"])}>
-            Preguntar sí o no
-          </Button>
-        </div>
-      ) : (
-        <p className="mt-2 text-sm text-muted">El DT todavía no preguntó nada.</p>
-      )}
     </section>
   );
 }
