@@ -6,6 +6,7 @@ import { withTransaction } from "@/lib/db";
 import { mergeFiguraVotes } from "./figura";
 import { FORMATIONS } from "./formations";
 import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, type PuestoPublico } from "./vivo";
+import { jugadaVisible, preferirJugada, type PasoJugada } from "./jugada";
 import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
@@ -252,6 +253,8 @@ export type MarcadorPublico =
       estado: "espera" | "juego" | "final";
       titulares: PuestoPublico[];
       banco: string[];
+      tactica: string;
+      pasos: PasoJugada[];
     }
   | { ok: false; reason: "missing" | "limited" };
 
@@ -360,6 +363,8 @@ export const leerMarcador = createServerFn({ method: "POST" })
       estado: estadoMarcador(event),
       titulares: formacion.titulares,
       banco: formacion.banco,
+      tactica: event.lineupPublishedAt ? (event.tactics ?? "").slice(0, 180) : "",
+      pasos: event.lineupPublishedAt ? jugadaVisible(event.jugada) : [],
     };
   });
 
@@ -576,6 +581,7 @@ export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
     ...tidy,
     liveToken: liveSource.liveToken ?? null,
     liveUpdatedAt: liveSource.liveUpdatedAt,
+    jugada: preferirJugada(previous.jugada, incoming.jugada),
   };
 }
 

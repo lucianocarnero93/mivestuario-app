@@ -16,6 +16,7 @@ import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
 import { mergeFiguraVotes } from "./figura";
+import { sanitizeJugada, type PasoJugada } from "./jugada";
 import { safeStorage } from "./storage";
 import type {
   AlertLog,
@@ -89,6 +90,7 @@ type State = ReturnType<typeof createSeed> & {
   convocarLosQueVan: (eventId: string) => string | null;
   setBoardShape: (eventId: string, modality: Modality, formacionId: string) => string | null;
   setTactics: (eventId: string, tactics: string) => void;
+  setJugada: (eventId: string, pasos: PasoJugada[]) => void;
   setRival: (eventId: string, rival: string) => void;
   setNota: (eventId: string, memberId: string, nota: string) => void;
   publishLineup: (eventId: string) => void;
@@ -575,6 +577,15 @@ export const useFija = create<State>()(
               ? { ...event, tactics, lineupUpdatedAt: new Date().toISOString() }
               : event,
           ),
+        });
+      },
+
+      setJugada: (eventId, pasos) => {
+        if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
+        const jugada = sanitizeJugada({ pasos, updatedAt: new Date().toISOString() });
+        set({
+          events: get().events.map((event) => (event.id === eventId ? { ...event, jugada } : event)),
         });
       },
 

@@ -2,6 +2,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Pitch } from "@/components/fija/pitch";
+import { JugadaPanel } from "@/components/fija/jugada-panel";
 import { SquadPanel } from "@/components/fija/squad-panel";
 import { Segmented } from "@/components/fija/segmented";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ function CanchaPage() {
   const setSpot = useFija((s) => s.setSpot);
   const setBoardShape = useFija((s) => s.setBoardShape);
   const setTactics = useFija((s) => s.setTactics);
+  const setJugada = useFija((s) => s.setJugada);
   const rsvps = useFija((s) => s.rsvps);
   const publishLineup = useFija((s) => s.publishLineup);
     const setJuega = useFija((s) => s.setJuega);
@@ -138,18 +140,23 @@ function CanchaPage() {
                   Jugar yo también
                 </label>
               ) : null}
-              <div className="mt-3">
-                <Pitch
-                  modality={event.modality}
-                  formacionId={event.formacion}
-                  lineup={event.lineup}
-                  members={members}
-                  editable={staff}
-                  onSlot={staff ? setSlot : undefined}
-                />
-              </div>
+              <JugadaPanel staff={staff} jugada={event.jugada} onChange={(pasos) => setJugada(event.id, pasos)}>
+                {(lienzo, editaEquipo) => (
+                  <Pitch
+                    modality={event.modality}
+                    formacionId={event.formacion}
+                    lineup={event.lineup}
+                    members={members}
+                    editable={staff && editaEquipo}
+                    onSlot={staff && editaEquipo ? setSlot : undefined}
+                    capa={lienzo}
+                  />
+                )}
+              </JugadaPanel>
               {staff ? (
-                <p className="mt-2 text-center text-xs text-line/80">Tocá un puesto para poner o sacar a alguien.</p>
+                <p className="mt-2 text-center text-xs text-line/80">
+                  En Equipo elegís jugadores. En Jugada dibujás el movimiento.
+                </p>
               ) : null}
             </div>
             <div className="mt-3 rounded-2xl border border-line/25 bg-black/30 p-4">

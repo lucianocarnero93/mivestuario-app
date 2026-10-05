@@ -13,7 +13,7 @@
     "build:dev": "node scripts/with-app-env.mjs vite build --mode development",
     "preview": "node scripts/with-app-env.mjs vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/auth/sign-in-gate.test.ts src/lib/vestuario-note.test.ts src/lib/fija/edad.test.ts src/lib/fija/club-rules.test.ts src/lib/fija/prune.test.ts src/lib/fija/figura.test.ts src/lib/fija/vivo.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/auth/sign-in-gate.test.ts src/lib/vestuario-note.test.ts src/lib/fija/edad.test.ts src/lib/fija/club-rules.test.ts src/lib/fija/prune.test.ts src/lib/fija/figura.test.ts src/lib/fija/vivo.test.ts src/lib/fija/jugada.test.ts",
     "revisar": "node scripts/revisar.mjs",
     "tienda": "node scripts/preparar-tienda.mjs",
     "lint": "eslint .",

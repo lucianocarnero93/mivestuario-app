@@ -13,6 +13,8 @@
   lineup        = la formación: cada puesto de la cancha apunta a un jugador
 */
 
+import type { Jugada } from "./jugada";
+
 export type Role = "dt" | "ayudante" | "jugador";
 export type Modality = "f5" | "f7" | "f8" | "f9" | "f11";
 export type EventKind = "partido" | "entrenamiento" | "reunion";
@@ -109,6 +111,8 @@ export type ClubEvent = {
   rival?: string;
   /** Una frase por jugador. La ve todo el equipo. */
   notas?: Record<string, string>;
+  /** La jugada dibujada sobre la formación. */
+  jugada?: Jugada;
   lineupPublishedAt: string | null;
   tournamentId: string | null;
   /** Quién lleva qué, solo para partidos. */
