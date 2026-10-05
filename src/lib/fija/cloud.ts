@@ -11,6 +11,7 @@ import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
   canAssignRoles,
+  repairCreatedBy,
   capRoster,
   clipInbox,
   clipTextList,
@@ -812,7 +813,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   }
   const me = memberFor(existing.members, userId);
   const staff = isStaffMember(me);
-  const creatorId = existing.club.createdBy;
+  const creatorId = repairCreatedBy(existing.members, existing.club.createdBy);
   const requestedDrops = (staff ? (incoming.droppedIds ?? []) : []).filter((id) => id !== creatorId);
   const dropped = new Set(
     staff
@@ -895,7 +896,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           ...incoming.club,
           name: callerIsCreator(existing, userId) ? incoming.club.name || existing.club.name : existing.club.name,
           inviteCode: existing.club.inviteCode,
-          createdBy: callerIsCreator(existing, userId) ? incoming.club.createdBy || existing.club.createdBy : existing.club.createdBy,
+          createdBy: callerIsCreator(existing, userId)
+            ? incoming.club.createdBy || creatorId
+            : creatorId,
         }
       : existing.club,
     members: listed,

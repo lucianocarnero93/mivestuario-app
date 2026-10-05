@@ -357,13 +357,22 @@ export function pickMemberIdentity(
   };
 }
 
-/** El DT con cuenta, o quien creó el equipo, puede designar puestos y el nombre. */
+/** Solo quien creó el equipo designa puestos y el nombre. Un DT designado no hereda el mando. */
 export function canAssignRoles(members: Member[], createdBy: string, userId: string): boolean {
   if (!userId) return false;
-  const me = members.find((person) => person.accountId === userId || person.id === userId);
-  if (me?.role === "dt") return true;
   const creator = members.find((person) => person.id === createdBy);
   return Boolean(creator && (creator.accountId === userId || creator.id === userId));
+}
+
+/** Si el creador ya no está, el mando pasa a un DT con cuenta, después a un ayudante, después a cualquier cuenta. */
+export function repairCreatedBy(members: Member[], createdBy: string): string {
+  if (members.some((person) => person.id === createdBy)) return createdBy;
+  const dt = members.find((person) => person.role === "dt" && person.accountId);
+  if (dt) return dt.id;
+  const ayudante = members.find((person) => person.role === "ayudante" && person.accountId);
+  if (ayudante) return ayudante.id;
+  const cuenta = members.find((person) => person.accountId);
+  return cuenta?.id ?? createdBy;
 }
 
 export function dedupeBanned(list: BannedAccount[]): BannedAccount[] {
