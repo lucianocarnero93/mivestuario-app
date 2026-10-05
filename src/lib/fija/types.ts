@@ -84,6 +84,13 @@ export type MatchSheet = {
   players: PlayerMatchStat[];
 };
 
+export type FiguraVote = {
+  eventId: string;
+  voterId: string;
+  pickId: string;
+  at: string;
+};
+
 export type EquipmentItem = "remeras" | "pelotas";
 
 export type ClubEvent = {
@@ -185,6 +192,7 @@ export type ClubBundle = {
   messages: ChatMessage[];
   charla: CharlaPost[];
   matchSheets: MatchSheet[];
+  figuraVotes?: FiguraVote[];
   invites: Invite[];
   convocatorias: Convocatoria[];
   inbox: InboxItem[];
@@ -222,6 +230,7 @@ export type AppState = {
   messages: ChatMessage[];
   charla: CharlaPost[];
   matchSheets: MatchSheet[];
+  figuraVotes?: FiguraVote[];
   invites: Invite[];
   convocatorias: Convocatoria[];
   inbox: InboxItem[];

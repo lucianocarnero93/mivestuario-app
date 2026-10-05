@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { whatsAppClaimUrl } from "@/lib/fija/share";
+import { CopiarSinConfirmar } from "@/components/fija/partido";
 import {
   convocatoriaFor,
   useFija,
@@ -65,6 +66,10 @@ export function StaffCallup({ event }: { event: ClubEvent }) {
         </Button>
         <PolicyDialog />
       </div>
+
+      {pending.length > 0 ? (
+        <CopiarSinConfirmar event={event} names={pending.map((row) => members.find((person) => person.id === row.memberId)?.nick ?? "").filter(Boolean)} />
+      ) : null}
 
       {overdue.length > 0 ? (
         <div className="mt-4 rounded-xl bg-surface p-4 shadow-card">

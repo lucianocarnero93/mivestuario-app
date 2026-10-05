@@ -3,6 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
+import { mergeFiguraVotes } from "./figura";
 import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
@@ -485,6 +486,7 @@ export function withoutDroppedEvents(bundle: ClubBundle, dropped: Set<string>): 
     events: bundle.events.filter((event) => !dropped.has(event.id)),
     rsvps: (bundle.rsvps ?? []).filter((row) => !dropped.has(row.eventId)),
     matchSheets: (bundle.matchSheets ?? []).filter((sheet) => !dropped.has(sheet.eventId)),
+    figuraVotes: (bundle.figuraVotes ?? []).filter((row) => !dropped.has(row.eventId)),
     convocatorias: (bundle.convocatorias ?? []).filter((item) => !dropped.has(item.eventId)),
     inbox: (bundle.inbox ?? []).filter((item) => !item.eventId || !dropped.has(item.eventId)),
     alertLog: (bundle.alertLog ?? []).filter((item) => !dropped.has(item.eventId)),
@@ -691,6 +693,10 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           ],
         )
       : existing.matchSheets,
+    figuraVotes: mergeFiguraVotes(
+      existing.figuraVotes,
+      staff ? incoming.figuraVotes : (incoming.figuraVotes ?? []).filter((row) => row.voterId === me?.id),
+    ),
     invites: staff ? unionById(existing.invites, incoming.invites) : existing.invites,
     convocatorias: staff
       ? unionById(

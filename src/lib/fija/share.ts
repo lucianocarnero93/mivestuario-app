@@ -88,8 +88,26 @@ export async function shareOrCopy(payload: {
 }
 
 export function whatsAppClaimUrl(player: Member, event: ClubEvent, club: Club): string {
-  const text = `Che ${player.nick}, el DT de ${club.name} te está esperando en Mi Vestuario. Confirmá si vas a ${event.title} el ${formatWhen(event.startsAt)}.`;
+  const text = whatsAppPendiente(player, event, club);
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+export function whatsAppPendiente(player: Member, event: ClubEvent, club: Club): string {
+  return `Che ${player.nick}, el DT de ${club.name} te está esperando en Mi Vestuario. Confirmá si vas a ${event.title} el ${formatWhen(event.startsAt)}.`;
+}
+
+export function whatsAppSinConfirmar(club: Club, event: ClubEvent, names: string[]): string {
+  const quienes = names.length > 0 ? names.join(", ") : "los que faltan";
+  return `Falta confirmar ${event.title} (${formatWhen(event.startsAt)}). ${quienes}: contesten en Mi Vestuario si van. — ${club.name}`;
+}
+
+export function whatsAppResultado(
+  club: Club,
+  event: ClubEvent,
+  goalsFor: number,
+  goalsAgainst: number,
+): string {
+  return `Resultado de ${event.title}: ${goalsFor}–${goalsAgainst}. Entrá a Mi Vestuario y votá la figura. — ${club.name}`;
 }
 
 export function clampHours(value: number, min = 1, max = 168): number {

@@ -15,6 +15,7 @@ import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
+import { mergeFiguraVotes } from "./figura";
 import { safeStorage } from "./storage";
 import type {
   AlertLog,
@@ -25,6 +26,7 @@ import type {
   ClubEvent,
   Convocatoria,
   EventKind,
+  FiguraVote,
   GpsConsent,
   InboxItem,
   Invite,
@@ -108,6 +110,8 @@ type State = ReturnType<typeof createSeed> & {
   assignRole: (memberId: string, role: Role) => void;
     setJuega: (memberId: string, juega: boolean) => void;
     saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">, options?: { confirmClosed?: boolean }) => void;
+  anotarEnCancha: (eventId: string, kind: "gol" | "gol-rival" | "tarjeta", memberId?: string) => void;
+  voteFigura: (eventId: string, pickId: string) => void;
   asignarEquipamiento: (eventId: string, item: ItemEquipamiento, memberId: string | null) => void;
   ultimoEquipamiento: (beforeEventId: string, item: ItemEquipamiento) => string | null;
   createTournament: (name: string) => string | null;
@@ -971,6 +975,61 @@ export const useFija = create<State>()(
         };
         const otherSheets = get().matchSheets.filter((saved) => saved.eventId !== sheet.eventId);
         set({ matchSheets: [...otherSheets, sheet] });
+      },
+
+      anotarEnCancha: (eventId, kind, memberId) => {
+        if (!isStaffId(get())) return;
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event || event.kind !== "partido" || !resultIsOpen(event.startsAt)) return;
+        const tournament = get().tournaments.find((item) => item.id === event.tournamentId);
+        if (tournament?.status === "finished") return;
+        const existing = get().matchSheets.find((sheet) => sheet.eventId === eventId);
+        const players = (existing?.players ?? []).map((row) => ({ ...row }));
+        let goalsFor = existing?.goalsFor ?? 0;
+        let goalsAgainst = existing?.goalsAgainst ?? 0;
+        if (kind === "gol") goalsFor = clampStat(goalsFor + 1);
+        if (kind === "gol-rival") goalsAgainst = clampStat(goalsAgainst + 1);
+        if (kind === "tarjeta") {
+          if (!memberId) return;
+          const row = players.find((item) => item.memberId === memberId) ?? emptyStat(memberId);
+          row.yellow = clampStat(row.yellow + 1);
+          if (!players.some((item) => item.memberId === memberId)) players.push(row);
+        }
+        if (players.reduce((sum, row) => sum + row.goals, 0) > goalsFor) return;
+        const now = new Date().toISOString();
+        const sheet: MatchSheet = {
+          eventId,
+          opponent: sanitizeName(existing?.opponent || event.title),
+          goalsFor,
+          goalsAgainst,
+          notes: existing?.notes ?? "",
+          recordedAt: now,
+          players,
+        };
+        set({
+          matchSheets: [...get().matchSheets.filter((saved) => saved.eventId !== eventId), sheet],
+          events: get().events.map((item) =>
+            item.id === eventId
+              ? { ...item, resultClosedAt: null, resultPending: true, resultUpdatedAt: now }
+              : item,
+          ),
+        });
+      },
+
+      voteFigura: (eventId, pickId) => {
+        const voterId = get().activeId;
+        if (!voterId || voterId === pickId) return;
+        if (!get().members.some((person) => person.id === voterId)) return;
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event || !resultIsOpen(event.startsAt)) return;
+        if (!get().matchSheets.some((sheet) => sheet.eventId === eventId)) return;
+        const vote: FiguraVote = { eventId, voterId, pickId, at: new Date().toISOString() };
+        set({
+          figuraVotes: mergeFiguraVotes(
+            (get().figuraVotes ?? []).filter((row) => !(row.eventId === eventId && row.voterId === voterId)),
+            [vote],
+          ),
+        });
       },
       // El DT o el ayudante asignan quién lleva un item del equipamiento.
       // También puede ser un jugador del plantel (DT/ayudante que juegan).
@@ -2059,6 +2118,7 @@ export const useFija = create<State>()(
         messages: s.messages,
         charla: s.charla,
         matchSheets: s.matchSheets,
+        figuraVotes: s.figuraVotes ?? [],
         invites: s.invites,
         convocatorias: s.convocatorias,
         inbox: s.inbox,
@@ -2086,6 +2146,7 @@ export const useFija = create<State>()(
         if (!Array.isArray(state.matchSheets)) {
           state.matchSheets = createSeed().matchSheets;
         }
+        if (!Array.isArray(state.figuraVotes)) state.figuraVotes = [];
         if (!Array.isArray(state.tournaments)) {
           state.tournaments = createSeed().tournaments;
         }
@@ -2189,6 +2250,7 @@ if (typeof window !== "undefined") {
       state.members === prev.members &&
       state.events === prev.events &&
       state.matchSheets === prev.matchSheets &&
+      state.figuraVotes === prev.figuraVotes &&
       state.messages === prev.messages &&
       state.tournaments === prev.tournaments &&
       state.rsvps === prev.rsvps &&
@@ -2365,6 +2427,7 @@ function mergeClubBundles(
     messages: unionById(remote.messages, local.messages),
     charla: unionById(remote.charla, local.charla),
     matchSheets: mergeSheets(remote.matchSheets, local.matchSheets, who.staff),
+    figuraVotes: mergeFiguraVotes(remote.figuraVotes, local.figuraVotes),
     invites: unionById(remote.invites, local.invites),
     convocatorias: unionById(
       remote.convocatorias.map((item) => ({ ...item, id: item.eventId })),
@@ -2444,6 +2507,7 @@ function snapshotShelf(state: {
   messages: ChatMessage[];
   charla: CharlaPost[];
   matchSheets: MatchSheet[];
+  figuraVotes?: FiguraVote[];
   invites: Invite[];
   convocatorias: Convocatoria[];
   inbox: InboxItem[];
@@ -2523,6 +2587,7 @@ function toBundle(state: {
   messages: ChatMessage[];
   charla: CharlaPost[];
   matchSheets: MatchSheet[];
+  figuraVotes?: FiguraVote[];
   invites: Invite[];
   convocatorias: Convocatoria[];
   inbox: InboxItem[];
@@ -2542,6 +2607,7 @@ function toBundle(state: {
     messages: state.messages,
     charla: state.charla,
     matchSheets: state.matchSheets,
+    figuraVotes: state.figuraVotes ?? [],
     invites: state.invites,
     convocatorias: state.convocatorias,
     inbox: state.inbox,

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { formatDay } from "@/lib/fija/format";
+import { figuraDe, goleadorDelMes } from "@/lib/fija/figura";
 import { alumniMember, outcome, playerRows, rankedBy, resultLabel, teamRecord } from "@/lib/fija/stats";
 import {
   activeTournament,
@@ -39,6 +40,7 @@ function StatsPage() {
   const members = useFija((s) => s.members);
   const alumni = useFija((s) => s.alumni);
   const sheets = useFija((s) => s.matchSheets);
+  const votes = useFija((s) => s.figuraVotes);
   const tournaments = useFija((s) => s.tournaments);
   const createTournament = useFija((s) => s.createTournament);
   const renameTournament = useFija((s) => s.renameTournament);
@@ -90,7 +92,11 @@ function StatsPage() {
   const scorers = rankedBy(rows, "goals");
   const assists = rankedBy(rows, "assists");
   const cardRows = rows.filter((row) => row.yellow > 0 || row.red > 0);
+  const ultimoConResultado = partidos.find((item) => sheetFor(item.id, sheets));
+  const figura = ultimoConResultado ? figuraDe(votes, ultimoConResultado.id) : null;
+  const delMes = goleadorDelMes(scopedSheets, events);
   const byId = new Map(members.map((m) => [m.id, m]));
+  const nombreDe = (id: string) => byId.get(id)?.nick ?? alumniMember(alumni, id).nick;
   const personOf = (id: string) => byId.get(id) ?? alumniMember(alumni, id);
   const mine = rows.find((row) => row.memberId === me.id);
   const pending = staff
@@ -107,6 +113,24 @@ function StatsPage() {
     <main className="px-4 py-5">
       <p className="text-sm text-muted">{club?.name}</p>
       <h1 className="text-2xl font-semibold">Estadísticas</h1>
+      <section className="mt-4 grid gap-2">
+        <div className="rounded-xl bg-surface px-4 py-3 shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Figura del partido</p>
+          <p className="mt-1 text-sm">
+            {figura
+              ? `${figura.ids.map(nombreDe).join(" y ")} · ${ultimoConResultado?.title ?? ""}`
+              : "Cuando voten después del partido, aparece acá."}
+          </p>
+        </div>
+        <div className="rounded-xl bg-surface px-4 py-3 shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Goleador del mes</p>
+          <p className="mt-1 text-sm">
+            {delMes
+              ? `${delMes.ids.map(nombreDe).join(" y ")} · ${delMes.goles} ${delMes.goles === 1 ? "gol" : "goles"}`
+              : "Este mes todavía no hay goles cargados."}
+          </p>
+        </div>
+      </section>
       <p className="mt-1 text-sm text-muted">
         Elegí un torneo para ver solo esos partidos. General suma todos los torneos que ya jugaron.
       </p>

@@ -4,6 +4,7 @@ import { Chalkboard } from "@/components/fija/chalkboard";
 import { EventCard } from "@/components/fija/event-card";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { InviteShareButton } from "@/components/fija/invite-share";
+import { CopiarResultado, EnCancha, FiguraPartido } from "@/components/fija/partido";
 import { ConfirmGroups, StaffCallup } from "@/components/fija/staff-callup";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABEL } from "@/lib/fija/format";
@@ -61,6 +62,11 @@ function HomePage() {
     );
   }
 
+  const figuraEvent = [...events]
+    .filter((item) => item.kind === "partido" && sheetFor(item.id, sheets) && resultIsOpen(item.startsAt))
+    .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt))[0];
+  const figuraReciente =
+    figuraEvent && Date.now() - +new Date(figuraEvent.startsAt) < 7 * 24 * 3_600_000 ? figuraEvent : undefined;
   const eventRsvps = rsvps.filter((r) => r.eventId === event.id);
   const mine = eventRsvps.find((r) => r.memberId === me.id);
   const sheet = sheetFor(event.id, sheets);
@@ -123,6 +129,11 @@ function HomePage() {
         result={sheet ? { gf: sheet.goalsFor, ga: sheet.goalsAgainst } : undefined}
         showGear
       />
+      {staff && event.kind === "partido" && resultIsOpen(event.startsAt) && !event.resultClosedAt ? (
+        <EnCancha event={event} />
+      ) : null}
+      {figuraReciente ? <FiguraPartido event={figuraReciente} /> : null}
+      {staff && figuraReciente ? <CopiarResultado event={figuraReciente} /> : null}
 
       {!staff ? (
         alreadyPlayed ? (
