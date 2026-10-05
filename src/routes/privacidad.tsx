@@ -61,7 +61,8 @@ function PrivacidadPage() {
             editar la formación, la planilla y las convocatorias. Los jugadores pueden ver y confirmar
             asistencia. Si el DT comparte el resultado en vivo, quien tenga ese link ve el nombre del
             equipo, el rival, el horario, la cancha, el marcador y la formación publicada (apodo, número y
-            puesto). No ve fotos, la charla ni a quien no fue citado.
+            puesto). No ve fotos, nombres reales, menores, indicaciones, jugadas ni la charla, ni a quien
+            no fue citado.
           </p>
         </section>
 

@@ -45,7 +45,7 @@ export function ParaLaFamilia({ event }: { event: ClubEvent }) {
     <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted">Para la familia</p>
       <p className="mt-1 text-sm text-muted">
-        El link muestra el resultado y la formación publicada. No muestra fotos ni al resto del plantel.
+        El link muestra el resultado y la formación publicada: apodo, número y puesto. No muestra fotos, nombres, menores, indicaciones ni jugadas.
       </p>
       <Button className="mt-3 h-14 w-full" onClick={() => void publicar()}>
         {event.liveToken ? "Copiar link del partido" : "Compartir resultado en vivo"}

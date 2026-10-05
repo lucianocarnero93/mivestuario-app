@@ -6,7 +6,7 @@ import { withTransaction } from "@/lib/db";
 import { mergeFiguraVotes } from "./figura";
 import { FORMATIONS } from "./formations";
 import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoPointerAllows, type PuestoPublico } from "./vivo";
-import { notasVisibles, preferirJugada } from "./jugada";
+import { preferirJugada } from "./jugada";
 import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
@@ -271,8 +271,6 @@ export type MarcadorPublico =
       estado: "espera" | "juego" | "final";
       titulares: PuestoPublico[];
       banco: string[];
-      tactica: string;
-      notas: { id: string; texto: string }[];
     }
   | { ok: false; reason: "missing" | "limited" };
 
@@ -371,6 +369,7 @@ export const leerMarcador = createServerFn({ method: "POST" })
         nick: person.nick,
         name: person.name,
         number: person.number,
+        menor: person.menor === true,
       })),
       Boolean(event.lineupPublishedAt),
     );
@@ -385,10 +384,6 @@ export const leerMarcador = createServerFn({ method: "POST" })
       estado: estadoMarcador(event),
       titulares: formacion.titulares,
       banco: formacion.banco,
-      tactica: event.lineupPublishedAt ? (event.tactics ?? "").slice(0, 180) : "",
-      notas: event.lineupPublishedAt
-        ? notasVisibles(event.jugada).map((nota) => ({ id: nota.id, texto: nota.texto }))
-        : [],
     };
   });
 

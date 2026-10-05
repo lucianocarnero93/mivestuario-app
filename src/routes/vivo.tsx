@@ -86,45 +86,15 @@ function VivoPage() {
               {marcador.banco.length > 0 ? (
                 <p className="mt-3 text-sm text-muted">Banco: {marcador.banco.join(", ")}</p>
               ) : null}
-              <JugadaPublica marcador={marcador} />
             </section>
           ) : (
             <p className="mt-6 text-sm text-muted">El DT todavía no publicó la formación.</p>
           )}
-          <p className="mt-6 text-xs text-subtle">Se ven el resultado, la jugada y la formación. No hay fotos.</p>
+          <p className="mt-6 text-xs text-subtle">Se ven el resultado y la formación. No hay fotos, nombres ni jugadas.</p>
         </>
       ) : (
         <h1 className="mt-2 text-3xl font-semibold">Cargando el partido…</h1>
       )}
     </main>
-  );
-}
-
-function JugadaPublica({ marcador }: { marcador: Extract<MarcadorPublico, { ok: true }> }) {
-  const notas = marcador.notas.filter((nota) => nota.texto);
-  const [indice, setIndice] = useState(0);
-  const nota = notas[Math.min(indice, Math.max(notas.length - 1, 0))];
-  if (!nota && !marcador.tactica) return null;
-
-  return (
-    <section className="chalkboard mt-3 rounded-xl p-4">
-      <p className="font-display text-xs font-semibold uppercase tracking-[0.22em] text-chalk/70">Jugadas</p>
-      {notas.length > 1 ? (
-        <div className="mt-3 flex gap-2 overflow-x-auto">
-          {notas.map((item, i) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`h-11 shrink-0 rounded-md px-3 text-xs font-semibold ${i === indice ? "bg-accent text-accent-fg" : "bg-black/30 text-chalk"}`}
-              onClick={() => setIndice(i)}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-      ) : null}
-      {nota ? <p className="mano mt-3 whitespace-pre-wrap">{nota.texto}</p> : null}
-      {marcador.tactica ? <p className="mt-3 text-sm text-chalk/80">{marcador.tactica}</p> : null}
-    </section>
   );
 }

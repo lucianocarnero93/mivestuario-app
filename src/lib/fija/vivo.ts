@@ -7,7 +7,7 @@ export type PuestoPublico = {
   y: number;
 };
 
-type PersonaPublica = { id: string; nick: string; name: string; number: number | null };
+type PersonaPublica = { id: string; nick: string; name: string; number: number | null; menor?: boolean };
 
 export function estadoMarcador(
   event: { startsAt: string; resultClosedAt?: string | null },
@@ -29,12 +29,12 @@ export function sanitizeLiveToken(value: unknown): string {
   return /^[a-f0-9]{32}$/.test(token) ? token : "";
 }
 
-function apodo(person: PersonaPublica, grupo: PersonaPublica[]): string {
-  const nick = (person.nick || person.name || "Jugador").slice(0, 22);
-  const mismo = grupo.filter((item) => (item.nick || item.name) === (person.nick || person.name));
-  if (person.number != null && mismo.length > 1) return `${person.number} ${nick}`;
-  if (mismo.length > 1 && person.name && person.name !== nick) return `${nick} (${person.name.slice(0, 16)})`;
-  return person.number != null ? `${person.number} ${nick}` : nick;
+function apodo(person: PersonaPublica, grupo: PersonaPublica[], puesto = ""): string {
+  const nick = (person.nick || "Jugador").slice(0, 22);
+  const mismo = grupo.filter((item) => (item.nick || "") === (person.nick || ""));
+  if (person.number != null) return `${person.number} ${nick}`;
+  if (mismo.length > 1 && puesto) return `${nick} · ${puesto}`.slice(0, 28);
+  return nick;
 }
 
 export function armarFormacionPublica(
@@ -45,19 +45,24 @@ export function armarFormacionPublica(
   published: boolean,
 ): { titulares: PuestoPublico[]; banco: string[] } {
   if (!published) return { titulares: [], banco: [] };
-  const byId = new Map(people.map((person) => [person.id, person]));
+  const publishedPeople = people.filter((person) => person.menor !== true);
+  const byId = new Map(publishedPeople.map((person) => [person.id, person]));
   const titulares: PuestoPublico[] = [];
   for (const slot of slots) {
     const person = byId.get(lineup?.[slot.key] ?? "");
     if (!person) continue;
-    titulares.push({ puesto: slot.label.slice(0, 8), nick: "", x: slot.x, y: slot.y });
-    titulares[titulares.length - 1]!.nick = apodo(person, people);
+    titulares.push({
+      puesto: slot.label.slice(0, 8),
+      nick: apodo(person, publishedPeople, slot.label.slice(0, 8)),
+      x: slot.x,
+      y: slot.y,
+    });
   }
   const enCancha = new Set(Object.values(lineup ?? {}));
   const banco = (suplentes ?? [])
     .filter((id) => !enCancha.has(id))
     .map((id) => byId.get(id))
     .filter((person): person is PersonaPublica => Boolean(person))
-    .map((person) => apodo(person, people));
+    .map((person) => apodo(person, publishedPeople));
   return { titulares, banco };
 }
