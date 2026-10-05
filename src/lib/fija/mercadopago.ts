@@ -148,31 +148,38 @@ export const estadoMp = createServerFn({ method: "POST" })
     return { conectado: Boolean(await leerCuenta(code)) };
   });
 
+export async function abrirConexion(
+  code: string,
+  userId: string,
+): Promise<{ ok: boolean; url?: string; reason?: "sin-mp" | "sin-permiso" }> {
+  const { bundle, me } = await memberDe(code, userId);
+  const tesorero = Boolean(bundle?.caja?.tesoreroId && bundle.caja.tesoreroId === me?.id);
+  if (!me || (me.role !== "dt" && me.role !== "ayudante" && !tesorero)) return { ok: false, reason: "sin-permiso" };
+  if (!clientId() || !clientSecret()) return { ok: false, reason: "sin-mp" };
+  const nonce = crypto.randomUUID().replace(/-/g, "");
+  const { getSql } = await import("@/lib/db");
+  const sql = await getSql();
+  await sql.query(
+    `insert into vestuario_docs (collection, id, data, updated_at)
+     values ($1, $2, $3::jsonb, now())
+     on conflict (collection, id) do update set data = excluded.data, updated_at = now()`,
+    [MP_STATE, nonce, JSON.stringify({ code, userId, at: Date.now() })],
+  );
+  const url = new URL("https://auth.mercadopago.com/authorization");
+  url.searchParams.set("client_id", clientId());
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("platform_id", "mp");
+  url.searchParams.set("state", nonce);
+  url.searchParams.set("redirect_uri", redirectUri());
+  return { ok: true, url: url.toString() };
+}
+
 export const empezarMp = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((code: string) => sanitizeCode(code))
-  .handler(async ({ data: code, context }): Promise<{ ok: boolean; url?: string; reason?: "sin-mp" | "sin-permiso" }> => {
+  .handler(async ({ data: code, context }) => {
     const userId = String((context as { userId?: string }).userId ?? "");
-    const { bundle, me } = await memberDe(code, userId);
-    const tesorero = Boolean(bundle?.caja?.tesoreroId && bundle.caja.tesoreroId === me?.id);
-    if (!me || (me.role !== "dt" && me.role !== "ayudante" && !tesorero)) return { ok: false, reason: "sin-permiso" };
-    if (!clientId() || !clientSecret()) return { ok: false, reason: "sin-mp" };
-    const nonce = crypto.randomUUID().replace(/-/g, "");
-    const { getSql } = await import("@/lib/db");
-    const sql = await getSql();
-    await sql.query(
-      `insert into vestuario_docs (collection, id, data, updated_at)
-       values ($1, $2, $3::jsonb, now())
-       on conflict (collection, id) do update set data = excluded.data, updated_at = now()`,
-      [MP_STATE, nonce, JSON.stringify({ code, userId, at: Date.now() })],
-    );
-    const url = new URL("https://auth.mercadopago.com/authorization");
-    url.searchParams.set("client_id", clientId());
-    url.searchParams.set("response_type", "code");
-    url.searchParams.set("platform_id", "mp");
-    url.searchParams.set("state", nonce);
-    url.searchParams.set("redirect_uri", redirectUri());
-    return { ok: true, url: url.toString() };
+    return abrirConexion(code, userId);
   });
 
 export async function guardarCodigoMp(nonce: string, code: string): Promise<boolean> {
@@ -211,6 +218,32 @@ export async function guardarCodigoMp(nonce: string, code: string): Promise<bool
   return true;
 }
 
+export async function abrirPago(input: {
+  code: string;
+  userId: string;
+  gastoId: string;
+  memberId: string;
+}): Promise<{ ok: boolean; url?: string; reason?: "sin-mp" | "sin-deuda" }> {
+  const { bundle, me } = await memberDe(input.code, input.userId);
+  if (!bundle || !me) return { ok: false };
+  const caja = bundle.caja;
+  if (!caja) return { ok: false, reason: "sin-deuda" };
+  const memberId = input.memberId || me.id;
+  const tesorero = me.role === "dt" || me.role === "ayudante" || caja.tesoreroId === me.id;
+  if (memberId !== me.id && !tesorero) return { ok: false };
+  const monto = deudaDe(caja, input.gastoId, memberId);
+  if (monto < 1) return { ok: false, reason: "sin-deuda" };
+  const cuenta = await cuentaVigente(input.code);
+  if (!cuenta) return { ok: false, reason: "sin-mp" };
+  const gasto = caja.gastos.find((item) => item.id === input.gastoId);
+  const url = await preferencia(input.code, cuenta, {
+    title: `${gasto?.titulo || "Caja del equipo"} · $${monto}`.slice(0, 80),
+    monto,
+    reference: `${input.code}:${input.gastoId}:${memberId}`,
+  });
+  return url ? { ok: true, url } : { ok: false, reason: "sin-mp" };
+}
+
 export const crearLinkPago = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { code?: string; gastoId?: string; memberId?: string }) => ({
@@ -218,26 +251,9 @@ export const crearLinkPago = createServerFn({ method: "POST" })
     gastoId: String(input?.gastoId ?? "").slice(0, 40),
     memberId: String(input?.memberId ?? "").slice(0, 80),
   }))
-  .handler(async ({ data, context }): Promise<{ ok: boolean; url?: string; reason?: "sin-mp" | "sin-deuda" }> => {
+  .handler(async ({ data, context }) => {
     const userId = String((context as { userId?: string }).userId ?? "");
-    const { bundle, me } = await memberDe(data.code, userId);
-    if (!bundle || !me) return { ok: false };
-    const caja = bundle.caja;
-    if (!caja) return { ok: false, reason: "sin-deuda" };
-    const memberId = data.memberId || me.id;
-    const tesorero = me.role === "dt" || me.role === "ayudante" || caja.tesoreroId === me.id;
-    if (memberId !== me.id && !tesorero) return { ok: false };
-    const monto = deudaDe(caja, data.gastoId, memberId);
-    if (monto < 1) return { ok: false, reason: "sin-deuda" };
-    const cuenta = await cuentaVigente(data.code);
-    if (!cuenta) return { ok: false, reason: "sin-mp" };
-    const gasto = caja.gastos.find((item) => item.id === data.gastoId);
-    const url = await preferencia(data.code, cuenta, {
-      title: `${gasto?.titulo || "Caja del equipo"} · $${monto}`.slice(0, 80),
-      monto,
-      reference: `${data.code}:${data.gastoId}:${memberId}`,
-    });
-    return url ? { ok: true, url } : { ok: false, reason: "sin-mp" };
+    return abrirPago({ ...data, userId });
   });
 
 export async function marcarPagoMp(reference: string, paymentId: string, status: string, amount: number): Promise<void> {

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CATEGORIA_LABEL, CATEGORIAS, armarCupones, cajaCsv, cuponesDe, deudaDe, liquidar, saldosDe, textoCupones, textoLiquidacion } from "@/lib/fija/caja";
 import { uid } from "@/lib/fija/format";
-import { crearLinkPago, empezarMp, estadoMp } from "@/lib/fija/mercadopago";
+import { estadoMp } from "@/lib/fija/mercadopago";
 import { useFija, useMe } from "@/lib/fija/store";
 import type { Caja, CategoriaGasto, Cupon, Gasto } from "@/lib/fija/types";
 
@@ -39,21 +39,6 @@ function CajaPage() {
     if (!club) return;
     void estadoMp({ data: club.inviteCode }).then((estado) => setConectado(estado.conectado)).catch(() => setConectado(false));
   }, [club?.inviteCode, mp]);
-
-  async function conectar() {
-    if (!club) return;
-    setNota("Abriendo Mercado Pago…");
-    const result = await empezarMp({ data: club.inviteCode });
-    if (result.url) {
-      window.location.assign(result.url);
-      return;
-    }
-    setNota(
-      result.reason === "sin-mp"
-        ? "Falta la clave de Mercado Pago en el servidor."
-        : "Solo el tesorero puede conectar su cuenta.",
-    );
-  }
 
   function copiar() {
     const texto = textoLiquidacion(liquidar(saldos), nombre);
@@ -97,9 +82,13 @@ function CajaPage() {
               </select>
             </label>
           ) : null}
-          <Button className="h-12" onClick={() => void conectar()}>
-            {conectado ? "Reconectar la cuenta del tesorero" : "Conectar la cuenta del tesorero"}
-          </Button>
+          {club ? (
+            <Button asChild className="h-12">
+              <a href={`/api/mp/callback?ir=conectar&club=${encodeURIComponent(club.inviteCode)}`}>
+                {conectado ? "Reconectar la cuenta del tesorero" : "Conectar la cuenta del tesorero"}
+              </a>
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {tesorero ? (
@@ -341,7 +330,6 @@ function GastoCard({
   onConfirmar: (memberId: string) => void;
   onAnular: () => void;
 }) {
-  const [aviso, setAviso] = useState("");
   const caja: Caja = { tesoreroId: "", alias, gastos: [gasto], cobros: cobros as Caja["cobros"] };
   const cupones = cuponesDe(gasto);
   const pagables = cupones.filter((cupon) => cupon.id !== gasto.pagadoPor && !cupon.exento && cupon.monto > 0);
@@ -355,23 +343,9 @@ function GastoCard({
     return cupon.nombre || nombre(cupon.id);
   }
 
-  async function pagar(memberId: string) {
-    setAviso("Abriendo Mercado Pago…");
-    try {
-      await useFija.getState().flushCloud();
-      const result = await crearLinkPago({ data: { code, gastoId: gasto.id, memberId } });
-      if (!result.url) {
-        setAviso(
-          result.reason === "sin-deuda"
-            ? "Ese cupón no tiene nada para cobrar."
-            : "No se abrió Mercado Pago. El tesorero tiene que conectar su cuenta.",
-        );
-        return;
-      }
-      window.location.assign(result.url);
-    } catch {
-      setAviso("No se pudo abrir Mercado Pago.");
-    }
+  function linkPago(memberId: string) {
+    const params = new URLSearchParams({ ir: "pagar", club: code, gasto: gasto.id, member: memberId });
+    return `/api/mp/callback?${params}`;
   }
 
   function avisar() {
@@ -403,19 +377,20 @@ function GastoCard({
         })}
       </ul>
       {mia && deuda > 0 ? (
-        <Button className="mt-3 h-12 w-full" onClick={() => void pagar(meId)}>Pagar ${deuda}</Button>
+        <Button asChild className="mt-3 h-12 w-full">
+          <a href={linkPago(meId)}>Pagar ${deuda}</a>
+        </Button>
       ) : null}
       {tesorero && !gasto.cerrado ? (
         <div className="mt-3 grid gap-2">
           <Button variant="outline" className="h-12" onClick={avisar}>Avisar por WhatsApp</Button>
           {pagables.filter((cupon) => deudaDe(caja, gasto.id, cupon.id) > 0).map((cupon) => (
-            <Button key={cupon.id} variant="secondary" className="h-12" onClick={() => void pagar(cupon.id)}>
-              Cobrar ${cupon.monto} a {etiqueta(cupon)}
+            <Button key={cupon.id} asChild variant="secondary" className="h-12">
+              <a href={linkPago(cupon.id)}>Cobrar ${cupon.monto} a {etiqueta(cupon)}</a>
             </Button>
           ))}
         </div>
       ) : null}
-      {aviso ? <p className="mt-2 text-sm text-muted">{aviso}</p> : null}
       {tesorero ? <Button variant="ghost" className="mt-2 h-11" onClick={onAnular}>Anular gasto</Button> : null}
     </li>
   );

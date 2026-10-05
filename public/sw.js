@@ -1,7 +1,7 @@
 /* Mi Vestuario App service worker
  * Offline shell, network intercept, push, background sync.
  */
-const CACHE = "mi-vestuario-v9";
+const CACHE = "mi-vestuario-v10";
 const PRECACHE = [
   "/",
   "/offline.html",
