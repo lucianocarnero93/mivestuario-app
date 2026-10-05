@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
-import { formatWhen, personLabel } from "@/lib/fija/format";
+import { formatTime, formatWhen, personLabel } from "@/lib/fija/format";
 import { matchSettled, nextEvent, sheetFor, useFija, useIsStaff } from "@/lib/fija/store";
 import type { Modality } from "@/lib/fija/types";
 
@@ -93,15 +93,35 @@ function CanchaPage() {
       ) : null}
 
       {staff || event.lineupPublishedAt ? (
-        <section className="vestuario-board mt-4 rounded-3xl p-3">
+        <section className="vestuario-board relative mt-4 overflow-hidden rounded-3xl p-3">
+          <span className="vestuario-corners" aria-hidden />
           <div className="flex items-center justify-between px-1">
             <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-line">Vestuario</p>
-            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-accent">
-              <span className="vestuario-led" aria-hidden />
-              {event.lineupPublishedAt ? "En la pared" : "Armando"}
+            <p className="font-semibold tabular-nums tracking-widest text-accent">{formatTime(event.startsAt)}</p>
+          </div>
+          <div className="mt-2 flex items-end justify-between gap-3 px-1">
+            <div>
+              <p className="text-lg font-semibold leading-tight text-line">{event.title}</p>
+              <p className="mt-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-accent">
+                <span className="vestuario-led" aria-hidden />
+                {event.lineupPublishedAt ? "En la pared" : "Armando"}
+              </p>
+            </div>
+            <p className="text-right leading-none text-line">
+              <span className="text-3xl font-semibold tabular-nums">{filled}</span>
+              <span className="text-sm text-line/60">/{forma.slots.length}</span>
             </p>
           </div>
-          <p className="mt-1 px-1 text-lg font-semibold text-line">{event.title}</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <p className="rounded-lg border border-line/20 bg-black/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-line">
+              {MODALITY_SHORT[event.modality]}
+              <span className="mt-1 block text-sm normal-case tracking-normal text-accent">{MODALITY_LABEL[event.modality]}</span>
+            </p>
+            <p className="rounded-lg border border-line/20 bg-black/30 px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-line">
+              Sistema
+              <span className="mt-1 block text-sm normal-case tracking-normal text-accent">{forma.name}</span>
+            </p>
+          </div>
           <div className="mt-3">
               {staff ? (
                 <Segmented
@@ -110,11 +130,7 @@ function CanchaPage() {
                   onChange={cambiarModalidad}
                   options={MODALITIES.map((id) => ({ id, label: MODALITY_SHORT[id] }))}
                 />
-              ) : (
-                <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-                  {MODALITY_LABEL[event.modality]}
-                </p>
-              )}
+              ) : null}
               {staff ? (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {FORMATIONS[event.modality].map((item) => {
@@ -125,7 +141,7 @@ function CanchaPage() {
                         type="button"
                         onClick={() => cambiarFormacion(item.id)}
                         className={`h-11 shrink-0 rounded-md px-3 text-xs font-semibold ${
-                          activa ? "bg-accent text-accent-fg" : "bg-bg text-muted"
+                          activa ? "bg-accent text-accent-fg" : "bg-black/40 text-line"
                         }`}
                       >
                         {item.name}
@@ -145,7 +161,7 @@ function CanchaPage() {
                   Jugar yo también
                 </label>
               ) : null}
-              <div className="mt-3">
+              <div className="vestuario-scan mt-3">
                 <Pitch
                   modality={event.modality}
                   formacionId={event.formacion}
@@ -155,12 +171,30 @@ function CanchaPage() {
                   onSlot={staff ? setSlot : undefined}
                 />
               </div>
+              <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
+                {forma.slots.map((item) => {
+                  const id = event.lineup[item.key];
+                  const person = members.find((member) => member.id === id);
+                  return (
+                    <div
+                      key={item.key}
+                      className="w-16 shrink-0 rounded-lg border border-line/25 bg-black/40 px-1 py-1.5 text-center"
+                    >
+                      <p className="text-[10px] font-semibold tracking-widest text-accent">{item.label}</p>
+                      <p className="text-lg font-semibold tabular-nums leading-none text-line">
+                        {person?.number ?? "–"}
+                      </p>
+                      <p className="mt-1 truncate text-[10px] text-line/80">{person ? person.nick : "libre"}</p>
+                    </div>
+                  );
+                })}
+              </div>
               {staff ? (
                 <p className="mt-2 text-center text-xs text-line/80">Tocá un puesto para poner o sacar a alguien.</p>
               ) : null}
             </div>
-            <div className="mt-3 rounded-2xl border border-line/25 bg-black/30 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Indicaciones</p>
+            <div className="mt-3 rounded-2xl border border-accent/40 bg-black/40 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Canal del DT</p>
               {staff ? (
                 <Textarea
                   className="mt-2 min-h-28 border-line/30 bg-transparent text-base text-line placeholder:text-line/40"
