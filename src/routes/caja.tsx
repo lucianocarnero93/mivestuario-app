@@ -10,7 +10,10 @@ import type { Caja, CategoriaGasto, Cupon, Gasto } from "@/lib/fija/types";
 export const Route = createFileRoute("/caja")({
   component: CajaPage,
   validateSearch: (search: Record<string, unknown>) => ({
-    mp: search.mp === "ok" || search.mp === "error" ? search.mp : undefined,
+    mp:
+      search.mp === "ok" || search.mp === "error" || search.mp === "sin-clave" || search.mp === "sin-permiso"
+        ? search.mp
+        : undefined,
   }),
 });
 
@@ -65,7 +68,9 @@ function CajaPage() {
         {conectado ? "Mercado Pago conectado" : "Mercado Pago no conectado"}
       </p>
       {mp === "ok" ? <p className="mt-2 text-sm text-accent">Cuenta conectada.</p> : null}
-      {mp === "error" ? <p className="mt-2 text-sm text-muted">Mercado Pago no dejó conectar. Entrá con la cuenta del tesorero y aceptá.</p> : null}
+      {mp === "error" ? <p className="mt-2 text-sm text-muted">Mercado Pago no dejó conectar. Tocá de nuevo y aceptá con la cuenta del tesorero.</p> : null}
+      {mp === "sin-clave" ? <p className="mt-2 text-sm text-muted">Falta la clave de Mercado Pago en el servidor. Sin eso la cuenta no se puede conectar.</p> : null}
+      {mp === "sin-permiso" ? <p className="mt-2 text-sm text-muted">Tenés que entrar con el usuario del tesorero para conectar su cuenta.</p> : null}
       {tesorero ? (
         <div className="mt-4 grid gap-2">
           {me.role === "dt" ? (
@@ -83,10 +88,14 @@ function CajaPage() {
             </label>
           ) : null}
           {club ? (
-            <Button asChild className="h-12">
-              <a href={`/api/mp/callback?ir=conectar&club=${encodeURIComponent(club.inviteCode)}`}>
-                {conectado ? "Reconectar la cuenta del tesorero" : "Conectar la cuenta del tesorero"}
-              </a>
+            <Button
+              type="button"
+              className="h-12"
+              onClick={() => {
+                window.location.assign(`/api/mp/callback?ir=conectar&club=${encodeURIComponent(club.inviteCode)}`);
+              }}
+            >
+              {conectado ? "Reconectar la cuenta del tesorero" : "Conectar la cuenta del tesorero"}
             </Button>
           ) : null}
         </div>
@@ -377,16 +386,26 @@ function GastoCard({
         })}
       </ul>
       {mia && deuda > 0 ? (
-        <Button asChild className="mt-3 h-12 w-full">
-          <a href={linkPago(meId)}>Pagar ${deuda}</a>
+        <Button
+          type="button"
+          className="mt-3 h-12 w-full"
+          onClick={() => window.location.assign(linkPago(meId))}
+        >
+          Pagar ${deuda}
         </Button>
       ) : null}
       {tesorero && !gasto.cerrado ? (
         <div className="mt-3 grid gap-2">
           <Button variant="outline" className="h-12" onClick={avisar}>Avisar por WhatsApp</Button>
           {pagables.filter((cupon) => deudaDe(caja, gasto.id, cupon.id) > 0).map((cupon) => (
-            <Button key={cupon.id} asChild variant="secondary" className="h-12">
-              <a href={linkPago(cupon.id)}>Cobrar ${cupon.monto} a {etiqueta(cupon)}</a>
+            <Button
+              key={cupon.id}
+              type="button"
+              variant="secondary"
+              className="h-12"
+              onClick={() => window.location.assign(linkPago(cupon.id))}
+            >
+              Cobrar ${cupon.monto} a {etiqueta(cupon)}
             </Button>
           ))}
         </div>

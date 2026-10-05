@@ -27,7 +27,9 @@ export const Route = createFileRoute("/api/mp/callback")({
                   gastoId: String(url.searchParams.get("gasto") ?? "").slice(0, 40),
                   memberId: String(url.searchParams.get("member") ?? "").slice(0, 80),
                 });
-          return salir(request, result.url || "/caja?mp=error");
+          if (result.url) return salir(request, result.url);
+          const fallo = result.reason === "sin-mp" ? "sin-clave" : result.reason === "sin-permiso" ? "sin-permiso" : "error";
+          return salir(request, `/caja?mp=${fallo}`);
         }
         const ok = await guardarCodigoMp(url.searchParams.get("state") ?? "", url.searchParams.get("code") ?? "");
         return salir(request, ok ? "/caja?mp=ok" : "/caja?mp=error");
