@@ -94,14 +94,7 @@ function CanchaPage() {
 
       {staff || event.lineupPublishedAt ? (
         <section className="vestuario-board mt-4 rounded-3xl p-3">
-          <div className="flex items-center justify-between px-1">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-line">Vestuario</p>
-            <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-accent">
-              <span className="vestuario-led" aria-hidden />
-              {event.lineupPublishedAt ? "En la pared" : "Armando"}
-            </p>
-          </div>
-          <p className="mt-1 px-1 text-lg font-semibold text-line">{event.title}</p>
+          <p className="px-1 text-lg font-semibold text-line">{event.title}</p>
           <div className="mt-3">
               {staff ? (
                 <Segmented
