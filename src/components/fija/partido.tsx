@@ -63,13 +63,23 @@ export function ParaLaFamilia({ event }: { event: ClubEvent }) {
 export function EnCancha({ event }: { event: ClubEvent }) {
   const staff = useIsStaff();
   const anotarEnCancha = useFija((s) => s.anotarEnCancha);
+  const deshacerEnCancha = useFija((s) => s.deshacerEnCancha);
   const members = useFija((s) => s.members);
   const sheets = useFija((s) => s.matchSheets);
-  const [tarjeta, setTarjeta] = useState(false);
+  const [modo, setModo] = useState<"gol" | "tarjeta" | null>(null);
   const [aviso, setAviso] = useState("");
-  if (!staff || event.kind !== "partido") return null;
+  if (!staff || event.kind !== "partido" || event.resultClosedAt) return null;
   const sheet = sheetFor(event.id, sheets);
   const nombres = candidatosFigura(event, members);
+  const marcas = event.liveLog ?? [];
+
+  function elegir(personId: string) {
+    if (!modo) return;
+    anotarEnCancha(event.id, modo === "gol" ? "gol" : "tarjeta", personId);
+    const nick = nombres.find((person) => person.id === personId)?.nick ?? "Jugador";
+    setAviso(modo === "gol" ? `Gol de ${nick}.` : `Amarilla para ${nick}.`);
+    setModo(null);
+  }
 
   return (
     <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
@@ -77,30 +87,41 @@ export function EnCancha({ event }: { event: ClubEvent }) {
       <p className="mt-1 text-2xl font-semibold">
         {sheet ? `${sheet.goalsFor}–${sheet.goalsAgainst}` : "0–0"}
       </p>
-      <p className="text-sm text-muted">Se guarda en el celular y se sube cuando hay señal. Después completás la planilla.</p>
+      {marcas.length > 0 ? (
+        <ul className="mt-2 space-y-1 text-sm text-muted">
+          {marcas.slice(-6).map((marca) => (
+            <li key={marca.id}>
+              {marca.kind === "gol"
+                ? `Gol de ${nombres.find((person) => person.id === marca.memberId)?.nick ?? "un jugador"}`
+                : marca.kind === "gol-rival"
+                  ? "Gol de ellos"
+                  : `Tarjeta para ${nombres.find((person) => person.id === marca.memberId)?.nick ?? "un jugador"}`}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="mt-3 grid gap-2">
-        <Button className="h-14" onClick={() => anotarEnCancha(event.id, "gol")}>
+        <Button className="h-14" onClick={() => setModo(modo === "gol" ? null : "gol")}>
           Gol nuestro
         </Button>
         <Button variant="secondary" className="h-14" onClick={() => anotarEnCancha(event.id, "gol-rival")}>
           Gol de ellos
         </Button>
-        <Button variant="outline" className="h-14" onClick={() => setTarjeta((open) => !open)}>
+        <Button variant="outline" className="h-14" onClick={() => setModo(modo === "tarjeta" ? null : "tarjeta")}>
           Tarjeta
         </Button>
+        <Button variant="ghost" className="h-12" disabled={marcas.length === 0} onClick={() => deshacerEnCancha(event.id)}>
+          Deshacer último
+        </Button>
       </div>
-      {tarjeta ? (
+      {modo ? (
         <ul className="mt-3 max-h-60 space-y-1 overflow-auto">
           {nombres.map((person) => (
             <li key={person.id}>
               <button
                 type="button"
                 className="h-12 w-full rounded-md bg-bg px-3 text-left text-sm font-semibold"
-                onClick={() => {
-                  anotarEnCancha(event.id, "tarjeta", person.id);
-                  setTarjeta(false);
-                  setAviso(`Amarilla para ${person.nick}.`);
-                }}
+                onClick={() => elegir(person.id)}
               >
                 {personLabel(person, nombres)}
               </button>

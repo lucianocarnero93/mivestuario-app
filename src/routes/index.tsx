@@ -1,10 +1,10 @@
 // Inicio: pendientes del equipo, próximo partido y acceso a la pizarra.
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Chalkboard } from "@/components/fija/chalkboard";
 import { EventCard } from "@/components/fija/event-card";
 import { resultIsOpen } from "@/lib/fija/club-rules";
+import { contarConfirmaciones } from "@/lib/fija/fecha";
 import { InviteShareButton } from "@/components/fija/invite-share";
-import { CopiarResultado, EnCancha, FiguraPartido, ParaLaFamilia } from "@/components/fija/partido";
+import { CopiarResultado, FiguraPartido } from "@/components/fija/partido";
 import { ConfirmGroups, StaffCallup } from "@/components/fija/staff-callup";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABEL } from "@/lib/fija/format";
@@ -129,9 +129,12 @@ function HomePage() {
         result={sheet ? { gf: sheet.goalsFor, ga: sheet.goalsAgainst } : undefined}
         showGear
       />
-      {staff && event.kind === "partido" ? <ParaLaFamilia event={event} /> : null}
-      {staff && event.kind === "partido" && resultIsOpen(event.startsAt) && !event.resultClosedAt ? (
-        <EnCancha event={event} />
+      {event.kind === "partido" ? (
+        <Button asChild className="mt-4 h-14 w-full text-base">
+          <Link to="/fecha" search={{ partido: event.id }}>
+            {event.resultClosedAt ? "Ver la fecha" : "Seguir el partido"}
+          </Link>
+        </Button>
       ) : null}
       {figuraReciente ? <FiguraPartido event={figuraReciente} /> : null}
       {staff && figuraReciente ? <CopiarResultado event={figuraReciente} /> : null}
@@ -213,29 +216,23 @@ function HomePage() {
                 Control de confirmaciones
               </h2>
               <span className="text-xs text-muted">
-                {eventRsvps.filter((r) => r.status === "pendiente").length} pendientes
+                {contarConfirmaciones(players, eventRsvps).pending} pendientes
               </span>
             </div>
             <ConfirmGroups players={players} eventRsvps={eventRsvps} eventId={event.id} staff />
-            {event.kind === "partido" && resultIsOpen(event.startsAt) ? (
+            {event.kind === "partido" && !event.resultClosedAt ? (
               <Button asChild className="mt-3 h-14 w-full text-base" variant="outline">
                 <Link to="/stats" search={{ partido: event.id, torneo: "general" }}>
                   {sheet ? "Editar planilla" : "Cargar resultado y stats"}
                 </Link>
               </Button>
             ) : event.kind === "partido" ? (
-              <p className="mt-3 text-sm text-muted">El resultado se carga cuando llega el horario del partido.</p>
+              <p className="mt-3 text-sm text-muted">Este partido ya está cerrado. El próximo aparece cuando lo cargues.</p>
             ) : null}
           </section>
         </>
       )}
       </div>
-
-      {event.tactics ? (
-        <Chalkboard title="Pauta del DT" className="mt-6">
-          {event.tactics}
-        </Chalkboard>
-      ) : null}
 
       <p className="mt-6 text-xs text-subtle">
         Rol actual: {ROLE_LABEL[me.role]}. DT y ayudante editan por igual.

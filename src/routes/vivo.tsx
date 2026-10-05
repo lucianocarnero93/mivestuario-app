@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { leerMarcador, type MarcadorPublico } from "@/lib/fija/cloud";
+import { reaccionarFamilia } from "@/lib/fija/familia";
 import { formatWhen } from "@/lib/fija/format";
 
 export const Route = createFileRoute("/vivo")({
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/vivo")({
 const ESTADO = {
   espera: "Todavía no empezó",
   juego: "En juego",
-  final: "Final",
+  final: "Finalizado",
 } as const;
 
 function VivoPage() {
@@ -90,11 +91,39 @@ function VivoPage() {
           ) : (
             <p className="mt-6 text-sm text-muted">El DT todavía no publicó la formación.</p>
           )}
+          {marcador.estado === "final" ? <FamiliaFuego token={t} inicial={marcador.familia} /> : null}
           <p className="mt-6 text-xs text-subtle">Se ven el resultado y la formación. No hay fotos, nombres ni jugadas.</p>
         </>
       ) : (
         <h1 className="mt-2 text-3xl font-semibold">Cargando el partido…</h1>
       )}
     </main>
+  );
+}
+
+function FamiliaFuego({ token, inicial }: { token: string; inicial: number }) {
+  const [n, setN] = useState(inicial);
+  const [listo, setListo] = useState(false);
+  return (
+    <section className="mt-6">
+      <button
+        type="button"
+        className="h-14 w-full rounded-md bg-surface text-base font-semibold"
+        disabled={listo}
+        onClick={() => {
+          void reaccionarFamilia({ data: token }).then((result) => {
+            if (result.ok) {
+              setN(result.n);
+              setListo(true);
+            }
+          });
+        }}
+      >
+        {listo ? "Listo" : "Dejar un fuego"}
+      </button>
+      <p className="mt-2 text-sm text-muted">
+        {n} {n === 1 ? "familia siguió" : "familias siguieron"} el partido.
+      </p>
+    </section>
   );
 }

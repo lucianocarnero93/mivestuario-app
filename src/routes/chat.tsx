@@ -1,5 +1,5 @@
 // Indicaciones del cuerpo técnico. El plantel las lee. No hay chat del grupo.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Chalkboard } from "@/components/fija/chalkboard";
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,17 @@ export const Route = createFileRoute("/chat")({
 
 function ChatPage() {
   return (
-    <main className="flex min-h-[calc(100dvh-13rem)] flex-col px-4 py-5">
-      <h1 className="text-3xl font-semibold">Indicaciones</h1>
-      <p className="text-sm text-muted">Las escribe el cuerpo técnico. El plantel las lee.</p>
-      <CharlaWall />
+    <main className="px-4 py-5">
+      <h1 className="text-3xl font-semibold">Eso se mudó</h1>
+      <p className="mt-2 text-sm text-muted">Las indicaciones están en la pizarra. El partido se sigue en Fecha.</p>
+      <div className="mt-4 grid gap-2">
+        <Button asChild className="h-14">
+          <Link to="/cancha">Ir a la pizarra</Link>
+        </Button>
+        <Button asChild variant="secondary" className="h-12">
+          <Link to="/fecha" search={{ partido: undefined }}>Ir a Fecha</Link>
+        </Button>
+      </div>
     </main>
   );
 }

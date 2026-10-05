@@ -1,4 +1,4 @@
-import { CalendarDays, ChartColumn, House, Lock, MessageCircle, Shield, Users } from "lucide-react";
+import { CalendarCheck, CalendarDays, ChartColumn, House, Lock, Shield, Users, Wallet } from "lucide-react";
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { ROLE_LABEL } from "@/lib/fija/format";
@@ -22,9 +22,16 @@ const NAV = [
   { to: "/agenda", label: "Agenda", icon: CalendarDays, exact: false },
   { to: "/cancha", label: "Pizarra", icon: Shield, exact: false },
   { to: "/stats", label: "Stats", icon: ChartColumn, exact: false },
-  { to: "/chat", label: "Técnica", icon: MessageCircle, exact: false },
+  { to: "/fecha", label: "Fecha", icon: CalendarCheck, exact: false },
+  { to: "/caja", label: "Caja", icon: Wallet, exact: false },
   { to: "/equipo", label: "Equipo", icon: Users, exact: false },
 ] as const;
+
+function lineaRol(nick: string, role: keyof typeof ROLE_LABEL) {
+  const rol = ROLE_LABEL[role];
+  if (nick.trim().toLowerCase() === rol.toLowerCase()) return nick;
+  return `${nick} · ${rol}`;
+}
 
 /** Rutas "peladas": sin AppBar ni BottomNav. */
 const BARE_PATHS = [
@@ -187,9 +194,7 @@ function SideNav() {
           <TeamCrest src={club?.crest} name={club?.name} className="size-11 text-sm" />
           <div className="min-w-0">
             <p className="truncate font-display text-lg font-semibold leading-none">{club?.name ?? "Sin equipo"}</p>
-            <p className="mt-1 truncate text-xs text-muted">
-              {me.nick} · {ROLE_LABEL[me.role]}
-            </p>
+            <p className="mt-1 truncate text-xs text-muted">{lineaRol(me.nick, me.role)}</p>
           </div>
         </div>
       </div>
@@ -206,9 +211,11 @@ function SideNav() {
                   search={
                     item.to === "/stats"
                       ? { partido: undefined, torneo: "general" }
-                      : item.to === "/chat"
-                        ? { title: undefined, text: undefined, url: undefined }
-                        : undefined
+                      : item.to === "/fecha"
+                        ? { partido: undefined }
+                        : item.to === "/caja"
+                          ? { mp: undefined }
+                          : undefined
                   }
                   className={cn(
                     "flex h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold",
@@ -270,7 +277,7 @@ function AppBar() {
       <div className="mt-2 flex items-center gap-2 desk:hidden">
         <TeamCrest src={club?.crest} name={club?.name} className="size-8 text-xs" />
         <p className="min-w-0 flex-1 truncate text-xs text-muted">
-          {club?.name ?? "Sin equipo"} · {me.nick} · {ROLE_LABEL[me.role]}
+          {club?.name ?? "Sin equipo"} · {lineaRol(me.nick, me.role)}
         </p>
         {otherClubs.length > 0 ? (
           <Link to="/equipo" className="shrink-0 text-xs font-semibold text-accent">
@@ -326,7 +333,7 @@ function BottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <nav className="sticky bottom-0 z-30 border-t border-border bg-bg/95 pb-[env(safe-area-inset-bottom)] desk:hidden">
-      <ul className="grid grid-cols-6">
+      <ul className="grid grid-cols-7">
         {NAV.map((item) => {
           const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
           const Icon = item.icon;
@@ -337,12 +344,14 @@ function BottomNav() {
                 search={
                   item.to === "/stats"
                     ? { partido: undefined, torneo: "general" }
-                    : item.to === "/chat"
-                      ? { title: undefined, text: undefined, url: undefined }
-                      : undefined
+                    : item.to === "/fecha"
+                      ? { partido: undefined }
+                      : item.to === "/caja"
+                        ? { mp: undefined }
+                        : undefined
                 }
                 className={cn(
-                  "flex h-16 flex-col items-center justify-center gap-1 text-xs font-medium",
+                  "flex h-16 flex-col items-center justify-center gap-0.5 text-[10px] font-medium",
                   active ? "text-accent" : "text-muted",
                 )}
               >

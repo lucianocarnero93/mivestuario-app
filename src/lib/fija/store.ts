@@ -16,10 +16,14 @@ import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
 import { mergeFiguraVotes } from "./figura";
+import { aplicarCobro, armarGasto, cajaVacia, mergeCaja, partesIguales } from "./caja";
+import { ponerReaccion, votarEncuesta } from "./fecha";
 import { sanitizeJugada, type NotaJugada } from "./jugada";
 import { safeStorage } from "./storage";
 import type {
   AlertLog,
+  Caja,
+  CategoriaGasto,
   ChatMessage,
   CharlaPost,
   Club,
@@ -37,6 +41,7 @@ import type {
   Modality,
   PlayerMatchStat,
   ReminderPolicy,
+  ReaccionFecha,
   Role,
   Rsvp,
   RsvpStatus,
@@ -115,6 +120,23 @@ type State = ReturnType<typeof createSeed> & {
     setJuega: (memberId: string, juega: boolean) => void;
     saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">, options?: { confirmClosed?: boolean }) => void;
   anotarEnCancha: (eventId: string, kind: "gol" | "gol-rival" | "tarjeta", memberId?: string) => void;
+  deshacerEnCancha: (eventId: string) => void;
+  reaccionarFecha: (eventId: string, emoji: ReaccionFecha["emoji"]) => void;
+  ocultarFecha: (eventId: string, oculta: boolean) => void;
+  abrirEncuesta: (eventId: string, pregunta: string, opciones: string[]) => void;
+  votarFecha: (eventId: string, opcion: number) => void;
+  definirTesorero: (memberId: string) => void;
+  crearGasto: (input: {
+    titulo: string;
+    monto: number;
+    categoria: CategoriaGasto;
+    fecha: string;
+    pagadoPor: string;
+    personas: string[];
+  }) => boolean;
+  anularGasto: (gastoId: string) => void;
+  marcarPagado: (gastoId: string) => void;
+  confirmarCobro: (gastoId: string, memberId: string) => void;
   voteFigura: (eventId: string, pickId: string) => void;
   abrirEnVivo: (eventId: string) => string | null;
   cerrarEnVivo: (eventId: string) => void;
@@ -1024,14 +1046,20 @@ export const useFija = create<State>()(
       anotarEnCancha: (eventId, kind, memberId) => {
         if (!isStaffId(get())) return;
         const event = get().events.find((item) => item.id === eventId);
-        if (!event || event.kind !== "partido" || !resultIsOpen(event.startsAt)) return;
+        if (!event || event.kind !== "partido" || !resultIsOpen(event.startsAt) || event.resultClosedAt) return;
         const tournament = get().tournaments.find((item) => item.id === event.tournamentId);
         if (tournament?.status === "finished") return;
         const existing = get().matchSheets.find((sheet) => sheet.eventId === eventId);
         const players = (existing?.players ?? []).map((row) => ({ ...row }));
         let goalsFor = existing?.goalsFor ?? 0;
         let goalsAgainst = existing?.goalsAgainst ?? 0;
-        if (kind === "gol") goalsFor = clampStat(goalsFor + 1);
+        if (kind === "gol") {
+          if (!memberId || !get().members.some((person) => person.id === memberId)) return;
+          goalsFor = clampStat(goalsFor + 1);
+          const row = players.find((item) => item.memberId === memberId) ?? emptyStat(memberId);
+          row.goals = clampStat(row.goals + 1);
+          if (!players.some((item) => item.memberId === memberId)) players.push(row);
+        }
         if (kind === "gol-rival") goalsAgainst = clampStat(goalsAgainst + 1);
         if (kind === "tarjeta") {
           if (!memberId) return;
@@ -1050,13 +1078,188 @@ export const useFija = create<State>()(
           recordedAt: now,
           players,
         };
+        const marca = { id: uid("lv"), kind, memberId, at: now };
         set({
           matchSheets: [...get().matchSheets.filter((saved) => saved.eventId !== eventId), sheet],
           events: get().events.map((item) =>
             item.id === eventId
-              ? { ...item, resultClosedAt: null, resultPending: true, resultUpdatedAt: now }
+              ? {
+                  ...item,
+                  resultClosedAt: null,
+                  resultPending: true,
+                  resultUpdatedAt: now,
+                  liveLog: [...(item.liveLog ?? []), marca].slice(-40),
+                  fechaUpdatedAt: now,
+                }
               : item,
           ),
+        });
+      },
+
+      deshacerEnCancha: (eventId) => {
+        if (!isStaffId(get())) return;
+        const event = get().events.find((item) => item.id === eventId);
+        const marca = event?.liveLog?.[event.liveLog.length - 1];
+        const existing = get().matchSheets.find((sheet) => sheet.eventId === eventId);
+        if (!event || !marca || !existing || event.resultClosedAt) return;
+        const players = existing.players.map((row) => ({ ...row }));
+        let goalsFor = existing.goalsFor;
+        let goalsAgainst = existing.goalsAgainst;
+        if (marca.kind === "gol") {
+          goalsFor = Math.max(0, goalsFor - 1);
+          const row = players.find((item) => item.memberId === marca.memberId);
+          if (row) row.goals = Math.max(0, row.goals - 1);
+        }
+        if (marca.kind === "gol-rival") goalsAgainst = Math.max(0, goalsAgainst - 1);
+        if (marca.kind === "tarjeta" && marca.memberId) {
+          const row = players.find((item) => item.memberId === marca.memberId);
+          if (row) row.yellow = Math.max(0, row.yellow - 1);
+        }
+        const now = new Date().toISOString();
+        set({
+          matchSheets: [
+            ...get().matchSheets.filter((saved) => saved.eventId !== eventId),
+            { ...existing, goalsFor, goalsAgainst, players, recordedAt: now },
+          ],
+          events: get().events.map((item) =>
+            item.id === eventId
+              ? {
+                  ...item,
+                  resultClosedAt: null,
+                  resultPending: true,
+                  resultUpdatedAt: now,
+                  liveLog: (item.liveLog ?? []).slice(0, -1),
+                  fechaUpdatedAt: now,
+                }
+              : item,
+          ),
+        });
+      },
+
+      reaccionarFecha: (eventId, emoji) => {
+        const memberId = get().activeId;
+        if (!memberId || !get().members.some((person) => person.id === memberId)) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) =>
+            event.id === eventId
+              ? { ...event, reacciones: ponerReaccion(event.reacciones, memberId, emoji, now), fechaUpdatedAt: now }
+              : event,
+          ),
+        });
+      },
+
+      ocultarFecha: (eventId, oculta) => {
+        if (!isStaffId(get())) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) =>
+            event.id === eventId ? { ...event, fechaOculta: oculta, fechaUpdatedAt: now } : event,
+          ),
+        });
+      },
+
+      abrirEncuesta: (eventId, pregunta, opciones) => {
+        if (!isStaffId(get())) return;
+        const limpias = opciones.map((item) => item.trim()).filter(Boolean).slice(0, 2);
+        const titulo = pregunta.trim().slice(0, 80);
+        if (!titulo || limpias.length < 2) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) =>
+            event.id === eventId
+              ? { ...event, encuesta: { pregunta: titulo, opciones: limpias, votos: [], at: now }, fechaUpdatedAt: now }
+              : event,
+          ),
+        });
+      },
+
+      votarFecha: (eventId, opcion) => {
+        const memberId = get().activeId;
+        const event = get().events.find((item) => item.id === eventId);
+        if (!memberId || !event?.encuesta) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((item) =>
+            item.id === eventId && item.encuesta
+              ? { ...item, encuesta: votarEncuesta(item.encuesta, memberId, opcion, now), fechaUpdatedAt: now }
+              : item,
+          ),
+        });
+      },
+
+      definirTesorero: (memberId) => {
+        const me = get().members.find((person) => person.id === get().activeId);
+        if (me?.role !== "dt") return;
+        if (!get().members.some((person) => person.id === memberId)) return;
+        set({ caja: { ...(get().caja ?? cajaVacia()), tesoreroId: memberId } });
+      },
+
+      crearGasto: (input) => {
+        if (!puedeCaja(get())) return false;
+        const caja = get().caja ?? cajaVacia(get().activeId);
+        const gasto = armarGasto({ ...input, id: uid("ga"), at: new Date().toISOString() });
+        if (!gasto) return false;
+        set({
+          caja: {
+            tesoreroId: caja.tesoreroId || get().activeId,
+            gastos: [...caja.gastos, gasto].slice(-80),
+            cobros: caja.cobros,
+          },
+        });
+        return true;
+      },
+
+      anularGasto: (gastoId) => {
+        if (!puedeCaja(get())) return;
+        const now = new Date().toISOString();
+        const caja = get().caja ?? cajaVacia();
+        set({
+          caja: {
+            ...caja,
+            gastos: caja.gastos.map((gasto) => (gasto.id === gastoId ? { ...gasto, anulado: true, at: now } : gasto)),
+          },
+        });
+      },
+
+      marcarPagado: (gastoId) => {
+        const me = get().activeId;
+        const caja = get().caja ?? cajaVacia();
+        const gasto = caja.gastos.find((item) => item.id === gastoId && !item.anulado);
+        if (!gasto || !me || gasto.pagadoPor === me) return;
+        const parte = partesIguales(gasto.monto, gasto.personas).find((item) => item.memberId === me);
+        if (!parte) return;
+        set({
+          caja: aplicarCobro(caja, {
+            id: uid("co"),
+            gastoId,
+            memberId: me,
+            monto: parte.monto,
+            medio: "manual",
+            estado: "marcado",
+            at: new Date().toISOString(),
+          }),
+        });
+      },
+
+      confirmarCobro: (gastoId, memberId) => {
+        if (!puedeCaja(get())) return;
+        const caja = get().caja ?? cajaVacia();
+        const gasto = caja.gastos.find((item) => item.id === gastoId && !item.anulado);
+        const parte = gasto ? partesIguales(gasto.monto, gasto.personas).find((item) => item.memberId === memberId) : undefined;
+        if (!parte) return;
+        const previo = caja.cobros.find((item) => item.gastoId === gastoId && item.memberId === memberId);
+        set({
+          caja: aplicarCobro(caja, {
+            id: previo?.id ?? uid("co"),
+            gastoId,
+            memberId,
+            monto: parte.monto,
+            medio: previo?.medio ?? "manual",
+            estado: "confirmado",
+            paymentId: previo?.paymentId,
+            at: new Date().toISOString(),
+          }),
         });
       },
 
@@ -2370,6 +2573,13 @@ function isStaffId(state: { members: Member[]; activeId: string }): boolean {
   return me?.role === "dt" || me?.role === "ayudante";
 }
 
+function puedeCaja(state: { members: Member[]; activeId: string; caja?: Caja }): boolean {
+  const me = state.members.find((person) => person.id === state.activeId);
+  if (!me) return false;
+  if (me.role === "dt") return true;
+  return Boolean(state.caja?.tesoreroId && state.caja.tesoreroId === me.id);
+}
+
 function mergeMembers(
   remote: Member[],
   local: Member[],
@@ -2514,6 +2724,14 @@ function mergeClubBundles(
       ...(local.alumni ?? []).filter((item) => !(remote.alumni ?? []).some((kept) => kept.id === item.id)),
     ],
     bannedAccounts: who.staff ? (remote.bannedAccounts ?? []) : [],
+    caja: who.staff
+      ? mergeCaja(remote.caja, local.caja)
+      : mergeCaja(
+          remote.caja,
+          local.caja
+            ? { ...(remote.caja ?? cajaVacia()), cobros: local.caja.cobros }
+            : undefined,
+        ),
       },
       droppedEvents,
     ),
@@ -2667,6 +2885,7 @@ function toBundle(state: {
   droppedEventIds?: string[];
   droppedCharlaIds?: string[];
   alumni?: { id: string; name: string; nick: string }[];
+  caja?: Caja;
 }): ClubBundle {
   return {
     club: state.club,
@@ -2687,6 +2906,7 @@ function toBundle(state: {
     droppedEventIds: state.droppedEventIds ?? [],
     droppedCharlaIds: state.droppedCharlaIds ?? [],
     alumni: state.alumni ?? [],
+    caja: state.caja ?? cajaVacia(),
   };
 }
 

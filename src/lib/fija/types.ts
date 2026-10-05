@@ -135,6 +135,14 @@ export type ClubEvent = {
   liveToken?: string | null;
   /** Cuándo se abrió o se cerró ese link. Gana el más nuevo. */
   liveUpdatedAt?: string;
+  /** Goles y tarjetas cargados en la fecha, para poder deshacer el último. */
+  liveLog?: MarcaVivo[];
+  /** La card no se muestra al plantel. */
+  fechaOculta?: boolean;
+  reacciones?: ReaccionFecha[];
+  encuesta?: Encuesta;
+  /** Gana la copia más nueva de la card. */
+  fechaUpdatedAt?: string;
 };
 
 
@@ -221,12 +229,64 @@ export type ClubBundle = {
   alumni?: Alumni[];
   /** Cuentas que el DT sacó. No las manda el celular: las escribe el servidor. */
   bannedAccounts?: { accountId: string; name: string; at: string }[];
+  caja?: Caja;
 };
 
 export type Alumni = {
   id: string;
   name: string;
   nick: string;
+};
+
+export type MarcaVivo = {
+  id: string;
+  kind: "gol" | "gol-rival" | "tarjeta";
+  memberId?: string;
+  at: string;
+};
+
+export type ReaccionFecha = {
+  memberId: string;
+  emoji: "fuego" | "aplauso" | "risa";
+  at: string;
+};
+
+export type Encuesta = {
+  pregunta: string;
+  opciones: string[];
+  votos: { memberId: string; opcion: number; at: string }[];
+  at: string;
+};
+
+export type CategoriaGasto = "cancha" | "arbitro" | "indumentaria" | "social" | "otro";
+
+export type Gasto = {
+  id: string;
+  titulo: string;
+  monto: number;
+  categoria: CategoriaGasto;
+  fecha: string;
+  pagadoPor: string;
+  personas: string[];
+  anulado?: boolean;
+  at: string;
+};
+
+export type Cobro = {
+  id: string;
+  gastoId: string;
+  memberId: string;
+  monto: number;
+  medio: "manual" | "mp";
+  estado: "marcado" | "confirmado";
+  paymentId?: string;
+  at: string;
+};
+
+export type Caja = {
+  tesoreroId: string;
+  gastos: Gasto[];
+  cobros: Cobro[];
 };
 
 export type Profile = {
@@ -253,6 +313,7 @@ export type AppState = {
   droppedEventIds?: string[];
   droppedCharlaIds?: string[];
   alumni?: Alumni[];
+  caja?: Caja;
   archivedClubs: ClubBundle[];
   profile: Profile;
   gpsConsent: GpsConsent;

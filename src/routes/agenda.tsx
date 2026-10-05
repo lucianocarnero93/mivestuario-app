@@ -4,36 +4,24 @@ import { CreateEventButton, EditEventButton } from "@/components/fija/event-edit
 import { EventCard } from "@/components/fija/event-card";
 import { Button } from "@/components/ui/button";
 import { resultIsOpen } from "@/lib/fija/club-rules";
+import { clasificarAgenda } from "@/lib/fija/fecha";
 import {
-  eventOfClosedTournament,
   matchSettled,
   sheetFor,
   useFija,
   useIsStaff,
   useMe,
 } from "@/lib/fija/store";
-import type { ClubEvent, MatchSheet } from "@/lib/fija/types";
+import type { ClubEvent } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/agenda")({ component: AgendaPage });
 
 function AgendaPage() {
   const events = useFija((s) => s.events);
   const sheets = useFija((s) => s.matchSheets);
-  const tournaments = useFija((s) => s.tournaments);
   const staff = useIsStaff();
   const now = Date.now();
-  const active = events.filter(
-    (event) => !eventOfClosedTournament(event, tournaments) || !matchSettled(event, sheetFor(event.id, sheets)),
-  );
-  const upcoming = active
-    .filter((event) => isUpcoming(event, sheetFor(event.id, sheets), now) && +new Date(event.startsAt) >= now - 3_600_000)
-    .sort(bySoonest);
-  const pendingResult = active
-    .filter((event) => needsResult(event, sheetFor(event.id, sheets), now) && +new Date(event.startsAt) < now - 3_600_000)
-    .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
-  const played = active
-    .filter((event) => event.kind === "partido" && matchSettled(event, sheetFor(event.id, sheets)))
-    .sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
+  const grupos = clasificarAgenda(events, sheets, now);
 
   return (
     <main className="px-4 py-5">
@@ -41,28 +29,28 @@ function AgendaPage() {
         <h1 className="text-2xl font-semibold">Agenda</h1>
         {staff ? <CreateEventButton /> : null}
       </div>
-      <p className="mt-1 text-sm text-muted">Lo próximo arriba. Lo ya jugado, abajo.</p>
-      {upcoming.length === 0 && played.length === 0 && pendingResult.length === 0 ? (
+      <p className="mt-1 text-sm text-muted">Próximos, entrenamientos y jugados, cada uno por su lado.</p>
+      {grupos.proximos.length === 0 && grupos.jugados.length === 0 && grupos.falta.length === 0 && grupos.entrenamientos.length === 0 ? (
         <p className="mt-6 text-sm text-muted">
           {staff
             ? "Todavía no hay fechas. Tocá Nuevo para cargar el próximo partido."
             : "Todavía no hay fechas. Cuando el DT cargue una, aparece acá."}
         </p>
       ) : null}
-      {upcoming.length > 0 ? (
+      {grupos.proximos.length > 0 ? (
         <ul className="mt-4 space-y-3 desk:grid desk:grid-cols-2 desk:gap-3 desk:space-y-0">
-          {upcoming.map((event) => (
+          {grupos.proximos.map((event) => (
             <li key={event.id}>
-              <AgendaItem event={event} staff={staff} needsResult={needsResult(event, sheetFor(event.id, sheets), now)} />
+              <AgendaItem event={event} staff={staff} />
             </li>
           ))}
         </ul>
       ) : null}
-      {pendingResult.length > 0 ? (
+      {grupos.falta.length > 0 ? (
         <section className="mt-8">
           <h2 className="text-xs font-semibold uppercase tracking-widest text-warning">Falta el resultado</h2>
           <ul className="mt-3 space-y-3 desk:grid desk:grid-cols-2 desk:gap-3 desk:space-y-0">
-            {pendingResult.map((event) => (
+            {grupos.falta.map((event) => (
               <li key={event.id}>
                 <AgendaItem event={event} staff={staff} needsResult />
               </li>
@@ -70,11 +58,23 @@ function AgendaPage() {
           </ul>
         </section>
       ) : null}
-      {played.length > 0 ? (
+      {grupos.entrenamientos.length > 0 ? (
         <section className="mt-8">
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Ya jugados</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Entrenamientos</h2>
           <ul className="mt-3 space-y-3 desk:grid desk:grid-cols-2 desk:gap-3 desk:space-y-0">
-            {played.map((event) => (
+            {grupos.entrenamientos.map((event) => (
+              <li key={event.id}>
+                <AgendaItem event={event} staff={staff} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {grupos.jugados.length > 0 ? (
+        <section className="mt-8">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Jugados</h2>
+          <ul className="mt-3 space-y-3 desk:grid desk:grid-cols-2 desk:gap-3 desk:space-y-0">
+            {grupos.jugados.map((event) => (
               <li key={event.id}>
                 <AgendaItem event={event} staff={staff} />
               </li>
@@ -135,6 +135,11 @@ function AgendaItem({
       ) : null}
       {staff ? (
         <div className="mt-2 flex justify-end gap-2">
+          {event.kind === "partido" ? (
+            <Link to="/fecha" search={{ partido: event.id }} className="inline-flex h-11 items-center rounded-md px-3 text-sm font-semibold text-accent">
+              Ver fecha
+            </Link>
+          ) : null}
           {event.kind === "partido" && resultIsOpen(event.startsAt) ? (
             <Link
               to="/stats"
@@ -149,22 +154,4 @@ function AgendaItem({
       ) : null}
     </EventCard>
   );
-}
-
-function isUpcoming(event: ClubEvent, sheet: MatchSheet | undefined, now: number) {
-  if (event.kind === "partido") return !matchSettled(event, sheet);
-  return +new Date(event.startsAt) >= now - 2 * 3_600_000;
-}
-
-function needsResult(event: ClubEvent, sheet: MatchSheet | undefined, now: number) {
-  return event.kind === "partido" && !matchSettled(event, sheet) && +new Date(event.startsAt) < now;
-}
-
-function bySoonest(a: ClubEvent, b: ClubEvent) {
-  const now = Date.now();
-  const aPast = +new Date(a.startsAt) < now;
-  const bPast = +new Date(b.startsAt) < now;
-  if (aPast !== bPast) return aPast ? 1 : -1;
-  if (aPast) return +new Date(b.startsAt) - +new Date(a.startsAt);
-  return +new Date(a.startsAt) - +new Date(b.startsAt);
 }

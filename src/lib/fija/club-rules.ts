@@ -255,7 +255,7 @@ export function playerNoticeAllowed(item: InboxItem, events: ClubEvent[]): boole
   return titles.has(item.title) && item.body === `Te toca llevar ${labels} para ${event.title}.`;
 }
 
-const APP_PATHS = new Set(["/", "/chat", "/cancha", "/agenda", "/stats", "/equipo", "/seguridad"]);
+const APP_PATHS = new Set(["/", "/chat", "/cancha", "/agenda", "/stats", "/equipo", "/seguridad", "/fecha", "/caja"]);
 
 export function safeAppPath(url: string): string {
   if (!url.startsWith("/") || url.startsWith("//") || url.includes("\\") || url.includes("://")) return "/";
@@ -264,7 +264,7 @@ export function safeAppPath(url: string): string {
 }
 
 export function pushCopy(clubName: string, item: InboxItem): { title: string; body: string; url: string } {
-  const url = item.kind === "formacion" ? "/cancha" : item.kind === "charla" ? "/chat" : "/";
+  const url = item.kind === "formacion" ? "/cancha" : item.kind === "charla" ? "/cancha" : "/";
   return {
     title: `${clubName}: ${item.title}`.slice(0, 80),
     body: item.body.slice(0, 180),

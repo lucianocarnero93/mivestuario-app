@@ -7,6 +7,8 @@ import { mergeFiguraVotes } from "./figura";
 import { FORMATIONS } from "./formations";
 import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoAttemptKey, vivoPointerAllows, VIVO_READ_LIMIT, type PuestoPublico } from "./vivo";
 import { preferirJugada } from "./jugada";
+import { mergeCaja } from "./caja";
+import { contarFamilia } from "./familia";
 import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
@@ -271,6 +273,7 @@ export type MarcadorPublico =
       estado: "espera" | "juego" | "final";
       titulares: PuestoPublico[];
       banco: string[];
+      familia: number;
     }
   | { ok: false; reason: "missing" | "limited" };
 
@@ -382,6 +385,7 @@ export const leerMarcador = createServerFn({ method: "POST" })
       estado: estadoMarcador(event),
       titulares: formacion.titulares,
       banco: formacion.banco,
+      familia: await contarFamilia(token),
     };
   });
 
@@ -681,6 +685,7 @@ export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
     liveToken: liveSource.liveToken ?? null,
     liveUpdatedAt: liveSource.liveUpdatedAt,
     jugada: preferirJugada(previous.jugada, incoming.jugada),
+    ...camposFecha(previous, incoming),
   };
 }
 
@@ -740,6 +745,28 @@ function mergeEvents(kept: ClubEvent[], incoming: ClubEvent[]): ClubEvent[] {
     map.set(event.id, previous ? pickEvent(previous, event) : event);
   }
   return [...map.values()];
+}
+
+function camposFecha(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, "liveLog" | "reacciones" | "fechaOculta" | "encuesta" | "fechaUpdatedAt"> {
+  const prev = boardStamp(previous.fechaUpdatedAt);
+  const next = boardStamp(incoming.fechaUpdatedAt);
+  if (prev === 0 && next === 0) {
+    return {
+      liveLog: (incoming.liveLog ?? previous.liveLog ?? []).slice(-40),
+      reacciones: (incoming.reacciones ?? previous.reacciones ?? []).slice(-80),
+      fechaOculta: Boolean(incoming.fechaOculta || previous.fechaOculta),
+      encuesta: incoming.encuesta ?? previous.encuesta,
+      fechaUpdatedAt: incoming.fechaUpdatedAt ?? previous.fechaUpdatedAt,
+    };
+  }
+  const source = next >= prev ? incoming : previous;
+  return {
+    liveLog: (source.liveLog ?? []).slice(-40),
+    reacciones: (source.reacciones ?? []).slice(-80),
+    fechaOculta: Boolean(source.fechaOculta),
+    encuesta: source.encuesta,
+    fechaUpdatedAt: source.fechaUpdatedAt,
+  };
 }
 
 function keepResultMark(previous: ClubEvent, incoming: ClubEvent, merged: ClubEvent): ClubEvent {
@@ -962,6 +989,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     droppedIds: [...dropped],
     alumni,
     bannedAccounts,
+    caja: staff
+      ? mergeCaja(existing.caja, incoming.caja)
+      : mergeCaja(existing.caja, incoming.caja ? { ...(existing.caja ?? { tesoreroId: "", gastos: [], cobros: [] }), cobros: incoming.caja.cobros } : undefined),
       },
       droppedEvents,
     ),

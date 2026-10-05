@@ -472,35 +472,13 @@ function MemberEdit({
 
 function SoyEste() {
   const me = useMe();
-  const staff = useIsStaff();
   const members = useFija((s) => s.members);
-  const claimName = useFija((s) => s.useThisName);
-  const [error, setError] = useState("");
   const libres = members.filter((person) => !person.accountId && person.id !== me.id);
-  if (staff || !me.accountId || libres.length === 0) return null;
+  if (!me.accountId || libres.length === 0) return null;
   return (
-    <section className="mt-5 rounded-xl bg-surface p-4 shadow-card">
-      <p className="text-sm">Si el DT ya te cargó a mano, elegí ese nombre para no quedar dos veces.</p>
-      <ul className="mt-2 space-y-2">
-        {libres.map((person) => (
-          <li key={person.id}>
-            <Button
-              variant="secondary"
-              className="h-11 w-full"
-              onClick={() => {
-                setError("");
-                void claimName(person.id).then((ok) => {
-                  if (!ok) setError("No se pudo unir ese nombre. Probá de nuevo.");
-                });
-              }}
-            >
-              Soy {etiqueta(person, members)}
-            </Button>
-          </li>
-        ))}
-      </ul>
-      {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
-    </section>
+    <p className="mt-5 text-sm text-muted">
+      Si el DT ya te cargó con otro nombre, pedile que te una. No se cambia solo.
+    </p>
   );
 }
 

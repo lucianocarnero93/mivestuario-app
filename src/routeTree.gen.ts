@@ -11,11 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendaRouteImport } from './routes/agenda'
+import { Route as CajaRouteImport } from './routes/caja'
 import { Route as CanchaRouteImport } from './routes/cancha'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as ContactoRouteImport } from './routes/contacto'
-import { Route as EquipoRouteImport } from './routes/equipo'
 import { Route as EliminarCuentaRouteImport } from './routes/eliminar-cuenta'
+import { Route as EquipoRouteImport } from './routes/equipo'
+import { Route as FechaRouteImport } from './routes/fecha'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OlvideRouteImport } from './routes/olvide'
 import { Route as PrivacidadRouteImport } from './routes/privacidad'
@@ -25,6 +27,8 @@ import { Route as StatsRouteImport } from './routes/stats'
 import { Route as TerminosRouteImport } from './routes/terminos'
 import { Route as VivoRouteImport } from './routes/vivo'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiMpCallbackRouteImport } from './routes/api/mp/callback'
+import { Route as ApiMpWebhookRouteImport } from './routes/api/mp/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,6 +38,11 @@ const IndexRoute = IndexRouteImport.update({
 const AgendaRoute = AgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CajaRoute = CajaRouteImport.update({
+  id: '/caja',
+  path: '/caja',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CanchaRoute = CanchaRouteImport.update({
@@ -51,14 +60,19 @@ const ContactoRoute = ContactoRouteImport.update({
   path: '/contacto',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EliminarCuentaRoute = EliminarCuentaRouteImport.update({
+  id: '/eliminar-cuenta',
+  path: '/eliminar-cuenta',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EquipoRoute = EquipoRouteImport.update({
   id: '/equipo',
   path: '/equipo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EliminarCuentaRoute = EliminarCuentaRouteImport.update({
-  id: '/eliminar-cuenta',
-  path: '/eliminar-cuenta',
+const FechaRoute = FechaRouteImport.update({
+  id: '/fecha',
+  path: '/fecha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -106,15 +120,27 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMpCallbackRoute = ApiMpCallbackRouteImport.update({
+  id: '/api/mp/callback',
+  path: '/api/mp/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMpWebhookRoute = ApiMpWebhookRouteImport.update({
+  id: '/api/mp/webhook',
+  path: '/api/mp/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/caja': typeof CajaRoute
   '/cancha': typeof CanchaRoute
   '/chat': typeof ChatRoute
   '/contacto': typeof ContactoRoute
-  '/equipo': typeof EquipoRoute
   '/eliminar-cuenta': typeof EliminarCuentaRoute
+  '/equipo': typeof EquipoRoute
+  '/fecha': typeof FechaRoute
   '/login': typeof LoginRoute
   '/olvide': typeof OlvideRoute
   '/privacidad': typeof PrivacidadRoute
@@ -124,15 +150,19 @@ export interface FileRoutesByFullPath {
   '/terminos': typeof TerminosRoute
   '/vivo': typeof VivoRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/mp/callback': typeof ApiMpCallbackRoute
+  '/api/mp/webhook': typeof ApiMpWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/caja': typeof CajaRoute
   '/cancha': typeof CanchaRoute
   '/chat': typeof ChatRoute
   '/contacto': typeof ContactoRoute
-  '/equipo': typeof EquipoRoute
   '/eliminar-cuenta': typeof EliminarCuentaRoute
+  '/equipo': typeof EquipoRoute
+  '/fecha': typeof FechaRoute
   '/login': typeof LoginRoute
   '/olvide': typeof OlvideRoute
   '/privacidad': typeof PrivacidadRoute
@@ -142,16 +172,20 @@ export interface FileRoutesByTo {
   '/terminos': typeof TerminosRoute
   '/vivo': typeof VivoRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/mp/callback': typeof ApiMpCallbackRoute
+  '/api/mp/webhook': typeof ApiMpWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
+  '/caja': typeof CajaRoute
   '/cancha': typeof CanchaRoute
   '/chat': typeof ChatRoute
   '/contacto': typeof ContactoRoute
-  '/equipo': typeof EquipoRoute
   '/eliminar-cuenta': typeof EliminarCuentaRoute
+  '/equipo': typeof EquipoRoute
+  '/fecha': typeof FechaRoute
   '/login': typeof LoginRoute
   '/olvide': typeof OlvideRoute
   '/privacidad': typeof PrivacidadRoute
@@ -161,17 +195,21 @@ export interface FileRoutesById {
   '/terminos': typeof TerminosRoute
   '/vivo': typeof VivoRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/mp/callback': typeof ApiMpCallbackRoute
+  '/api/mp/webhook': typeof ApiMpWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/agenda'
+    | '/caja'
     | '/cancha'
     | '/chat'
     | '/contacto'
-    | '/equipo'
     | '/eliminar-cuenta'
+    | '/equipo'
+    | '/fecha'
     | '/login'
     | '/olvide'
     | '/privacidad'
@@ -181,15 +219,19 @@ export interface FileRouteTypes {
     | '/terminos'
     | '/vivo'
     | '/api/auth/$'
+    | '/api/mp/callback'
+    | '/api/mp/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/agenda'
+    | '/caja'
     | '/cancha'
     | '/chat'
     | '/contacto'
-    | '/equipo'
     | '/eliminar-cuenta'
+    | '/equipo'
+    | '/fecha'
     | '/login'
     | '/olvide'
     | '/privacidad'
@@ -199,15 +241,19 @@ export interface FileRouteTypes {
     | '/terminos'
     | '/vivo'
     | '/api/auth/$'
+    | '/api/mp/callback'
+    | '/api/mp/webhook'
   id:
     | '__root__'
     | '/'
     | '/agenda'
+    | '/caja'
     | '/cancha'
     | '/chat'
     | '/contacto'
-    | '/equipo'
     | '/eliminar-cuenta'
+    | '/equipo'
+    | '/fecha'
     | '/login'
     | '/olvide'
     | '/privacidad'
@@ -217,16 +263,20 @@ export interface FileRouteTypes {
     | '/terminos'
     | '/vivo'
     | '/api/auth/$'
+    | '/api/mp/callback'
+    | '/api/mp/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
+  CajaRoute: typeof CajaRoute
   CanchaRoute: typeof CanchaRoute
   ChatRoute: typeof ChatRoute
   ContactoRoute: typeof ContactoRoute
-  EquipoRoute: typeof EquipoRoute
   EliminarCuentaRoute: typeof EliminarCuentaRoute
+  EquipoRoute: typeof EquipoRoute
+  FechaRoute: typeof FechaRoute
   LoginRoute: typeof LoginRoute
   OlvideRoute: typeof OlvideRoute
   PrivacidadRoute: typeof PrivacidadRoute
@@ -236,6 +286,8 @@ export interface RootRouteChildren {
   TerminosRoute: typeof TerminosRoute
   VivoRoute: typeof VivoRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiMpCallbackRoute: typeof ApiMpCallbackRoute
+  ApiMpWebhookRoute: typeof ApiMpWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -252,6 +304,13 @@ declare module '@tanstack/react-router' {
       path: '/agenda'
       fullPath: '/agenda'
       preLoaderRoute: typeof AgendaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/caja': {
+      id: '/caja'
+      path: '/caja'
+      fullPath: '/caja'
+      preLoaderRoute: typeof CajaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cancha': {
@@ -275,6 +334,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContactoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/eliminar-cuenta': {
+      id: '/eliminar-cuenta'
+      path: '/eliminar-cuenta'
+      fullPath: '/eliminar-cuenta'
+      preLoaderRoute: typeof EliminarCuentaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/equipo': {
       id: '/equipo'
       path: '/equipo'
@@ -282,11 +348,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EquipoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/eliminar-cuenta': {
-      id: '/eliminar-cuenta'
-      path: '/eliminar-cuenta'
-      fullPath: '/eliminar-cuenta'
-      preLoaderRoute: typeof EliminarCuentaRouteImport
+    '/fecha': {
+      id: '/fecha'
+      path: '/fecha'
+      fullPath: '/fecha'
+      preLoaderRoute: typeof FechaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -352,17 +418,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/mp/callback': {
+      id: '/api/mp/callback'
+      path: '/api/mp/callback'
+      fullPath: '/api/mp/callback'
+      preLoaderRoute: typeof ApiMpCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mp/webhook': {
+      id: '/api/mp/webhook'
+      path: '/api/mp/webhook'
+      fullPath: '/api/mp/webhook'
+      preLoaderRoute: typeof ApiMpWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
+  CajaRoute: CajaRoute,
   CanchaRoute: CanchaRoute,
   ChatRoute: ChatRoute,
   ContactoRoute: ContactoRoute,
-  EquipoRoute: EquipoRoute,
   EliminarCuentaRoute: EliminarCuentaRoute,
+  EquipoRoute: EquipoRoute,
+  FechaRoute: FechaRoute,
   LoginRoute: LoginRoute,
   OlvideRoute: OlvideRoute,
   PrivacidadRoute: PrivacidadRoute,
@@ -372,6 +454,8 @@ const rootRouteChildren: RootRouteChildren = {
   TerminosRoute: TerminosRoute,
   VivoRoute: VivoRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiMpCallbackRoute: ApiMpCallbackRoute,
+  ApiMpWebhookRoute: ApiMpWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

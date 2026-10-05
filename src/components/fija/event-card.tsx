@@ -1,4 +1,5 @@
 import { KIND_LABEL, formatDay, formatTime, personLabel } from "@/lib/fija/format";
+import { contarConfirmaciones } from "@/lib/fija/fecha";
 import { MODALITY_LABEL } from "@/lib/fija/formations";
 import type { ClubEvent, Rsvp } from "@/lib/fija/types";
 import { cn } from "@/lib/utils";
@@ -23,10 +24,12 @@ export function EventCard({
   showGear?: boolean;
 }) {
   const members = useFija((s) => s.members);
-  const voy = rsvps.filter((r) => r.status === "voy").length;
-  const no = rsvps.filter((r) => r.status === "no").length;
-  const pending = rsvps.filter((r) => r.status === "pendiente").length;
-  const total = Math.max(rsvps.length, 1);
+  const players = members.filter((person) => person.juega ?? person.role === "jugador");
+  const cuentas = contarConfirmaciones(players, rsvps);
+  const voy = cuentas.voy;
+  const no = cuentas.no;
+  const pending = cuentas.pending;
+  const total = cuentas.total;
   const van = rsvps
     .filter((row) => row.status === "voy")
     .map((row) => members.find((person) => person.id === row.memberId))

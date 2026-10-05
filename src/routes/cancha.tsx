@@ -173,7 +173,7 @@ function CanchaPage() {
                 />
               ) : (
                 <p className="mt-2 whitespace-pre-wrap text-xl font-medium leading-snug text-line">
-                  {event.tactics || "El DT todavía no dejó la charla."}
+                  {event.tactics || "El DT todavía no dejó indicaciones."}
                 </p>
               )}
             </div>

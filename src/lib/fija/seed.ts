@@ -380,6 +380,7 @@ export function emptyClubState() {
     droppedEventIds: [] as string[],
     droppedCharlaIds: [] as string[],
     alumni: [] as AppState["alumni"],
+    caja: { tesoreroId: "", gastos: [], cobros: [] },
     reminder: null as AppState["reminder"],
   };
 }
@@ -467,6 +468,7 @@ export function createSeed(): Omit<AppState, "hydrated"> {
     profile: { name: "Martín Díaz", nick: "Profe" },
     gpsConsent: "unset",
     charla: callups.charla,
+    caja: { tesoreroId: "dt", gastos: [], cobros: [] },
     messages: [
       {
         id: "m1",
