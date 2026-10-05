@@ -27,6 +27,14 @@ function redirectUri() {
   return process.env.MP_REDIRECT_URI?.trim() || "https://www.mivestuario.com.ar/api/mp/callback";
 }
 
+function pedirToken(campos: Record<string, string>) {
+  return fetch("https://api.mercadopago.com/oauth/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+    body: new URLSearchParams(campos),
+  });
+}
+
 async function leerCuenta(code: string): Promise<CuentaMp | null> {
   const { getSql } = await import("@/lib/db");
   const sql = await getSql();
@@ -52,15 +60,11 @@ async function guardarCuenta(code: string, cuenta: CuentaMp) {
 
 async function refrescar(code: string, cuenta: CuentaMp): Promise<CuentaMp | null> {
   if (!cuenta.refreshToken || !clientId() || !clientSecret()) return cuenta.accessToken ? cuenta : null;
-  const token = await fetch("https://api.mercadopago.com/oauth/token", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      client_id: clientId(),
-      client_secret: clientSecret(),
-      grant_type: "refresh_token",
-      refresh_token: cuenta.refreshToken,
-    }),
+  const token = await pedirToken({
+    client_id: clientId(),
+    client_secret: clientSecret(),
+    grant_type: "refresh_token",
+    refresh_token: cuenta.refreshToken,
   });
   if (!token.ok) return cuenta;
   const body = (await token.json()) as { access_token?: string; refresh_token?: string; expires_in?: number };
@@ -147,10 +151,11 @@ export const estadoMp = createServerFn({ method: "POST" })
 export const empezarMp = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((code: string) => sanitizeCode(code))
-  .handler(async ({ data: code, context }): Promise<{ ok: boolean; url?: string; reason?: "sin-mp" }> => {
+  .handler(async ({ data: code, context }): Promise<{ ok: boolean; url?: string; reason?: "sin-mp" | "sin-permiso" }> => {
     const userId = String((context as { userId?: string }).userId ?? "");
-    const { me } = await memberDe(code, userId);
-    if (!me || (me.role !== "dt" && me.role !== "ayudante")) return { ok: false };
+    const { bundle, me } = await memberDe(code, userId);
+    const tesorero = Boolean(bundle?.caja?.tesoreroId && bundle.caja.tesoreroId === me?.id);
+    if (!me || (me.role !== "dt" && me.role !== "ayudante" && !tesorero)) return { ok: false, reason: "sin-permiso" };
     if (!clientId() || !clientSecret()) return { ok: false, reason: "sin-mp" };
     const nonce = crypto.randomUUID().replace(/-/g, "");
     const { getSql } = await import("@/lib/db");
@@ -167,7 +172,6 @@ export const empezarMp = createServerFn({ method: "POST" })
     url.searchParams.set("platform_id", "mp");
     url.searchParams.set("state", nonce);
     url.searchParams.set("redirect_uri", redirectUri());
-    url.searchParams.set("scope", "offline_access read write");
     return { ok: true, url: url.toString() };
   });
 
@@ -182,16 +186,12 @@ export async function guardarCodigoMp(nonce: string, code: string): Promise<bool
   const state = typeof raw === "string" ? safeJson<{ code?: string; at?: number }>(raw) : raw;
   if (!state?.code || !code) return false;
   if (state.at && Date.now() - state.at > 15 * 60 * 1000) return false;
-  const token = await fetch("https://api.mercadopago.com/oauth/token", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      client_id: clientId(),
-      client_secret: clientSecret(),
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: redirectUri(),
-    }),
+  const token = await pedirToken({
+    client_id: clientId(),
+    client_secret: clientSecret(),
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri(),
   });
   if (!token.ok) return false;
   const body = (await token.json()) as { access_token?: string; refresh_token?: string; user_id?: number; expires_in?: number };

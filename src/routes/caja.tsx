@@ -42,9 +42,19 @@ function CajaPage() {
 
   async function conectar() {
     if (!club) return;
+    const ventana = window.open("about:blank", "_blank");
     const result = await empezarMp({ data: club.inviteCode });
-    if (result.url) window.location.href = result.url;
-    else setNota("Sin Mercado Pago igual podés marcar los pagos a mano.");
+    if (result.url) {
+      if (ventana) ventana.location.replace(result.url);
+      else window.location.assign(result.url);
+      return;
+    }
+    ventana?.close();
+    setNota(
+      result.reason === "sin-mp"
+        ? "Falta la clave de Mercado Pago en el servidor."
+        : "Solo el tesorero puede conectar su cuenta.",
+    );
   }
 
   function copiar() {
@@ -72,23 +82,25 @@ function CajaPage() {
         {conectado ? "Mercado Pago conectado" : "Mercado Pago no conectado"}
       </p>
       {mp === "ok" ? <p className="mt-2 text-sm text-accent">Cuenta conectada.</p> : null}
-      {mp === "error" ? <p className="mt-2 text-sm text-muted">No se pudo conectar Mercado Pago.</p> : null}
-      {me.role === "dt" ? (
+      {mp === "error" ? <p className="mt-2 text-sm text-muted">Mercado Pago no dejó conectar. Entrá con la cuenta del tesorero y aceptá.</p> : null}
+      {tesorero ? (
         <div className="mt-4 grid gap-2">
-          <label className="text-sm">
-            Tesorero
-            <select
-              className="mt-1 h-12 w-full rounded-md bg-surface px-3"
-              value={caja?.tesoreroId || me.id}
-              onChange={(event) => definirTesorero(event.target.value)}
-            >
-              {members.map((person) => (
-                <option key={person.id} value={person.id}>{person.nick}</option>
-              ))}
-            </select>
-          </label>
-          <Button variant="outline" className="h-12" onClick={() => void conectar()}>
-            {conectado ? "Reconectar Mercado Pago" : "Conectar Mercado Pago"}
+          {me.role === "dt" ? (
+            <label className="text-sm">
+              Tesorero
+              <select
+                className="mt-1 h-12 w-full rounded-md bg-surface px-3"
+                value={caja?.tesoreroId || me.id}
+                onChange={(event) => definirTesorero(event.target.value)}
+              >
+                {members.map((person) => (
+                  <option key={person.id} value={person.id}>{person.nick}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <Button className="h-12" onClick={() => void conectar()}>
+            {conectado ? "Reconectar la cuenta del tesorero" : "Conectar la cuenta del tesorero"}
           </Button>
         </div>
       ) : null}
