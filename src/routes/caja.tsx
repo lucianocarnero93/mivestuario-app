@@ -42,14 +42,12 @@ function CajaPage() {
 
   async function conectar() {
     if (!club) return;
-    const ventana = window.open("about:blank", "_blank");
+    setNota("Abriendo Mercado Pago…");
     const result = await empezarMp({ data: club.inviteCode });
     if (result.url) {
-      if (ventana) ventana.location.replace(result.url);
-      else window.location.assign(result.url);
+      window.location.assign(result.url);
       return;
     }
-    ventana?.close();
     setNota(
       result.reason === "sin-mp"
         ? "Falta la clave de Mercado Pago en el servidor."
@@ -358,25 +356,20 @@ function GastoCard({
   }
 
   async function pagar(memberId: string) {
-    const ventana = window.open("about:blank", "_blank");
     setAviso("Abriendo Mercado Pago…");
     try {
       await useFija.getState().flushCloud();
       const result = await crearLinkPago({ data: { code, gastoId: gasto.id, memberId } });
       if (!result.url) {
-        ventana?.close();
         setAviso(
           result.reason === "sin-deuda"
             ? "Ese cupón no tiene nada para cobrar."
-            : "No se abrió Mercado Pago. El tesorero tiene que conectar la cuenta de nuevo.",
+            : "No se abrió Mercado Pago. El tesorero tiene que conectar su cuenta.",
         );
         return;
       }
-      if (ventana) ventana.location.replace(result.url);
-      else window.location.assign(result.url);
-      setAviso("");
+      window.location.assign(result.url);
     } catch {
-      ventana?.close();
       setAviso("No se pudo abrir Mercado Pago.");
     }
   }
