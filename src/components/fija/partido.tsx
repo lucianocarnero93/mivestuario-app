@@ -5,7 +5,7 @@ import { candidatosFigura, figuraDe } from "@/lib/fija/figura";
 import { personLabel } from "@/lib/fija/format";
 import { vivoUrl, whatsAppEnVivo, whatsAppResultado, whatsAppSinConfirmar } from "@/lib/fija/share";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
-import { compartirTarjeta } from "@/lib/fija/tarjeta";
+import { compartirTarjeta, puestoEnTarjeta } from "@/lib/fija/tarjeta";
 import type { ClubEvent, Member } from "@/lib/fija/types";
 
 export function ParaLaFamilia({ event }: { event: ClubEvent }) {
@@ -150,11 +150,6 @@ export function FiguraPartido({ event }: { event: ClubEvent }) {
   const byId = new Map(members.map((person) => [person.id, person]));
 
   async function tarjetaDe(player: Member) {
-    const puesto = Object.values(event.lineup).includes(player.id)
-      ? "Titular"
-      : (event.suplentes ?? []).includes(player.id)
-        ? "Suplente"
-        : "";
     const goles = sheet?.players.find((row) => row.memberId === player.id)?.goals ?? 0;
     try {
       const mode = await compartirTarjeta({
@@ -162,7 +157,7 @@ export function FiguraPartido({ event }: { event: ClubEvent }) {
         event,
         sheet: sheet!,
         player,
-        puesto,
+        puesto: puestoEnTarjeta(event, player.id),
         goles,
         figura: Boolean(figura?.ids.includes(player.id)),
       });

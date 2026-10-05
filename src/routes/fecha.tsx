@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { enJuego, fotoAbierta, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
 import { leerFamilia } from "@/lib/fija/familia";
 import { figuraDe } from "@/lib/fija/figura";
+import { FORMATIONS } from "@/lib/fija/formations";
+import { listarFotos } from "@/lib/fija/fotos";
 import { compartirStory } from "@/lib/fija/stories";
+import { compartirTarjetaEquipo } from "@/lib/fija/tarjeta";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
 import type { ClubEvent, ReaccionFecha } from "@/lib/fija/types";
 
@@ -81,6 +84,37 @@ function FechaViva({ event }: { event: ClubEvent }) {
     void leerFamilia({ data: event.liveToken }).then((result) => setFamilias(result.n)).catch(() => setFamilias(0));
   }, [event.liveToken, event.resultClosedAt]);
   const invicto = rachaInvicto(sheets, useFija.getState().events);
+
+  async function compartirEquipo() {
+    if (!club || !sheet) {
+      setNota("Primero tiene que haber un marcador.");
+      return;
+    }
+    const list = FORMATIONS[event.modality] ?? [];
+    const forma = list.find((item) => item.id === event.formacion) ?? list[0];
+    let foto: string | null = null;
+    try {
+      const fotos = await listarFotos({ data: { code: club.inviteCode, eventId: event.id } });
+      foto = fotos.find((item) => item.status === "ok")?.image ?? null;
+    } catch {
+      foto = null;
+    }
+    try {
+      const mode = await compartirTarjetaEquipo({
+        club: club.name,
+        titulo: event.title,
+        marcador: `${sheet.goalsFor}–${sheet.goalsAgainst}`,
+        lugar: event.place,
+        formacion: forma?.name,
+        detalle: goleadores,
+        foto,
+      });
+      setNota(mode === "shared" ? "Tarjeta lista para WhatsApp." : "Tarjeta guardada en el celular.");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setNota("No se pudo armar la tarjeta.");
+    }
+  }
 
   async function compartir(kind: "convocados" | "vivo" | "final" | "figura") {
     if (!club || (!sheet && kind !== "convocados")) {
@@ -170,8 +204,8 @@ function FechaViva({ event }: { event: ClubEvent }) {
       <Encuesta event={event} staff={staff} onAbrir={abrirEncuesta} onVotar={votarFecha} />
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button variant="outline" className="h-12" onClick={() => void compartir("convocados")}>Convocados</Button>
-        <Button variant="outline" className="h-12" onClick={() => void compartir(cerrado ? "final" : "vivo")}>
-          {cerrado ? "Resultado" : "Marcador"}
+        <Button variant="outline" className="h-12" onClick={() => void compartirEquipo()}>
+          {cerrado ? "Tarjeta del equipo" : "Marcador"}
         </Button>
         <Button variant="outline" className="h-12" onClick={() => void compartir("figura")}>Figura</Button>
         {staff ? (
