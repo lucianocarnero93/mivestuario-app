@@ -148,30 +148,6 @@ export const estadoMp = createServerFn({ method: "POST" })
     return { conectado: Boolean(await leerCuenta(code)) };
   });
 
-export const guardarTokenMp = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .validator((input: { code?: string; token?: string }) => ({
-    code: sanitizeCode(String(input?.code ?? "")),
-    token: String(input?.token ?? "").trim().slice(0, 400),
-  }))
-  .handler(async ({ data, context }): Promise<{ ok: boolean; reason?: "sin-permiso" | "token" }> => {
-    const userId = String((context as { userId?: string }).userId ?? "");
-    const { bundle, me } = await memberDe(data.code, userId);
-    const tesorero = Boolean(bundle?.caja?.tesoreroId && bundle.caja.tesoreroId === me?.id);
-    if (!me || (me.role !== "dt" && me.role !== "ayudante" && !tesorero)) return { ok: false, reason: "sin-permiso" };
-    const clave = data.token;
-    if ((!clave.startsWith("APP_USR-") && !clave.startsWith("TEST-")) || clave.length < 20) {
-      return { ok: false, reason: "token" };
-    }
-    const quien = await fetch("https://api.mercadopago.com/users/me", {
-      headers: { authorization: `Bearer ${data.token}` },
-    });
-    if (!quien.ok) return { ok: false, reason: "token" };
-    const body = (await quien.json()) as { id?: number };
-    await guardarCuenta(data.code, { accessToken: data.token, userId: String(body.id ?? "") });
-    return { ok: true };
-  });
-
 export async function abrirConexion(
   code: string,
   userId: string,

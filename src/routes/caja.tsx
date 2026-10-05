@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CATEGORIA_LABEL, CATEGORIAS, armarCupones, cajaCsv, cuponesDe, deudaDe, liquidar, saldosDe, textoCupones, textoLiquidacion } from "@/lib/fija/caja";
 import { uid } from "@/lib/fija/format";
-import { estadoMp, guardarTokenMp } from "@/lib/fija/mercadopago";
+import { estadoMp } from "@/lib/fija/mercadopago";
 import { useFija, useMe } from "@/lib/fija/store";
 import type { Caja, CategoriaGasto, Cupon, Gasto } from "@/lib/fija/types";
 
@@ -33,7 +33,6 @@ function CajaPage() {
   const { mp } = Route.useSearch();
   const [conectado, setConectado] = useState(false);
   const [nota, setNota] = useState("");
-  const [tokenMp, setTokenMp] = useState("");
   const tesorero = me.role === "dt" || (caja?.tesoreroId && caja.tesoreroId === me.id);
   const saldos = saldosDe(caja ?? { tesoreroId: "", gastos: [], cobros: [] });
   const mio = saldos.find((row) => row.memberId === me.id)?.saldo ?? 0;
@@ -43,18 +42,6 @@ function CajaPage() {
     if (!club) return;
     void estadoMp({ data: club.inviteCode }).then((estado) => setConectado(estado.conectado)).catch(() => setConectado(false));
   }, [club?.inviteCode, mp]);
-
-  async function guardarClave() {
-    if (!club) return;
-    const result = await guardarTokenMp({ data: { code: club.inviteCode, token: tokenMp } });
-    if (!result.ok) {
-      setNota("Esa clave no sirve. Tiene que ser el Access Token de la cuenta del tesorero.");
-      return;
-    }
-    setTokenMp("");
-    setConectado(true);
-    setNota("Listo. Pagar abre Mercado Pago con el monto del cupón.");
-  }
 
   function copiar() {
     const texto = textoLiquidacion(liquidar(saldos), nombre);
@@ -99,26 +86,6 @@ function CajaPage() {
                 ))}
               </select>
             </label>
-          ) : null}
-          {club ? (
-            <div className="grid gap-2">
-              <p className="text-sm text-muted">
-                {conectado
-                  ? "La clave está cargada. Pagar abre Mercado Pago con el monto y ahí se toca Abrir."
-                  : "Pegá el Access Token de producción de la cuenta del tesorero. Con eso el cupón abre Mercado Pago."}
-              </p>
-              <input
-                className="h-12 w-full rounded-md bg-surface px-3"
-                type="password"
-                autoComplete="off"
-                placeholder="APP_USR-..."
-                value={tokenMp}
-                onChange={(event) => setTokenMp(event.target.value)}
-              />
-              <Button type="button" className="h-12" onClick={() => void guardarClave()}>
-                Guardar clave de Mercado Pago
-              </Button>
-            </div>
           ) : null}
         </div>
       ) : null}
