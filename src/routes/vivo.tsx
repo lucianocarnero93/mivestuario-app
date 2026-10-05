@@ -66,8 +66,6 @@ function VivoPage() {
             {formatWhen(marcador.startsAt)}
             {marcador.place ? ` · ${marcador.place}` : ""}
           </p>
-          {marcador.rival ? <p className="mt-4 text-sm">Ellos: {marcador.rival}</p> : null}
-          {marcador.pauta ? <p className="mt-2 text-sm text-muted">{marcador.pauta}</p> : null}
           {marcador.titulares.length > 0 ? (
             <section className="mt-6">
               <p className="text-xs font-semibold uppercase tracking-widest text-muted">Formación</p>
@@ -82,9 +80,6 @@ function VivoPage() {
                       {puesto.puesto}
                     </span>
                     <span className="mt-0.5 max-w-16 truncate text-[10px] font-semibold text-line">{puesto.nick}</span>
-                    {puesto.etiqueta ? (
-                      <span className="max-w-16 truncate text-[9px] font-semibold text-warning">{puesto.etiqueta}</span>
-                    ) : null}
                   </div>
                 ))}
               </div>

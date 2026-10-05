@@ -252,8 +252,6 @@ export type MarcadorPublico =
       estado: "espera" | "juego" | "final";
       titulares: PuestoPublico[];
       banco: string[];
-      rival: string;
-      pauta: string;
     }
   | { ok: false; reason: "missing" | "limited" };
 
@@ -350,7 +348,6 @@ export const leerMarcador = createServerFn({ method: "POST" })
         number: person.number,
       })),
       Boolean(event.lineupPublishedAt),
-      event.indicaciones,
     );
     return {
       ok: true,
@@ -363,8 +360,6 @@ export const leerMarcador = createServerFn({ method: "POST" })
       estado: estadoMarcador(event),
       titulares: formacion.titulares,
       banco: formacion.banco,
-      rival: event.lineupPublishedAt ? (event.rival ?? "").slice(0, 180) : "",
-      pauta: event.lineupPublishedAt ? (event.tactics ?? "").slice(0, 180) : "",
     };
   });
 

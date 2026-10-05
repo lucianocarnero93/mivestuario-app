@@ -5,7 +5,6 @@ export type PuestoPublico = {
   nick: string;
   x: number;
   y: number;
-  etiqueta?: string;
 };
 
 type PersonaPublica = { id: string; nick: string; name: string; number: number | null };
@@ -39,7 +38,6 @@ export function armarFormacionPublica(
   suplentes: string[] | undefined,
   people: PersonaPublica[],
   published: boolean,
-  marcas?: Record<string, { etiqueta?: string }>,
 ): { titulares: PuestoPublico[]; banco: string[] } {
   if (!published) return { titulares: [], banco: [] };
   const byId = new Map(people.map((person) => [person.id, person]));
@@ -47,10 +45,8 @@ export function armarFormacionPublica(
   for (const slot of slots) {
     const person = byId.get(lineup?.[slot.key] ?? "");
     if (!person) continue;
-    const etiqueta = marcas?.[person.id]?.etiqueta?.slice(0, 24) ?? "";
-    const row: PuestoPublico = { puesto: slot.label.slice(0, 8), nick: apodo(person, people), x: slot.x, y: slot.y };
-    if (etiqueta) row.etiqueta = etiqueta;
-    titulares.push(row);
+    titulares.push({ puesto: slot.label.slice(0, 8), nick: "", x: slot.x, y: slot.y });
+    titulares[titulares.length - 1]!.nick = apodo(person, people);
   }
   const enCancha = new Set(Object.values(lineup ?? {}));
   const banco = (suplentes ?? [])
