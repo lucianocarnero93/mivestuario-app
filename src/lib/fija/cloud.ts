@@ -4,7 +4,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { mergeFiguraVotes } from "./figura";
-import { estadoMarcador, sanitizeLiveToken } from "./vivo";
+import { FORMATIONS } from "./formations";
+import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, type PuestoPublico } from "./vivo";
 import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
@@ -249,6 +250,8 @@ export type MarcadorPublico =
       goalsFor: number;
       goalsAgainst: number;
       estado: "espera" | "juego" | "final";
+      titulares: PuestoPublico[];
+      banco: string[];
     }
   | { ok: false; reason: "missing" | "limited" };
 
@@ -332,6 +335,20 @@ export const leerMarcador = createServerFn({ method: "POST" })
     const event = bundle?.events.find((item) => item.id === eventId && item.liveToken === token);
     if (!bundle || !event) return { ok: false, reason: "missing" };
     const sheet = bundle.matchSheets.find((item) => item.eventId === event.id);
+    const list = FORMATIONS[event.modality] ?? FORMATIONS.f8;
+    const slots = (list.find((item) => item.id === event.formacion) ?? list[0]).slots;
+    const formacion = armarFormacionPublica(
+      slots,
+      event.lineup,
+      event.suplentes,
+      bundle.members.map((person) => ({
+        id: person.id,
+        nick: person.nick,
+        name: person.name,
+        number: person.number,
+      })),
+      Boolean(event.lineupPublishedAt),
+    );
     return {
       ok: true,
       club: bundle.club.name.slice(0, 80),
@@ -341,6 +358,8 @@ export const leerMarcador = createServerFn({ method: "POST" })
       goalsFor: sheet?.goalsFor ?? 0,
       goalsAgainst: sheet?.goalsAgainst ?? 0,
       estado: estadoMarcador(event),
+      titulares: formacion.titulares,
+      banco: formacion.banco,
     };
   });
 

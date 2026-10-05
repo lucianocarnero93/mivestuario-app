@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { estadoMarcador, sanitizeLiveToken } from "./vivo.ts";
+import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken } from "./vivo.ts";
 
 const kick = "2026-10-04T15:00:00-03:00";
 
@@ -19,4 +19,34 @@ test("en el horario queda en juego hasta que el DT cierra la planilla", () => {
 test("el link público solo acepta un token largo", () => {
   assert.equal(sanitizeLiveToken("abc"), "");
   assert.equal(sanitizeLiveToken("a".repeat(32)), "a".repeat(32));
+});
+
+test("la formación pública no sale si el DT no la publicó", () => {
+  const armada = armarFormacionPublica(
+    [{ key: "ARQ", label: "ARQ", x: 50, y: 80 }],
+    { ARQ: "juan" },
+    ["enzo"],
+    [
+      { id: "juan", nick: "Juan", name: "Juan Pérez", number: 1 },
+      { id: "enzo", nick: "Enzo", name: "Enzo Díaz", number: 9 },
+    ],
+    false,
+  );
+  assert.deepEqual(armada, { titulares: [], banco: [] });
+});
+
+test("la formación pública lleva puesto y apodo, sin el resto del plantel", () => {
+  const armada = armarFormacionPublica(
+    [{ key: "ARQ", label: "ARQ", x: 50, y: 80 }],
+    { ARQ: "juan" },
+    ["enzo"],
+    [
+      { id: "juan", nick: "Juan", name: "Juan Pérez", number: 1 },
+      { id: "enzo", nick: "Enzo", name: "Enzo Díaz", number: 9 },
+      { id: "pepe", nick: "Pepe", name: "Pepe", number: 4 },
+    ],
+    true,
+  );
+  assert.deepEqual(armada.titulares, [{ puesto: "ARQ", nick: "1 Juan", x: 50, y: 80 }]);
+  assert.deepEqual(armada.banco, ["9 Enzo"]);
 });

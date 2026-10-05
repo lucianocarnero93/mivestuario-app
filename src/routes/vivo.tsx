@@ -43,7 +43,7 @@ function VivoPage() {
   }, [t]);
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-6 py-10">
+    <main className="mx-auto min-h-dvh w-full max-w-md px-6 py-8">
       <p className="text-sm text-muted">Mi Vestuario</p>
       {!t || marcador?.ok === false ? (
         <>
@@ -66,7 +66,31 @@ function VivoPage() {
             {formatWhen(marcador.startsAt)}
             {marcador.place ? ` · ${marcador.place}` : ""}
           </p>
-          <p className="mt-6 text-xs text-subtle">Solo se ve el resultado. No aparecen los jugadores.</p>
+          {marcador.titulares.length > 0 ? (
+            <section className="mt-6">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted">Formación</p>
+              <div className="relative mt-2 aspect-[5/7] overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep">
+                {marcador.titulares.map((puesto) => (
+                  <div
+                    key={`${puesto.puesto}-${puesto.x}-${puesto.y}`}
+                    className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                    style={{ left: `${puesto.x}%`, top: `${puesto.y}%` }}
+                  >
+                    <span className="grid size-9 place-items-center rounded-full border border-line bg-surface text-[10px] font-bold text-accent">
+                      {puesto.puesto}
+                    </span>
+                    <span className="mt-0.5 max-w-16 truncate text-[10px] font-semibold text-line">{puesto.nick}</span>
+                  </div>
+                ))}
+              </div>
+              {marcador.banco.length > 0 ? (
+                <p className="mt-3 text-sm text-muted">Banco: {marcador.banco.join(", ")}</p>
+              ) : null}
+            </section>
+          ) : (
+            <p className="mt-6 text-sm text-muted">El DT todavía no publicó la formación.</p>
+          )}
+          <p className="mt-6 text-xs text-subtle">Se ven el resultado y la formación publicada. No hay fotos.</p>
         </>
       ) : (
         <h1 className="mt-2 text-3xl font-semibold">Cargando el partido…</h1>

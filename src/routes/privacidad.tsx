@@ -60,7 +60,8 @@ function PrivacidadPage() {
             Solo los miembros del equipo que tengan el código de vestuario. El DT y el ayudante pueden
             editar la formación, la planilla y las convocatorias. Los jugadores pueden ver y confirmar
             asistencia. Si el DT comparte el resultado en vivo, quien tenga ese link ve el nombre del
-            equipo, el rival, el horario, la cancha y el marcador. No ve jugadores, fotos ni la charla.
+            equipo, el rival, el horario, la cancha, el marcador y la formación publicada (apodo, número y
+            puesto). No ve fotos, la charla ni a quien no fue citado.
           </p>
         </section>
 
