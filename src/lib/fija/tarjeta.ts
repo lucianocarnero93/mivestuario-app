@@ -16,16 +16,16 @@ export type TarjetaInput = {
   puesto: string;
   goles: number;
   figura: boolean;
+  escudo?: string | null;
+  fotoEquipo?: string | null;
 };
 
 export type TarjetaEquipoInput = {
   club: string;
   titulo: string;
   marcador: string;
-  lugar?: string;
-  formacion?: string;
-  detalle?: string;
-  foto?: string | null;
+  lineas?: { etiqueta: string; texto: string }[];
+  escudo?: string | null;
 };
 
 type PartidoMin = {
@@ -40,6 +40,35 @@ export function nombreEnTarjeta(player: { nick?: string; name?: string; menor?: 
   if (nick) return nick.slice(0, 24);
   if (player.menor) return "Jugador";
   return ((player.name ?? "").trim() || "Jugador").slice(0, 24);
+}
+
+export function fotoEnTarjeta(player: { photo?: string | null; menor?: boolean }, fotoEquipo?: string | null): string | null {
+  if (player.menor) return null;
+  if (player.photo?.startsWith("data:image/")) return player.photo;
+  if (fotoEquipo?.startsWith("data:image/")) return fotoEquipo;
+  return null;
+}
+
+export function lineasDelPartido(
+  filas: { nick: string; goals: number; assists: number; yellow: number; red: number }[],
+): { etiqueta: string; texto: string }[] {
+  const goles = filas.filter((fila) => fila.goals > 0).map((fila) => `${fila.nick} ${fila.goals}`);
+  const asistencias = filas.filter((fila) => fila.assists > 0).map((fila) => `${fila.nick} ${fila.assists}`);
+  const tarjetas = filas
+    .filter((fila) => fila.yellow > 0 || fila.red > 0)
+    .map((fila) => {
+      const partes = [
+        fila.yellow > 0 ? `${fila.yellow} amarilla` : "",
+        fila.red > 0 ? `${fila.red} roja` : "",
+      ].filter(Boolean);
+      return `${fila.nick} ${partes.join(", ")}`;
+    });
+  const lineas = [
+    goles.length ? { etiqueta: "GOLES", texto: goles.join(" · ") } : null,
+    asistencias.length ? { etiqueta: "ASISTENCIAS", texto: asistencias.join(" · ") } : null,
+    tarjetas.length ? { etiqueta: "TARJETAS", texto: tarjetas.join(" · ") } : null,
+  ].filter((linea): linea is { etiqueta: string; texto: string } => Boolean(linea));
+  return lineas.length ? lineas : [{ etiqueta: "PARTIDO", texto: "Sin goles ni tarjetas cargadas" }];
 }
 
 export function puestoEnTarjeta(event: PartidoMin, memberId: string): string {
@@ -62,8 +91,8 @@ export async function dibujarTarjeta(input: TarjetaInput): Promise<Blob> {
   ctx.fillStyle = MUDO;
   ctx.font = "600 28px Figtree, sans-serif";
   ctx.fillText(recortar(ctx, (input.club || "Mi Vestuario").toUpperCase(), 420), 100, 430);
-  logo(ctx, 820, 150, 150);
-  silueta(ctx, numero);
+  await insignia(ctx, input.escudo);
+  await retrato(ctx, fotoEnTarjeta(input.player, input.fotoEquipo), numero);
   if (input.figura) cinta(ctx, "FIGURA");
   placa(ctx, nombre);
   const goles = String(input.goles);
@@ -81,16 +110,10 @@ export async function dibujarTarjetaEquipo(input: TarjetaEquipoInput): Promise<B
   const ctx = lienzo();
   carta(ctx, false);
   columna(ctx, input.marcador.replace("–", "-"), "EQUIPO");
-  logo(ctx, 820, 150, 150);
-  silueta(ctx, input.formacion || "FECHA");
+  await insignia(ctx, input.escudo);
   cinta(ctx, "EL EQUIPO");
+  nombres(ctx, input.lineas ?? []);
   placa(ctx, (input.titulo || input.club || "EL EQUIPO").toUpperCase());
-  atributos(ctx, [
-    ["FORMA", input.formacion || "–"],
-    ["SEDE", corto(input.lugar || "–")],
-    ["GOLES", corto(input.detalle || "–")],
-    ["CLUB", corto(input.club || "–")],
-  ]);
   return await png(ctx);
 }
 
@@ -105,13 +128,8 @@ export async function compartirTarjeta(input: TarjetaInput): Promise<"shared" | 
 
 export async function compartirTarjetaEquipo(input: TarjetaEquipoInput): Promise<"shared" | "saved"> {
   const blob = await dibujarTarjetaEquipo(input);
-  const text = `${input.titulo}: ${input.marcador}. ${input.detalle ?? ""}`.trim();
+  const text = `${input.titulo}: ${input.marcador}. ${(input.lineas ?? []).map((linea) => linea.texto).join(". ")}`.trim();
   return enviar(blob, "mi-vestuario-equipo.png", text);
-}
-
-function corto(texto: string): string {
-  const limpio = texto.replace(/\s+/g, " ").trim();
-  return limpio.length > 12 ? `${limpio.slice(0, 11)}…` : limpio || "–";
 }
 
 function lienzo(): CanvasRenderingContext2D {
@@ -164,6 +182,93 @@ function columna(ctx: CanvasRenderingContext2D, grande: string, puesto: string) 
   ctx.fillStyle = TINTA;
   ctx.font = "700 54px Barlow Condensed, sans-serif";
   ctx.fillText(puesto, 100, 380);
+}
+
+async function insignia(ctx: CanvasRenderingContext2D, crest: string | null | undefined) {
+  const image = crest?.startsWith("data:image/") ? await cargar(crest).catch(() => null) : null;
+  if (!image) {
+    logo(ctx, 820, 150, 150);
+    return;
+  }
+  ctx.save();
+  caja(ctx, 800, 140, 180, 180, 28);
+  ctx.clip();
+  cubrir(ctx, image, 800, 140, 180, 180);
+  ctx.restore();
+}
+
+async function retrato(ctx: CanvasRenderingContext2D, src: string | null, marca: string) {
+  const image = src ? await cargar(src).catch(() => null) : null;
+  if (!image) {
+    silueta(ctx, marca);
+    return;
+  }
+  const x = 360;
+  const y = 300;
+  const w = 620;
+  const h = 690;
+  ctx.save();
+  caja(ctx, x, y, w, h, 36);
+  ctx.clip();
+  cubrir(ctx, image, x, y, w, h);
+  ctx.restore();
+}
+
+function nombres(ctx: CanvasRenderingContext2D, lineas: { etiqueta: string; texto: string }[]) {
+  let y = 470;
+  const filas = lineas.length ? lineas : [{ etiqueta: "PARTIDO", texto: "Sin goles ni tarjetas cargadas" }];
+  for (const linea of filas) {
+    if (y > 960) return;
+    ctx.fillStyle = LIMA;
+    ctx.textAlign = "left";
+    ctx.font = "700 28px Barlow Condensed, sans-serif";
+    ctx.fillText(linea.etiqueta, 96, y);
+    y += 46;
+    ctx.fillStyle = TINTA;
+    ctx.font = "700 40px Barlow Condensed, sans-serif";
+    y = envolver(ctx, linea.texto, 96, y, 880, 48);
+    y += 22;
+  }
+}
+
+function envolver(ctx: CanvasRenderingContext2D, texto: string, x: number, y: number, max: number, alto: number) {
+  const palabras = texto.split(" ");
+  let linea = "";
+  let cursor = y;
+  for (const palabra of palabras) {
+    const prueba = linea ? `${linea} ${palabra}` : palabra;
+    if (ctx.measureText(prueba).width > max && linea) {
+      ctx.fillText(linea, x, cursor);
+      linea = palabra;
+      cursor += alto;
+      if (cursor > 980) return cursor;
+    } else linea = prueba;
+  }
+  if (linea && cursor <= 980) ctx.fillText(linea, x, cursor);
+  return cursor + alto;
+}
+
+function cubrir(
+  ctx: CanvasRenderingContext2D,
+  image: CanvasImageSource & { width: number; height: number },
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
+  const scale = Math.max(w / image.width, h / image.height);
+  const dw = image.width * scale;
+  const dh = image.height * scale;
+  ctx.drawImage(image, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+
+function cargar(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("foto"));
+    image.src = src;
+  });
 }
 
 function silueta(ctx: CanvasRenderingContext2D, marca: string) {

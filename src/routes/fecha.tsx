@@ -6,10 +6,8 @@ import { Button } from "@/components/ui/button";
 import { enJuego, fotoAbierta, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
 import { leerFamilia } from "@/lib/fija/familia";
 import { figuraDe } from "@/lib/fija/figura";
-import { FORMATIONS } from "@/lib/fija/formations";
-import { listarFotos } from "@/lib/fija/fotos";
 import { compartirStory } from "@/lib/fija/stories";
-import { compartirTarjetaEquipo } from "@/lib/fija/tarjeta";
+import { compartirTarjetaEquipo, lineasDelPartido } from "@/lib/fija/tarjeta";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
 import type { ClubEvent, ReaccionFecha } from "@/lib/fija/types";
 
@@ -90,24 +88,22 @@ function FechaViva({ event }: { event: ClubEvent }) {
       setNota("Primero tiene que haber un marcador.");
       return;
     }
-    const list = FORMATIONS[event.modality] ?? [];
-    const forma = list.find((item) => item.id === event.formacion) ?? list[0];
-    let foto: string | null = null;
-    try {
-      const fotos = await listarFotos({ data: { code: club.inviteCode, eventId: event.id } });
-      foto = fotos.find((item) => item.status === "ok")?.image ?? null;
-    } catch {
-      foto = null;
-    }
+    const lineas = lineasDelPartido(
+      (sheet.players ?? []).map((fila) => ({
+        nick: byId.get(fila.memberId)?.nick || "Jugador",
+        goals: fila.goals,
+        assists: fila.assists,
+        yellow: fila.yellow,
+        red: fila.red,
+      })),
+    );
     try {
       const mode = await compartirTarjetaEquipo({
         club: club.name,
         titulo: event.title,
         marcador: `${sheet.goalsFor}–${sheet.goalsAgainst}`,
-        lugar: event.place,
-        formacion: forma?.name,
-        detalle: goleadores,
-        foto,
+        lineas,
+        escudo: club.crest,
       });
       setNota(mode === "shared" ? "Tarjeta lista para WhatsApp." : "Tarjeta guardada en el celular.");
     } catch (error) {

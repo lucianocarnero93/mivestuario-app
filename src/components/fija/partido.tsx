@@ -5,6 +5,7 @@ import { candidatosFigura, figuraDe } from "@/lib/fija/figura";
 import { personLabel } from "@/lib/fija/format";
 import { vivoUrl, whatsAppEnVivo, whatsAppResultado, whatsAppSinConfirmar } from "@/lib/fija/share";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
+import { listarFotos } from "@/lib/fija/fotos";
 import { compartirTarjeta, puestoEnTarjeta } from "@/lib/fija/tarjeta";
 import type { ClubEvent, Member } from "@/lib/fija/types";
 
@@ -151,6 +152,15 @@ export function FiguraPartido({ event }: { event: ClubEvent }) {
 
   async function tarjetaDe(player: Member) {
     const goles = sheet?.players.find((row) => row.memberId === player.id)?.goals ?? 0;
+    let fotoEquipo: string | null = null;
+    if (!player.menor && club?.inviteCode) {
+      try {
+        const fotos = await listarFotos({ data: { code: club.inviteCode, eventId: event.id } });
+        fotoEquipo = fotos.find((item) => item.status === "ok")?.image ?? null;
+      } catch {
+        fotoEquipo = null;
+      }
+    }
     try {
       const mode = await compartirTarjeta({
         club: club?.name ?? "",
@@ -160,6 +170,8 @@ export function FiguraPartido({ event }: { event: ClubEvent }) {
         puesto: puestoEnTarjeta(event, player.id),
         goles,
         figura: Boolean(figura?.ids.includes(player.id)),
+        escudo: club?.crest,
+        fotoEquipo,
       });
       setNota(mode === "shared" ? "Tarjeta lista para compartir." : "Tarjeta guardada en el celular.");
     } catch (error) {
