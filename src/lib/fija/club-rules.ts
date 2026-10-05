@@ -5,6 +5,10 @@ export const MAX_BYTES = 350_000;
 export const HARD_BYTES = 500_000;
 export const MAX_MEMBERS = 80;
 
+export function overAttempt(count: number, limit: number): boolean {
+  return count > limit;
+}
+
 export function sizeVerdict(before: number, after: number): "ok" | "soft" | "hard" {
   if (after > HARD_BYTES) return "hard";
   if (after > MAX_BYTES && after > before + 1024) return "soft";

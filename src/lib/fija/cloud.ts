@@ -11,6 +11,7 @@ import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
   canAssignRoles,
+  overAttempt,
   repairCreatedBy,
   allowedDrops,
   capRoster,
@@ -100,7 +101,7 @@ async function noteLookup(userId: string, limit = ATTEMPT_LIMIT): Promise<void> 
       n = (parsed.n ?? 0) + 1;
       since = parsed.since;
     }
-    if (n > limit) throw new Error("Demasiados intentos. Esperá un rato.");
+    if (overAttempt(n, limit)) throw new Error("Demasiados intentos. Esperá un rato.");
     await query(
       `insert into vestuario_docs (collection, id, data, updated_at)
        values ($1, $2, $3::jsonb, now())
@@ -214,18 +215,15 @@ export const peekClubName = createServerFn({ method: "POST" })
   .validator((code: string) => sanitizeCode(code))
   .handler(async ({ data: code }): Promise<string | null> => {
     if (!code) return null;
+    const bucket = (await peekBucket()) ?? "peek:comun";
+    try {
+      await noteLookup(bucket, 8);
+    } catch {
+      return null;
+    }
     const bundle = await readClub(code);
     const name = bundle?.club.name?.trim() ?? "";
-    if (name) return name.slice(0, 80);
-    const bucket = await peekBucket();
-    if (bucket) {
-      try {
-        await noteLookup(bucket, 8);
-      } catch {
-        return null;
-      }
-    }
-    return null;
+    return name ? name.slice(0, 80) : null;
   });
 
 async function peekBucket(): Promise<string | null> {

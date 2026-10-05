@@ -8,6 +8,7 @@ import {
   patchKeepsMenor,
   pushCopy,
   memberGetsPush,
+  overAttempt,
   claimExistingName,
   decideClaim,
   equipmentHeading,
@@ -192,6 +193,11 @@ test("el ayudante no saca ni banea a un DT", () => {
 test("una cuenta menor no puede pasar a mayor por API", () => {
   assert.equal(patchKeepsMenor(true, { menor: false, name: "Nico" }).menor, true);
   assert.equal(patchKeepsMenor(false, { menor: false }).menor, false);
+});
+
+test("el noveno código de un equipo, válido o no, pasa el cupo", () => {
+  assert.equal(overAttempt(8, 8), false);
+  assert.equal(overAttempt(9, 8), true);
 });
 
 test("el aviso nombra al club y no le llega a quien no corresponde", () => {
