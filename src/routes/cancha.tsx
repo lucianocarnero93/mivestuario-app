@@ -1,6 +1,7 @@
 // Pizarra: el DT y el ayudante arman la formación del partido.
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { Chalkboard } from "@/components/fija/chalkboard";
 import { Pitch } from "@/components/fija/pitch";
 import { SquadPanel } from "@/components/fija/squad-panel";
 import { Segmented } from "@/components/fija/segmented";
@@ -10,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
 import { formatWhen, personLabel } from "@/lib/fija/format";
 import { ETIQUETAS, leyendaDe } from "@/lib/fija/pizarra";
+import { compartirPizarra } from "@/lib/fija/pizarra-imagen";
 import { matchSettled, nextEvent, sheetFor, useFija, useIsStaff } from "@/lib/fija/store";
 import type { Modality } from "@/lib/fija/types";
 
@@ -156,111 +158,142 @@ function CanchaPage() {
         </label>
       ) : null}
 
-      <section className="mt-4">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted">1 · Formación</p>
-        <div className="mt-2">
-          {staff || event.lineupPublishedAt ? (
-            <Pitch
-              modality={event.modality}
-              formacionId={event.formacion}
-              lineup={event.lineup}
-              members={members}
-              editable={staff}
-              marked={new Set(Object.keys(event.indicaciones ?? {}))}
-              onSlot={staff || event.lineupPublishedAt ? setSlot : undefined}
-            />
-          ) : (
-            <p className="rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">
-              El DT todavía no publicó la formación.
-            </p>
-          )}
-          {staff ? (
-            <p className="mt-2 text-center text-xs text-muted">
-              Tocá un puesto para elegir jugador o dejarle una indicación.
-            </p>
-          ) : event.lineupPublishedAt ? (
-            <p className="mt-2 text-center text-xs text-muted">El punto amarillo tiene una indicación. Tocá el puesto para leerla.</p>
-          ) : null}
-        </div>
-        {note ? <p className="mt-3 text-center text-sm font-semibold text-accent">{note}</p> : null}
+      <div className="contents desk:mt-4 desk:grid desk:grid-cols-[minmax(0,0.9fr)_minmax(280px,1fr)] desk:items-start desk:gap-6">
+      <div className="mt-4 desk:sticky desk:top-4 desk:rounded-3xl desk:bg-bg/80 desk:p-3">
+        {staff || event.lineupPublishedAt ? (
+          <Pitch
+            modality={event.modality}
+            formacionId={event.formacion}
+            lineup={event.lineup}
+            members={members}
+            editable={staff}
+            marked={new Set(Object.keys(event.indicaciones ?? {}))}
+            onSlot={staff || event.lineupPublishedAt ? setSlot : undefined}
+          />
+        ) : (
+          <p className="rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">
+            El DT todavía no publicó la formación.
+          </p>
+        )}
         {staff ? (
-          <Button
-            className="mt-3 h-14 w-full text-base"
-            disabled={filled === 0}
-            onClick={() => {
-              publishLineup(event.id);
-              setNote("Publicado. El plantel ya puede ver la pizarra.");
-            }}
-          >
-            {event.lineupPublishedAt ? "Actualizar formación y avisar" : "Publicar formación"}
-          </Button>
+          <p className="mt-2 text-center text-xs text-muted">
+            Tocá un puesto para elegir jugador o dejarle una indicación.
+          </p>
+        ) : event.lineupPublishedAt ? (
+          <p className="mt-2 text-center text-xs text-muted">El punto amarillo es una indicación. Tocalo para leerla.</p>
         ) : null}
-        {event.lineupPublishedAt && !staff ? (
-          <p className="mt-2 text-center text-xs text-muted">Formación publicada.</p>
-        ) : null}
-        {staff || event.lineupPublishedAt ? <SquadPanel event={event} staff={staff} onNotice={setNote} /> : null}
-      </section>
+      </div>
+      <div className="desk:sticky desk:top-4">
+      {note ? <p className="mt-3 text-center text-sm font-semibold text-accent desk:mt-0">{note}</p> : null}
+      {staff ? (
+        <Button
+          className="mt-3 h-14 w-full text-base desk:mt-0"
+          disabled={filled === 0}
+          onClick={() => {
+            publishLineup(event.id);
+            setNote("Publicado. El plantel ya puede ver la formación.");
+          }}
+        >
+          {event.lineupPublishedAt ? "Actualizar formación y avisar" : "Publicar formación"}
+        </Button>
+      ) : null}
+      {event.lineupPublishedAt && !staff ? (
+        <p className="mt-2 text-center text-xs text-muted">Formación publicada.</p>
+      ) : null}
+      {staff || event.lineupPublishedAt ? <SquadPanel event={event} staff={staff} onNotice={setNote} /> : null}
+      </div>
+      </div>
 
-      {staff || event.lineupPublishedAt ? (
-        <section className="whiteboard mt-6 rounded-xl p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#3d5c49]">2 · El partido</p>
-          <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-[#3d5c49]">Ellos</p>
-          {staff ? (
-            <Textarea
-              className="mt-2 min-h-20 border-[#d7d1c4] bg-white text-[#1c2b22] placeholder:text-[#1c2b22]/40"
-              rows={3}
-              maxLength={180}
-              value={rivalDraft ?? event.rival ?? ""}
-              onChange={(e) => setRivalDraft(e.target.value)}
-              onBlur={() => {
-                if (rivalDraft != null) setRival(event.id, rivalDraft);
-              }}
-              placeholder="Cómo juega el que viene. Tres líneas."
-            />
-          ) : (
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">{event.rival || "Sin notas del rival."}</p>
-          )}
-          <p className="mt-4 text-xs font-semibold uppercase tracking-widest text-[#3d5c49]">Cómo jugamos</p>
-          {staff ? (
-            <Textarea
-              className="mt-2 min-h-20 border-[#d7d1c4] bg-white text-[#1c2b22] placeholder:text-[#1c2b22]/40"
-              rows={3}
-              maxLength={180}
-              value={event.tactics}
-              onChange={(e) => setTactics(event.id, e.target.value)}
-              placeholder="Tres líneas para todo el equipo."
-            />
-          ) : (
-            <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed">
-              {event.tactics || "El DT todavía no escribió la pauta."}
-            </p>
-          )}
+      {staff ? (
+        <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Ellos</p>
+          <Textarea
+            className="mt-2 min-h-20"
+            rows={3}
+            maxLength={180}
+            value={rivalDraft ?? event.rival ?? ""}
+            onChange={(e) => setRivalDraft(e.target.value)}
+            onBlur={() => {
+              if (rivalDraft != null) setRival(event.id, rivalDraft);
+            }}
+            placeholder="Cómo juega el que viene. Tres líneas."
+          />
         </section>
+      ) : event.lineupPublishedAt && event.rival ? (
+        <Chalkboard title="Ellos" className="mt-4">
+          {event.rival}
+        </Chalkboard>
       ) : null}
 
-      {staff || event.lineupPublishedAt ? (
-        <section className="whiteboard mt-4 rounded-xl p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#3d5c49]">3 · Para cada uno</p>
-          <p className="mt-1 text-sm text-[#3d5c49]">Lo lee todo el equipo.</p>
-          {leyenda.length > 0 ? (
-            <ul className="mt-3 space-y-3">
-              {leyenda.map((item) => (
-                <li key={item.id}>
-                  <p className="text-sm font-semibold">
-                    {item.nick}
-                    {item.id === me?.id ? " · vos" : ""}
-                    {item.etiqueta ? ` · ${item.etiqueta}` : ""}
-                  </p>
-                  {item.nota ? <p className="text-sm">{item.nota}</p> : null}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-3 text-sm">
-              {staff ? "Tocá un puesto de la formación para dejarle una frase." : "Todavía no hay indicaciones."}
-            </p>
-          )}
+      {staff ? (
+        <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Pauta del equipo</p>
+          <Textarea
+            className="mt-2 min-h-20"
+            rows={3}
+            maxLength={180}
+            value={event.tactics}
+            onChange={(e) => setTactics(event.id, e.target.value)}
+            placeholder="Tres líneas. Cómo salimos, a quién marcar, qué no hacer."
+          />
         </section>
+      ) : event.lineupPublishedAt ? (
+        <Chalkboard title="Pauta del DT" className="mt-4">
+          {event.tactics || "El DT todavía no dejó una pauta."}
+        </Chalkboard>
+      ) : null}
+
+      {(staff || event.lineupPublishedAt) && leyenda.length > 0 ? (
+        <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">Indicaciones</p>
+          <ul className="mt-2 space-y-2">
+            {leyenda.map((item) => (
+              <li key={item.id} className={item.id === me?.id ? "text-accent" : ""}>
+                <p className="text-sm font-semibold">
+                  {item.nick}
+                  {item.etiqueta ? ` · ${item.etiqueta}` : ""}
+                </p>
+                {item.nota ? <p className="text-sm text-muted">{item.nota}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {staff || event.lineupPublishedAt ? (
+        <Button
+          variant="outline"
+          className="mt-3 h-12 w-full"
+          onClick={() => {
+            const list = FORMATIONS[event.modality];
+            const slots = (list.find((item) => item.id === event.formacion) ?? list[0]).slots;
+            const puestos = slots
+              .map((item) => {
+                const id = event.lineup[item.key];
+                const person = members.find((member) => member.id === id);
+                if (!person) return null;
+                return {
+                  x: item.x,
+                  y: item.y,
+                  nick: person.nick || person.name,
+                  etiqueta: event.indicaciones?.[id]?.etiqueta ?? "",
+                };
+              })
+              .filter((item): item is { x: number; y: number; nick: string; etiqueta: string } => Boolean(item));
+            void compartirPizarra({
+              title: event.title,
+              rival: event.rival ?? "",
+              pauta: event.tactics,
+              puestos,
+            })
+              .then((mode) => setNote(mode === "shared" ? "Pizarra lista para mandar." : "Imagen guardada en el celular."))
+              .catch((error: unknown) => {
+                if (error instanceof DOMException && error.name === "AbortError") return;
+                setNote("No se pudo armar la imagen.");
+              });
+          }}
+        >
+          Compartir pizarra
+        </Button>
       ) : null}
 
       <Dialog open={slot != null} onOpenChange={(o) => !o && setSlot(null)}>

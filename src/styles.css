@@ -200,16 +200,6 @@
       inset 0 0 0 7px #1c241e,
       0 12px 28px color-mix(in oklab, var(--color-fg) 14%, transparent);
   }
-
-  .whiteboard {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 28%),
-      #f6f3ea;
-    color: #1c2b22;
-    box-shadow:
-      inset 0 0 0 8px #efeae0,
-      0 10px 24px rgba(20, 40, 28, 0.12);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
