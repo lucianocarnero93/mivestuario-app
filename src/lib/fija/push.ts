@@ -1,7 +1,7 @@
 // Avisos del plantel. La clave pública se crea sola la primera vez y queda en la base.
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { isClubMember, memberIdsInClub, readClub } from "./cloud";
+import { isClubMember, memberIdInClub, memberIdsInClub, readClub } from "./cloud";
 import { memberGetsPush, pushCopy } from "./club-rules";
 import { sanitizeCode } from "./sanitize";
 
