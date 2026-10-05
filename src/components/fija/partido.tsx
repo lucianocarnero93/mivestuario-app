@@ -1,63 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { cerrarMarcador, publicarMarcador } from "@/lib/fija/cloud";
 import { candidatosFigura, figuraDe } from "@/lib/fija/figura";
 import { personLabel } from "@/lib/fija/format";
-import { vivoUrl, whatsAppEnVivo, whatsAppResultado, whatsAppSinConfirmar } from "@/lib/fija/share";
+import { whatsAppResultado, whatsAppSinConfirmar } from "@/lib/fija/share";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
 import type { ClubEvent } from "@/lib/fija/types";
-
-export function ParaLaFamilia({ event }: { event: ClubEvent }) {
-  const staff = useIsStaff();
-  const club = useFija((s) => s.club);
-  const abrirEnVivo = useFija((s) => s.abrirEnVivo);
-  const cerrarEnVivo = useFija((s) => s.cerrarEnVivo);
-  const flushCloud = useFija((s) => s.flushCloud);
-  const [nota, setNota] = useState("");
-  if (!staff || !club || event.kind !== "partido") return null;
-
-  async function publicar() {
-    const token = abrirEnVivo(event.id);
-    if (!token) return;
-    setNota("Publicando el link…");
-    await flushCloud();
-    let ok = false;
-    for (let intento = 0; intento < 3 && !ok; intento += 1) {
-      const result = await publicarMarcador({ data: { code: club?.inviteCode, token } });
-      ok = result.ok;
-      if (!ok) await new Promise((resolve) => window.setTimeout(resolve, 700));
-    }
-    const text = whatsAppEnVivo(event, vivoUrl(token));
-    await navigator.clipboard?.writeText(text);
-    setNota(ok ? "Link copiado. Mandalo por WhatsApp." : "Todavía no se publicó. Tocá de nuevo.");
-  }
-
-  async function cerrar() {
-    const token = event.liveToken;
-    cerrarEnVivo(event.id);
-    await flushCloud();
-    if (token && club) await cerrarMarcador({ data: { code: club.inviteCode, token } });
-    setNota("La familia ya no ve este partido.");
-  }
-
-  return (
-    <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted">Para la familia</p>
-      <p className="mt-1 text-sm text-muted">
-        El link muestra el resultado y la formación publicada: apodo, número y puesto. No muestra fotos, nombres, menores, indicaciones ni jugadas.
-      </p>
-      <Button className="mt-3 h-14 w-full" onClick={() => void publicar()}>
-        {event.liveToken ? "Copiar link del partido" : "Compartir resultado en vivo"}
-      </Button>
-      {event.liveToken ? (
-        <Button variant="outline" className="mt-2 h-12 w-full" onClick={() => void cerrar()}>
-          Dejar de compartir
-        </Button>
-      ) : null}
-      {nota ? <p className="mt-2 text-sm text-accent">{nota}</p> : null}
-    </section>
-  );
-}
 
 export function EnCancha({ event }: { event: ClubEvent }) {
   const staff = useIsStaff();

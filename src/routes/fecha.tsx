@@ -1,11 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { EnCancha, FiguraPartido, ParaLaFamilia } from "@/components/fija/partido";
+import { EnCancha, FiguraPartido } from "@/components/fija/partido";
 import { Button } from "@/components/ui/button";
 import { enJuego, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
 import { leerFamilia } from "@/lib/fija/familia";
-import { figuraDe } from "@/lib/fija/figura";
-import { compartirStory } from "@/lib/fija/stories";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
 import type { ClubEvent, ReaccionFecha } from "@/lib/fija/types";
 
@@ -50,11 +48,9 @@ function FechaPage() {
 function FechaViva({ event }: { event: ClubEvent }) {
   const staff = useIsStaff();
   const me = useMe();
-  const club = useFija((s) => s.club);
   const members = useFija((s) => s.members);
   const sheets = useFija((s) => s.matchSheets);
   const rsvps = useFija((s) => s.rsvps);
-  const votes = useFija((s) => s.figuraVotes);
   const markMatchResult = useFija((s) => s.markMatchResult);
   const reaccionarFecha = useFija((s) => s.reaccionarFecha);
   const ocultarFecha = useFija((s) => s.ocultarFecha);
@@ -63,7 +59,6 @@ function FechaViva({ event }: { event: ClubEvent }) {
   const [nota, setNota] = useState("");
   const sheet = sheetFor(event.id, sheets);
   const cerrado = Boolean(event.resultClosedAt);
-  const figura = figuraDe(votes, event.id);
   const byId = new Map(members.map((person) => [person.id, person]));
   const goleadores = (sheet?.players ?? [])
     .filter((row) => row.goals > 0)
@@ -78,29 +73,6 @@ function FechaViva({ event }: { event: ClubEvent }) {
     void leerFamilia({ data: event.liveToken }).then((result) => setFamilias(result.n)).catch(() => setFamilias(0));
   }, [event.liveToken, event.resultClosedAt]);
   const invicto = rachaInvicto(sheets, useFija.getState().events);
-
-  async function compartir(kind: "convocados" | "vivo" | "final" | "figura") {
-    if (!club || (!sheet && kind !== "convocados")) {
-      setNota("Primero tiene que haber un marcador.");
-      return;
-    }
-    const nombres = members.filter((person) => person.juega ?? person.role === "jugador").map((person) => person.nick);
-    try {
-      const mode = await compartirStory({
-        kind,
-        club: club.name,
-        titulo: event.title,
-        marcador: sheet ? `${sheet.goalsFor}–${sheet.goalsAgainst}` : "0–0",
-        detalle: kind === "figura"
-          ? (figura?.ids.map((id) => byId.get(id)?.nick).filter(Boolean).join(" y ") || "Sin votos")
-          : goleadores || nombres.slice(0, 8).join(" · "),
-      });
-      setNota(mode === "shared" ? "Listo para Stories o WhatsApp." : "Imagen guardada.");
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      setNota("No se pudo armar la imagen.");
-    }
-  }
 
   return (
     <section className="mt-4">
@@ -124,7 +96,6 @@ function FechaViva({ event }: { event: ClubEvent }) {
       )}
       {goleadores ? <p className="mt-2 text-sm">Goles: {goleadores}</p> : null}
       {staff && !cerrado ? <EnCancha event={event} /> : null}
-      {staff ? <ParaLaFamilia event={event} /> : null}
       <div className="mt-3 grid gap-2">
         {staff && !cerrado ? (
           <Button
@@ -163,15 +134,11 @@ function FechaViva({ event }: { event: ClubEvent }) {
           );
         })}
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button variant="outline" className="h-12" onClick={() => void compartir("convocados")}>Convocados</Button>
-        <Button variant="outline" className="h-12" onClick={() => void compartir("figura")}>Figura</Button>
-        {staff ? (
-          <Button variant="ghost" className="h-12" onClick={() => ocultarFecha(event.id, !event.fechaOculta)}>
-            {event.fechaOculta ? "Mostrar fecha" : "Ocultar fecha"}
-          </Button>
-        ) : null}
-      </div>
+      {staff ? (
+        <Button variant="ghost" className="mt-3 h-12" onClick={() => ocultarFecha(event.id, !event.fechaOculta)}>
+          {event.fechaOculta ? "Mostrar fecha" : "Ocultar fecha"}
+        </Button>
+      ) : null}
       {nota ? <p className="mt-2 text-sm text-accent">{nota}</p> : null}
     </section>
   );
