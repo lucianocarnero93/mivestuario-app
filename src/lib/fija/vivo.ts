@@ -1,3 +1,5 @@
+import { overAttempt } from "./club-rules.ts";
+
 export type EstadoMarcador = "espera" | "juego" | "final";
 
 export type PuestoPublico = {
@@ -8,6 +10,8 @@ export type PuestoPublico = {
 };
 
 type PersonaPublica = { id: string; nick: string; name: string; number: number | null; menor?: boolean };
+
+export const VIVO_READ_LIMIT = 180;
 
 export function estadoMarcador(
   event: { startsAt: string; resultClosedAt?: string | null },
@@ -27,6 +31,17 @@ export function vivoPointerAllows(existingCode: string | null, requestedCode: st
 export function sanitizeLiveToken(value: unknown): string {
   const token = String(value ?? "");
   return /^[a-f0-9]{32}$/.test(token) ? token : "";
+}
+
+export function vivoAttemptKey(bucket: string | null | undefined): string {
+  const raw = String(bucket ?? "").trim();
+  const ip = raw.startsWith("peek:") ? raw.slice(5) : raw;
+  const safe = ip.replace(/[^a-zA-Z0-9.:_-]/g, "").slice(0, 64);
+  return `vivo:${safe || "comun"}`;
+}
+
+export function vivoReadLimited(count: number): boolean {
+  return overAttempt(count, VIVO_READ_LIMIT);
 }
 
 function apodo(person: PersonaPublica, grupo: PersonaPublica[], puesto = ""): string {

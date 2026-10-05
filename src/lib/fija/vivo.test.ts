@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoPointerAllows } from "./vivo.ts";
+import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoAttemptKey, vivoPointerAllows, vivoReadLimited } from "./vivo.ts";
 
 const kick = "2026-10-04T15:00:00-03:00";
 
@@ -25,6 +25,20 @@ test("otro equipo no puede pisar ni borrar el link en vivo", () => {
 test("el link público solo acepta un token largo", () => {
   assert.equal(sanitizeLiveToken("abc"), "");
   assert.equal(sanitizeLiveToken("a".repeat(32)), "a".repeat(32));
+});
+
+test("el marcador en vivo cuenta siempre, también sin IP", () => {
+  assert.equal(vivoAttemptKey("peek:10.0.0.8"), "vivo:10.0.0.8");
+  assert.equal(vivoAttemptKey("peek:comun"), "vivo:comun");
+  assert.equal(vivoAttemptKey(null), "vivo:comun");
+  assert.equal(vivoAttemptKey(""), "vivo:comun");
+  assert.equal(vivoReadLimited(180), false);
+  assert.equal(vivoReadLimited(181), true);
+});
+
+test("tres celulares un rato no llegan al cupo del marcador", () => {
+  const lecturas = 3 * 40;
+  assert.equal(vivoReadLimited(lecturas), false);
 });
 
 test("la formación pública no sale si el DT no la publicó", () => {

@@ -5,7 +5,7 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { mergeFiguraVotes } from "./figura";
 import { FORMATIONS } from "./formations";
-import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoPointerAllows, type PuestoPublico } from "./vivo";
+import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoAttemptKey, vivoPointerAllows, VIVO_READ_LIMIT, type PuestoPublico } from "./vivo";
 import { preferirJugada } from "./jugada";
 import { sanitizeCode } from "./sanitize";
 import {
@@ -326,13 +326,11 @@ export const leerMarcador = createServerFn({ method: "POST" })
   .validator((token: string) => sanitizeLiveToken(token))
   .handler(async ({ data: token }): Promise<MarcadorPublico> => {
     if (!token) return { ok: false, reason: "missing" };
-    const bucket = await peekBucket();
-    if (bucket && bucket !== "peek:comun") {
-      try {
-        await noteLookup(`vivo:${bucket.slice(5)}`, 600);
-      } catch {
-        return { ok: false, reason: "limited" };
-      }
+    const bucket = (await peekBucket()) ?? "peek:comun";
+    try {
+      await noteLookup(vivoAttemptKey(bucket), VIVO_READ_LIMIT);
+    } catch {
+      return { ok: false, reason: "limited" };
     }
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
