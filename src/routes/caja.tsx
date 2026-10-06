@@ -69,7 +69,7 @@ function CajaPage() {
       </p>
       {mp === "ok" ? <p className="mt-2 text-sm text-accent">Cuenta conectada.</p> : null}
       {mp === "error" ? <p className="mt-2 text-sm text-muted">Mercado Pago no dejó conectar. Tocá de nuevo y aceptá con la cuenta del tesorero.</p> : null}
-      {mp === "sin-clave" ? <p className="mt-2 text-sm text-muted">Falta la clave de Mercado Pago en el servidor. Sin eso la cuenta no se puede conectar.</p> : null}
+      {mp === "sin-clave" ? <p className="mt-2 text-sm text-muted">Faltan el Client ID y el Client Secret de la aplicación de Mercado Pago. La clave del webhook no alcanza.</p> : null}
       {mp === "sin-permiso" ? <p className="mt-2 text-sm text-muted">Tenés que entrar con el usuario del tesorero para conectar su cuenta.</p> : null}
       {tesorero ? (
         <div className="mt-4 grid gap-2">
