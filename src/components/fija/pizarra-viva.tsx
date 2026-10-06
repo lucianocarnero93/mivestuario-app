@@ -258,7 +258,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
         </div>
       ) : null}
 
-      {vista === "charla" ? <Audios event={event} meId={me?.id ?? ""} code={code} staff={staff} onAviso={setAviso} /> : null}
+      {vista === "charla" ? <AudioEquipo event={event} code={code} staff={staff} onAviso={setAviso} /> : null}
       {vista === "charla" ? <VideoLink event={event} staff={staff} onChange={(url) => aplicar(event.id, { videoUrl: url })} /> : null}
       {vista === "jugada" || vista === "pelota" ? (
         <Pasos
@@ -656,34 +656,15 @@ function Pasos({
   );
 }
 
-function Audios({ event, meId, code, staff, onAviso }: { event: ClubEvent; meId: string; code: string; staff: boolean; onAviso: (t: string) => void }) {
-  const members = useFija((s) => s.members);
-  const enCancha = [...new Set(Object.values(event.lineup))];
-  const ids = enCancha.length > 0 ? enCancha : members.filter((item) => item.juega ?? item.role === "jugador").map((item) => item.id);
-  const lista = staff ? ids : ids.filter((id) => id === meId);
-  return (
-    <div className="mt-3">
-      <p className="text-sm text-muted">{staff ? "Cada jugador escucha solo el suyo. El del compañero no." : "Tu audio."}</p>
-      <ul className="mt-2 grid gap-2">
-        {lista.map((id) => (
-          <AudioFila key={id} event={event} memberId={id} code={code} staff={staff} onAviso={onAviso} />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function AudioFila({ event, memberId, code, staff, onAviso }: { event: ClubEvent; memberId: string; code: string; staff: boolean; onAviso: (t: string) => void }) {
-  const members = useFija((s) => s.members);
-  const aplicar = useFija((s) => s.aplicarPizarra);
-  const notaId = memberId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
+function AudioEquipo({ event, code, staff, onAviso }: { event: ClubEvent; code: string; staff: boolean; onAviso: (t: string) => void }) {
+  const notaId = "equipo";
   const [audio, setAudio] = useState<string | null>(null);
   const [grabando, setGrabando] = useState(false);
   const rec = useRef<MediaRecorder | null>(null);
   useEffect(() => {
-    if (!code || !notaId) return;
+    if (!code) return;
     void loadAudioJugada({ data: { code, eventId: event.id, notaId } }).then((result) => setAudio(result.audio)).catch(() => setAudio(null));
-  }, [code, event.id, notaId]);
+  }, [code, event.id]);
   async function grabar() {
     if (rec.current && grabando) {
       rec.current.stop();
@@ -706,10 +687,7 @@ function AudioFila({ event, memberId, code, staff, onAviso }: { event: ClubEvent
         const data = String(reader.result ?? "");
         void saveAudioJugada({ data: { code, eventId: event.id, notaId, audio: data } }).then((result) => {
           if (!result.ok) onAviso("No se pudo guardar el audio.");
-          else {
-            setAudio(data);
-            aplicar(event.id, { audioDe: [...new Set([...(event.audioDe ?? []), memberId])] });
-          }
+          else setAudio(data);
         });
       };
       reader.readAsDataURL(blob);
@@ -721,13 +699,13 @@ function AudioFila({ event, memberId, code, staff, onAviso }: { event: ClubEvent
       if (media.state === "recording") media.stop();
     }, 60_000);
   }
-  const person = members.find((item) => item.id === memberId);
   return (
-    <li className="rounded-xl bg-surface p-4">
-      <p className="text-sm font-semibold">{person?.nick ?? "Jugador"}</p>
-      {audio ? <audio className="mt-2 w-full" controls src={audio} /> : <p className="mt-2 text-sm text-muted">Sin audio.</p>}
+    <div className="mt-3 rounded-xl bg-surface p-4">
+      <p className="text-xs font-semibold uppercase tracking-widest text-muted">Audio para todos</p>
+      <p className="mt-1 text-sm text-muted">Lo escucha todo el plantel. La indicación de cada uno está en Tu puesto.</p>
+      {audio ? <audio className="mt-3 w-full" controls src={audio} /> : <p className="mt-2 text-sm text-muted">Todavía no hay audio.</p>}
       {staff ? <Button className="mt-3 h-12 w-full" onClick={() => void grabar()}><Mic className="size-4" /> {grabando ? "Cortar" : "Grabar"}</Button> : null}
-    </li>
+    </div>
   );
 }
 
