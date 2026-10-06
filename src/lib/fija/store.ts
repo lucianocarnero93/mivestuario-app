@@ -8,9 +8,9 @@ import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
 import { alertsDue, pickMemberIdentity, preferRsvp, resultIsOpen, escudoElegido } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
-import { pruneBundle } from "./prune";
+import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
-import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
+import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, saveCrest, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
 import { clearPedirEdad, readMenor } from "./edad";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
@@ -1002,6 +1002,8 @@ export const useFija = create<State>()(
         const safe =
           crest && crest.startsWith("data:image/") && crest.length < 120_000 ? crest : null;
         set({ club: { ...club, crest: safe } });
+        const code = club.inviteCode;
+        if (code) void saveCrest({ data: { code, crest: safe } }).catch(() => undefined);
         void get().flushCloud();
       },
 
@@ -2318,14 +2320,15 @@ export const useFija = create<State>()(
               staff: isStaffId(current),
               dirty: current.dirty,
             });
+            const visible = conImagenes(current, merged);
             if (!stillHere()) return;
             const extras = isStaffId(current) ? missingPlayingRsvps(merged) : [];
             applyingCloud = true;
             set({
-              ...merged,
-              rsvps: [...merged.rsvps, ...extras],
+              ...visible,
+              rsvps: [...visible.rsvps, ...extras],
               otherClubs: current.otherClubs,
-              activeClubId: merged.club.id,
+              activeClubId: visible.club.id,
               profile: current.profile,
               gpsConsent: current.gpsConsent,
               archivedClubs: current.archivedClubs,
@@ -2433,7 +2436,7 @@ export const useFija = create<State>()(
             const result = await saveClubDoc({
               data: {
                 code: merged.club.inviteCode,
-                bundle: merged,
+                bundle: clubSinImagenes(merged),
               },
             });
             if (result.ok && result.bundle) {
@@ -2468,7 +2471,7 @@ export const useFija = create<State>()(
                 flushTimer = window.setTimeout(() => void useFija.getState().flushCloud(), 800) as unknown as ReturnType<typeof setTimeout>;
                 return true;
               }
-              const savedBundle = result.bundle;
+              const savedBundle = conImagenes(get(), result.bundle);
               applyingCloud = true;
               set({
                 ...savedBundle,
@@ -2739,6 +2742,21 @@ function tournamentClosedFor(
 function isStaffId(state: { members: Member[]; activeId: string }): boolean {
   const me = state.members.find((m) => m.id === state.activeId);
   return me?.role === "dt" || me?.role === "ayudante";
+}
+
+function conImagenes(
+  anterior: { club: Club | null; members: Member[] },
+  bundle: ClubBundle,
+): ClubBundle {
+  const fotos = new Map(anterior.members.map((person) => [person.id, person.photo]));
+  return {
+    ...bundle,
+    club: { ...bundle.club, crest: bundle.club.crest ?? anterior.club?.crest ?? null },
+    members: bundle.members.map((person) => ({
+      ...person,
+      photo: person.photo ?? fotos.get(person.id) ?? null,
+    })),
+  };
 }
 
 function puedeCaja(state: { members: Member[]; activeId: string; caja?: Caja }): boolean {

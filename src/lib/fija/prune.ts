@@ -4,6 +4,7 @@ export const MAX_MESSAGES = 300;
 export const MAX_CHARLA = 100;
 export const INBOX_MAX_AGE_DAYS = 60;
 export const MAX_INBOX = 200;
+export const PIZARRA_DIAS = 21;
 
 function byTime(a: { at: string }, b: { at: string }): number {
   return Date.parse(a.at) - Date.parse(b.at);
@@ -35,6 +36,35 @@ function dedupeInbox(list: InboxItem[]): InboxItem[] {
   return [...rest, ...map.values()];
 }
 
+export function aligerarPizarraVieja(bundle: ClubBundle, now = Date.now()): ClubBundle {
+  const corte = now - PIZARRA_DIAS * 24 * 60 * 60 * 1000;
+  let changed = false;
+  const events = (bundle.events ?? []).map((event) => {
+    const start = Date.parse(event.startsAt);
+    if (!Number.isFinite(start) || start >= corte) return event;
+    if (!event.planes && !event.pasos && !event.pelotaParada && !event.videoUrl) return event;
+    changed = true;
+    return {
+      ...event,
+      planes: undefined,
+      pasos: null,
+      pelotaParada: null,
+      videoUrl: undefined,
+      vistos: undefined,
+    };
+  });
+  return changed ? { ...bundle, events } : bundle;
+}
+
+/** El archivo del equipo no lleva fotos. El escudo y los retratos viven aparte. */
+export function clubSinImagenes(bundle: ClubBundle): ClubBundle {
+  return {
+    ...bundle,
+    club: { ...bundle.club, crest: null },
+    members: (bundle.members ?? []).map((person) => (person.photo ? { ...person, photo: null } : person)),
+  };
+}
+
 export function pruneBundle(bundle: ClubBundle, now = Date.now()): ClubBundle {
   const eventIds = new Set(bundle.events.map((event) => event.id));
   const age = INBOX_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
@@ -53,12 +83,15 @@ export function pruneBundle(bundle: ClubBundle, now = Date.now()): ClubBundle {
     seenKind.add(kindKey);
     alertLog.push(item);
   }
-  return {
-    ...bundle,
-    messages: newest(bundle.messages ?? [], MAX_MESSAGES),
-    charla: newest(bundle.charla ?? [], MAX_CHARLA),
-    inbox,
-    alertLog,
-    convocatorias: (bundle.convocatorias ?? []).filter((item) => eventIds.has(item.eventId)),
-  };
+  return aligerarPizarraVieja(
+    {
+      ...bundle,
+      messages: newest(bundle.messages ?? [], MAX_MESSAGES),
+      charla: newest(bundle.charla ?? [], MAX_CHARLA),
+      inbox,
+      alertLog,
+      convocatorias: (bundle.convocatorias ?? []).filter((item) => eventIds.has(item.eventId)),
+    },
+    now,
+  );
 }

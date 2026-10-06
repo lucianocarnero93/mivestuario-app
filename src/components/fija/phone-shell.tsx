@@ -15,7 +15,7 @@ import { PushBanner, AvisosPrompt } from "./push-banner";
 import { PwaRegister } from "./pwa-register";
 import { SignInPanel } from "./sign-in-panel";
 import { EdadGate } from "./edad-gate";
-import { TeamCrest } from "./team-crest";
+import { traerImagenesEquipo } from "@/lib/fija/fotos-card";
 
 const NAV = [
   { to: "/", label: "Inicio", icon: House, exact: true },
@@ -76,6 +76,8 @@ export function PhoneShell() {
       await useFija.getState().restoreMyClubs();
       await useFija.getState().ensureMySpot();
       await useFija.getState().applySharedPhoto();
+      const code = useFija.getState().club?.inviteCode;
+      if (code) traerImagenesEquipo(code, true);
     });
     tickAlerts();
     const id = window.setInterval(() => tickAlerts(), 30_000);
@@ -85,8 +87,10 @@ export function PhoneShell() {
       void useFija.getState().syncFromCloud();
     }, 5_000);
     const onFocus = () => {
-      if (!useFija.getState().club) return;
+      const abierto = useFija.getState().club;
+      if (!abierto) return;
       void useFija.getState().syncFromCloud();
+      if (document.visibilityState === "visible") traerImagenesEquipo(abierto.inviteCode, true);
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onFocus);

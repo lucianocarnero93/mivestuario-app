@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { pruneBundle } from "./prune.ts";
+import { aligerarPizarraVieja, clubSinImagenes, pruneBundle } from "./prune.ts";
 import type { ClubBundle, InboxItem } from "./types.ts";
 
 function bundle(inbox: InboxItem[]): ClubBundle {
@@ -110,4 +110,62 @@ test("respeta los topes y no toca plantel ni respuestas", () => {
   const again = pruneBundle(next, now);
   assert.equal(again.messages.length, 300);
   assert.equal(again.inbox.length, 200);
+});
+
+test("a los 21 días se va la pizarra y quedan el equipo y el resultado", () => {
+  const ahora = Date.parse("2026-10-06T12:00:00.000Z");
+  const viejo = new Date(ahora - 22 * 24 * 60 * 60 * 1000).toISOString();
+  const fresco = new Date(ahora - 2 * 24 * 60 * 60 * 1000).toISOString();
+  const base = bundle([]);
+  const next = aligerarPizarraVieja(
+    {
+      ...base,
+      events: [
+        {
+          id: "viejo",
+          kind: "partido",
+          title: "vs Viejo",
+          startsAt: viejo,
+          place: "Cancha",
+          modality: "f5",
+          lineup: { ARQ: "a" },
+          tactics: "Presionar",
+          planes: [{ id: "a", idea: "", cambio: "", lineup: {}, dibujos: [{ id: "d", trazo: "flecha", x1: 1, y1: 1, x2: 2, y2: 2 }] }],
+          pasos: { id: "p", nombre: "Pared", tipo: "jugada", cuadros: [] },
+          videoUrl: "https://youtu.be/abc",
+          resultClosedAt: viejo,
+        },
+        {
+          id: "fresco",
+          kind: "partido",
+          title: "vs Fresco",
+          startsAt: fresco,
+          place: "Cancha",
+          modality: "f5",
+          lineup: { ARQ: "a" },
+          pasos: { id: "q", nombre: "Pared", tipo: "jugada", cuadros: [] },
+        },
+      ],
+    },
+    ahora,
+  );
+  const pasado = next.events.find((event) => event.id === "viejo");
+  assert.equal(pasado?.pasos, null);
+  assert.equal(pasado?.planes, undefined);
+  assert.equal(pasado?.videoUrl, undefined);
+  assert.equal(pasado?.lineup.ARQ, "a");
+  assert.equal(pasado?.tactics, "Presionar");
+  assert.equal(pasado?.resultClosedAt, viejo);
+  assert.ok(next.events.find((event) => event.id === "fresco")?.pasos);
+});
+
+test("el archivo del equipo no guarda fotos ni escudo", () => {
+  const next = clubSinImagenes({
+    ...bundle([]),
+    club: { id: "c", name: "P", createdBy: "a", inviteCode: "ABCDE", crest: "data:image/png;base64,abc" },
+    members: [{ id: "a", name: "Ana", nick: "Ana", role: "dt", photo: "data:image/png;base64,zzz" }],
+  });
+  assert.equal(next.club.crest, null);
+  assert.equal(next.members[0]?.photo, null);
+  assert.equal(next.members[0]?.nick, "Ana");
 });

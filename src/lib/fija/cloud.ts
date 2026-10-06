@@ -39,7 +39,7 @@ import {
   sizeVerdict,
   withoutBanned,
 } from "./club-rules";
-import { pruneBundle } from "./prune";
+import { clubSinImagenes, pruneBundle } from "./prune";
 import { vestuarioLog } from "@/lib/vestuario-log";
 import type { ClubBundle, ClubEvent, MatchSheet, Member, Rsvp, Tournament } from "./types";
 
@@ -179,9 +179,24 @@ export const loadClubCard = createServerFn({ method: "POST" })
       bundle.members.find((member) => member.role === "dt") ??
       bundle.members.find((member) => member.id === bundle.club.createdBy);
     const players = bundle.members.filter((member) => member.juega ?? member.role === "jugador").length;
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const escudos = await sql.query<{ data: { crest?: string | null } | string }>(
+      "select data from vestuario_docs where collection = $1 and id = $2",
+      ["escudos", code],
+    );
+    const crudo = escudos[0]?.data;
+    let crest = bundle.club.crest;
+    if (typeof crudo === "string") {
+      try {
+        crest = (JSON.parse(crudo) as { crest?: string | null }).crest ?? null;
+      } catch {
+        crest = null;
+      }
+    } else if (crudo && typeof crudo === "object") crest = crudo.crest ?? null;
     return {
       name: bundle.club.name,
-      crest: bundle.club.crest,
+      crest: typeof crest === "string" && crest.startsWith("data:image/") ? crest : null,
       coach: coach?.name || "El DT",
       players,
     };
@@ -534,7 +549,7 @@ export const loadPortrait = createServerFn({ method: "POST" })
 export const loadFotosCard = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((code: unknown) => sanitizeCode(String(code ?? "")))
-  .handler(async ({ data: code, context }): Promise<{ memberId: string; photoCard: string }[]> => {
+  .handler(async ({ data: code, context }): Promise<{ memberId: string; photoCard: string; photo: string | null }[]> => {
     const userId = userIdOf(context as { userId?: string });
     if (!userId || !code) return [];
     const bundle = await readClub(code);
@@ -548,13 +563,81 @@ export const loadFotosCard = createServerFn({ method: "POST" })
       "select id, data from vestuario_docs where collection = $1 and id = any($2::text[])",
       [PORTRAITS, [...new Set(cuentas.map((person) => person.accountId as string))]],
     );
-    const porCuenta = new Map(rows.map((row) => [row.id, parseRetrato(row.data).photoCard]));
-    const fotos: { memberId: string; photoCard: string }[] = [];
+    const porCuenta = new Map(rows.map((row) => [row.id, parseRetrato(row.data)]));
+    const fotos: { memberId: string; photoCard: string; photo: string | null }[] = [];
     for (const person of cuentas) {
-      const photoCard = porCuenta.get(person.accountId as string);
-      if (photoCard) fotos.push({ memberId: person.id, photoCard });
+      const retrato = porCuenta.get(person.accountId as string);
+      const photoCard = retrato?.photoCard || retrato?.photo;
+      if (photoCard) fotos.push({ memberId: person.id, photoCard, photo: retrato?.photo ?? null });
     }
     return fotos;
+  });
+
+const ESCUDOS = "escudos";
+
+function escudoData(value: unknown): string | null {
+  if (typeof value !== "string" || !value.startsWith("data:image/") || value.length >= 120_000 || value.length < 16) return null;
+  return value;
+}
+
+export const saveCrest = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code?: string; crest?: string | null }) => ({
+    code: sanitizeCode(String(input?.code ?? "")),
+    crest: input?.crest == null || input.crest === "" ? null : escudoData(input.crest),
+  }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !data.code) return { ok: false };
+    const bundle = await readClub(data.code);
+    const me = memberFor(bundle?.members ?? [], userId);
+    if (!bundle || !isStaffMember(me)) return { ok: false };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    await sql.query(
+      `insert into vestuario_docs (collection, id, data, updated_at)
+       values ($1, $2, $3::jsonb, now())
+       on conflict (collection, id)
+       do update set data = excluded.data, updated_at = now()`,
+      [ESCUDOS, data.code, JSON.stringify({ crest: data.crest })],
+    );
+    return { ok: true };
+  });
+
+export const loadCrest = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((code: unknown) => sanitizeCode(String(code ?? "")))
+  .handler(async ({ data: code, context }): Promise<{ crest: string | null }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !code) return { crest: null };
+    const bundle = await readClub(code);
+    const me = memberFor(bundle?.members ?? [], userId);
+    if (!bundle || !me) return { crest: null };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql.query<{ data: { crest?: string | null } | string }>(
+      "select data from vestuario_docs where collection = $1 and id = $2",
+      [ESCUDOS, code],
+    );
+    const raw = rows[0]?.data;
+    let parsed: { crest?: string | null } | null = null;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw) as { crest?: string | null };
+      } catch {
+        parsed = null;
+      }
+    } else if (raw && typeof raw === "object") parsed = raw;
+    if (rows[0]) return { crest: escudoData(parsed?.crest) };
+    const viejo = escudoData(bundle.club.crest);
+    if (!viejo) return { crest: null };
+    await sql.query(
+      `insert into vestuario_docs (collection, id, data, updated_at)
+       values ($1, $2, $3::jsonb, now())
+       on conflict (collection, id) do nothing`,
+      [ESCUDOS, code, JSON.stringify({ crest: viejo })],
+    );
+    return { crest: viejo };
   });
 
 const AUDIOS = "audios";
@@ -1167,7 +1250,37 @@ export const saveClubDoc = createServerFn({ method: "POST" })
           throw new Error("No estás en este equipo.");
         }
         const before = existing ? Buffer.byteLength(JSON.stringify(existing), "utf8") : 0;
-        const next = mergeForSave(existing, data.bundle, userId);
+        const next = clubSinImagenes(mergeForSave(existing, data.bundle, userId));
+        const staff = isStaffMember(memberFor((existing ?? data.bundle).members, userId));
+        const pedido = staff ? escudoData(data.bundle.club?.crest) : null;
+        const viejo = escudoData(existing?.club.crest);
+        if (pedido) {
+          await query(
+            `insert into vestuario_docs (collection, id, data, updated_at)
+             values ('escudos', $1, $2::jsonb, now())
+             on conflict (collection, id)
+             do update set data = excluded.data, updated_at = now()`,
+            [data.code, JSON.stringify({ crest: pedido })],
+          );
+        } else if (viejo) {
+          await query(
+            `insert into vestuario_docs (collection, id, data, updated_at)
+             values ('escudos', $1, $2::jsonb, now())
+             on conflict (collection, id) do nothing`,
+            [data.code, JSON.stringify({ crest: viejo })],
+          );
+        }
+        for (const person of data.bundle.members ?? []) {
+          if (!person.accountId || person.menor) continue;
+          const foto = person.photo;
+          if (!foto || !foto.startsWith("data:image/") || foto.length > 30_000) continue;
+          await query(
+            `insert into vestuario_docs (collection, id, data, updated_at)
+             values ('retratos', $1, $2::jsonb, now())
+             on conflict (collection, id) do nothing`,
+            [person.accountId, JSON.stringify({ photo: foto })],
+          );
+        }
         const payload = JSON.stringify(next);
         const after = Buffer.byteLength(payload, "utf8");
         if (sizeVerdict(before, after) !== "ok") throw new Error("El equipo pesa demasiado para subirlo.");
