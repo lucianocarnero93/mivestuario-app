@@ -1,0 +1,24 @@
+/* Mi Vestuario · Cards con foto / avatar / iniciales
+   Se carga DESPUÉS de ../../html/cards.css. No cambia nada de las cards existentes salvo los tres estados de .foto:
+     data-foto="si"      → foto subida por la persona (cuadrada). Ventana con fundido: no recortamos el fondo.
+     data-foto="avatar"  → avatar SVG (fondo transparente). Se apoya en la base de la foto y se funde abajo.
+     data-foto="no"      → silueta + iniciales (igual que antes). */
+
+/* --- Foto: cover sobre la caja 500x560 (de un cuadrado se pierde ~5% por lado), foco arriba, fundido ovalado */
+.card[data-foto="si"] .foto img {
+  object-position: 50% 30%;
+  -webkit-mask-image: radial-gradient(ellipse 60% 66% at 50% 40%, #000 56%, rgba(0,0,0,.6) 76%, transparent 100%);
+          mask-image: radial-gradient(ellipse 60% 66% at 50% 40%, #000 56%, rgba(0,0,0,.6) 76%, transparent 100%);
+}
+
+/* --- Avatar */
+.card[data-foto="avatar"] .foto img {
+  position: absolute; left: 10px; top: 44px; width: 480px; height: 480px; object-fit: contain;
+  -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent 100%);
+          mask-image: linear-gradient(180deg, #000 82%, transparent 100%);
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,.28));
+}
+
+/* Etiqueta solo para las piezas de diseño (no va en la app) */
+.card .placeholder-tag { position: absolute; right: 52px; top: 62px; z-index: 5; font: 700 13px/1 var(--font-sans);
+  letter-spacing: .12em; text-transform: uppercase; color: #eef6ef; background: rgba(6,17,9,.72); border-radius: 99px; padding: 7px 12px; }

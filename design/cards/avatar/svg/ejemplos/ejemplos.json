@@ -1,0 +1,264 @@
+[
+  {
+    "id": "flor",
+    "nick": "Flor",
+    "rol": "Jugadora",
+    "team": {
+      "name": "Deportivo Pasaje",
+      "ini": "DP",
+      "primary": "#1f6f3f",
+      "secondary": "#b8f25a"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t2",
+      "hair": "largo",
+      "hairColor": "colorado",
+      "facial": "ninguno",
+      "extras": [],
+      "shirtPattern": "lisa",
+      "collar": "redondo"
+    }
+  },
+  {
+    "id": "sofi",
+    "nick": "Sofi",
+    "rol": "Arquera",
+    "team": {
+      "name": "Los Halcones",
+      "ini": "LH",
+      "primary": "#0a3d8f",
+      "secondary": "#f2c200"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t7",
+      "hair": "afro",
+      "hairColor": "negro",
+      "facial": "ninguno",
+      "extras": [
+        "vincha"
+      ],
+      "shirtPattern": "franja",
+      "collar": "v"
+    }
+  },
+  {
+    "id": "cami",
+    "nick": "Cami",
+    "rol": "Jugadora",
+    "team": {
+      "name": "Deportivo Pasaje",
+      "ini": "DP",
+      "primary": "#1f6f3f",
+      "secondary": "#b8f25a"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t4",
+      "hair": "colita",
+      "hairColor": "castano-oscuro",
+      "facial": "ninguno",
+      "extras": [],
+      "shirtPattern": "lisa",
+      "collar": "redondo"
+    }
+  },
+  {
+    "id": "ana",
+    "nick": "Ana",
+    "rol": "Jugadora",
+    "team": {
+      "name": "Atlético Ribera",
+      "ini": "AR",
+      "primary": "#1a1a1a",
+      "secondary": "#e63946"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t8",
+      "hair": "trenzas",
+      "hairColor": "negro",
+      "facial": "ninguno",
+      "extras": [],
+      "shirtPattern": "bastones",
+      "collar": "redondo"
+    }
+  },
+  {
+    "id": "vero",
+    "nick": "Vero",
+    "rol": "DT",
+    "team": {
+      "name": "Deportivo Pasaje",
+      "ini": "DP",
+      "primary": "#1f6f3f",
+      "secondary": "#b8f25a"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t3",
+      "hair": "melena",
+      "hairColor": "castano-oscuro",
+      "facial": "ninguno",
+      "extras": [
+        "anteojos"
+      ],
+      "shirtPattern": "lisa",
+      "collar": "campera"
+    }
+  },
+  {
+    "id": "marta",
+    "nick": "Marta",
+    "rol": "DT",
+    "team": {
+      "name": "Sportivo Norte",
+      "ini": "SN",
+      "primary": "#5fa8dc",
+      "secondary": "#ffffff"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t5",
+      "hair": "rodete",
+      "hairColor": "canoso",
+      "facial": "ninguno",
+      "extras": [
+        "anteojos"
+      ],
+      "shirtPattern": "bastones",
+      "collar": "polo"
+    }
+  },
+  {
+    "id": "nico",
+    "nick": "Nico",
+    "rol": "Jugador",
+    "team": {
+      "name": "Deportivo Pasaje",
+      "ini": "DP",
+      "primary": "#1f6f3f",
+      "secondary": "#b8f25a"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t1",
+      "hair": "corto",
+      "hairColor": "rubio",
+      "facial": "barba-corta",
+      "extras": [],
+      "shirtPattern": "lisa",
+      "collar": "redondo"
+    }
+  },
+  {
+    "id": "mati",
+    "nick": "Mati",
+    "rol": "Jugador",
+    "team": {
+      "name": "Villa Real FC",
+      "ini": "VR",
+      "primary": "#7a1626",
+      "secondary": "#f4efe6"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t6",
+      "hair": "rapado",
+      "hairColor": "negro",
+      "facial": "bigote",
+      "extras": [],
+      "shirtPattern": "banda",
+      "collar": "v"
+    }
+  },
+  {
+    "id": "luqui",
+    "nick": "Luqui",
+    "rol": "Jugador",
+    "team": {
+      "name": "Ferro del Oeste",
+      "ini": "FO",
+      "primary": "#0e6b3a",
+      "secondary": "#ffffff"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t3",
+      "hair": "rulos",
+      "hairColor": "castano",
+      "facial": "ninguno",
+      "extras": [
+        "vincha"
+      ],
+      "shirtPattern": "mitades",
+      "collar": "redondo"
+    }
+  },
+  {
+    "id": "joaco",
+    "nick": "Joaco",
+    "rol": "Jugador",
+    "team": {
+      "name": "Taller FC",
+      "ini": "TF",
+      "primary": "#e8772e",
+      "secondary": "#1b1b1b"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t7",
+      "hair": "rastas",
+      "hairColor": "negro",
+      "facial": "candado",
+      "extras": [],
+      "shirtPattern": "lisa",
+      "collar": "v"
+    }
+  },
+  {
+    "id": "ruben",
+    "nick": "Rubén",
+    "rol": "DT",
+    "team": {
+      "name": "Los Halcones",
+      "ini": "LH",
+      "primary": "#0a3d8f",
+      "secondary": "#f2c200"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t2",
+      "hair": "pelado",
+      "hairColor": "canoso",
+      "facial": "barba",
+      "extras": [
+        "anteojos"
+      ],
+      "shirtPattern": "lisa",
+      "collar": "campera"
+    }
+  },
+  {
+    "id": "gus",
+    "nick": "Gus",
+    "rol": "DT",
+    "team": {
+      "name": "Atlético Ribera",
+      "ini": "AR",
+      "primary": "#1a1a1a",
+      "secondary": "#e63946"
+    },
+    "avatar": {
+      "v": 1,
+      "skin": "t5",
+      "hair": "medio",
+      "hairColor": "canoso",
+      "facial": "bigote",
+      "extras": [],
+      "shirtPattern": "lisa",
+      "collar": "polo"
+    }
+  }
+]

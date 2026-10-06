@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "viewBox": "20 24 360 360",
+  "canvas": "coordenadas 0–400; encuadre 20,24 → 380,384",
+  "layerOrder": [
+    "fondo",
+    "pelo-atras",
+    "cuello",
+    "camiseta",
+    "cabeza",
+    "cara",
+    "barba",
+    "boca",
+    "pelo-adelante",
+    "vincha",
+    "anteojos"
+  ],
+  "options": {
+    "skin": {
+      "t1": "#f7dcc8",
+      "t2": "#efc4a3",
+      "t3": "#e0aa83",
+      "t4": "#c98d63",
+      "t5": "#ad7148",
+      "t6": "#8d5636",
+      "t7": "#6e3f26",
+      "t8": "#4b2a1a"
+    },
+    "hairColor": {
+      "negro": "#1d1715",
+      "castano-oscuro": "#3b2519",
+      "castano": "#70462b",
+      "rubio": "#d4a95c",
+      "colorado": "#b0502b",
+      "canoso": "#bcb7af"
+    },
+    "hair": [
+      "pelado",
+      "rapado",
+      "corto",
+      "medio",
+      "largo",
+      "colita",
+      "rodete",
+      "trenzas",
+      "rulos",
+      "afro",
+      "melena",
+      "rastas"
+    ],
+    "facial": [
+      "ninguno",
+      "barba-corta",
+      "barba",
+      "bigote",
+      "candado"
+    ],
+    "extras": [
+      "vincha",
+      "anteojos"
+    ],
+    "shirtPattern": [
+      "lisa",
+      "bastones",
+      "banda",
+      "franja",
+      "mitades"
+    ],
+    "collar": [
+      "redondo",
+      "v",
+      "polo",
+      "campera"
+    ]
+  },
+  "labels": {
+    "hair": {
+      "pelado": "Pelado",
+      "rapado": "Rapado",
+      "corto": "Corto",
+      "medio": "Medio",
+      "largo": "Largo",
+      "colita": "Colita",
+      "rodete": "Rodete",
+      "trenzas": "Trenzas",
+      "rulos": "Rulos",
+      "afro": "Afro",
+      "melena": "Melena",
+      "rastas": "Rastas"
+    },
+    "hairColor": {
+      "negro": "Negro",
+      "castano-oscuro": "Castaño oscuro",
+      "castano": "Castaño",
+      "rubio": "Rubio",
+      "colorado": "Colorado",
+      "canoso": "Canoso"
+    },
+    "facial": {
+      "ninguno": "Nada",
+      "barba-corta": "Barba de días",
+      "barba": "Barba",
+      "bigote": "Bigote",
+      "candado": "Candado"
+    },
+    "extras": {
+      "vincha": "Vincha",
+      "anteojos": "Anteojos"
+    },
+    "shirtPattern": {
+      "lisa": "Lisa",
+      "bastones": "Bastones",
+      "banda": "Banda",
+      "franja": "Franja",
+      "mitades": "Mitades"
+    },
+    "collar": {
+      "redondo": "Redondo",
+      "v": "En V",
+      "polo": "Polo",
+      "campera": "Campera"
+    }
+  },
+  "default": {
+    "v": 1,
+    "skin": "t3",
+    "hair": "corto",
+    "hairColor": "castano-oscuro",
+    "facial": "ninguno",
+    "extras": [],
+    "shirtPattern": "lisa",
+    "collar": "redondo"
+  },
+  "defaultTeam": {
+    "primary": "#1f6f3f",
+    "secondary": "#b8f25a"
+  },
+  "derivedColors": {
+    "skinShade": "mix(skin, #3b1a0e, .20)",
+    "skinDeep": "mix(skin, #3b1a0e, .34)",
+    "lip": "mix(skin, #5c1f1c, lum(skin) > .5 ? .42 : .50)",
+    "mouth": "mix(skin, #2a0c0a, .62)",
+    "hairDark": "mix(hair, #000, claro ? .20 : .28)",
+    "hairLight": "mix(hair, #fff, claro ? .28 : .16)",
+    "brow": "claro ? mix(hair, #2a1a10, .38) : mix(hair, #000, .10)",
+    "stubble": "mix(skin, hair, claro ? .30 : .24)",
+    "buzz": "mix(skin, hair, .72)",
+    "primaryDark": "mix(primary, #000, .24)",
+    "secondaryDark": "mix(secondary, #000, .20)",
+    "band": "secondary",
+    "note": "claro = luminancia(hair) > .45; mix(a,b,t) = a + (b-a)*t por canal RGB"
+  }
+}

@@ -1,0 +1,208 @@
+/* Mi Vestuario · Cards de premios (estilo FUT)
+   Tamaño nativo: 720x1000 (exportar @2x = 1440x2000). Story: 1080x1920.
+   Fuentes: Barlow Condensed (display) + Figtree (texto). Ya se cargan en __root.tsx. */
+
+:root {
+  --mv-void: #061109;
+  --mv-bg: #0b1c12;
+  --mv-surface: #132a1c;
+  --mv-surface-2: #1a3826;
+  --mv-fg: #eef6ef;
+  --mv-muted: #9bb5a4;
+  --mv-accent: #b8f25a;
+  --mv-accent-fg: #0c1a10;
+  --mv-border: #234833;
+  --font-display: "Barlow Condensed", "Figtree", system-ui, sans-serif;
+  --font-sans: "Figtree", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: transparent; }
+body.solo-card { width: 720px; height: 1000px; overflow: hidden; }
+
+/* ---------- TIERS ---------- */
+/* frame-*: borde metálico · body-*: fondo de la card · ink: texto principal
+   ink-soft: texto secundario · stat: número grande · ribbon-bg/ink: cinta del título */
+.tier-neon {      /* Figura del partido */
+  --frame-1:#f6ffd9; --frame-2:#b8f25a; --frame-3:#6aa824; --frame-4:#d9ff9a;
+  --body-1:#24603a; --body-2:#0f2c1b; --body-3:#061109;
+  --ink:#eef6ef; --ink-soft:#b9d4c2; --stat:#b8f25a; --ribbon-bg:#b8f25a; --ribbon-ink:#0c1a10;
+  --glow:rgba(184,242,90,.42); --trim:rgba(184,242,90,.55); --pattern:rgba(184,242,90,.07);
+  --crest-bg:#0b1c12; --crest-ink:#b8f25a; --silhouette:#2c6a42;
+}
+.tier-oro {       /* Goleador/a del mes */
+  --frame-1:#fff7d1; --frame-2:#d8a93a; --frame-3:#8a6115; --frame-4:#ffe28a;
+  --body-1:#fbedb4; --body-2:#e6c463; --body-3:#b98a2b;
+  --ink:#0b1c12; --ink-soft:#4a3a10; --stat:#0b1c12; --ribbon-bg:#0b1c12; --ribbon-ink:#f6d97b;
+  --glow:rgba(255,248,214,.75); --trim:rgba(11,28,18,.35); --pattern:rgba(120,84,10,.10);
+  --crest-bg:#0b1c12; --crest-ink:#f6d97b; --silhouette:#c9a24a;
+}
+.tier-esmeralda { /* Asistidor/a del mes */
+  --frame-1:#d9fff3; --frame-2:#4fd1a5; --frame-3:#127256; --frame-4:#9ff5d6;
+  --body-1:#13614c; --body-2:#0a3328; --body-3:#041610;
+  --ink:#eafff7; --ink-soft:#a9dccb; --stat:#6ff0c2; --ribbon-bg:#5ee0b3; --ribbon-ink:#03140e;
+  --glow:rgba(94,224,179,.40); --trim:rgba(94,224,179,.55); --pattern:rgba(94,224,179,.07);
+  --crest-bg:#041610; --crest-ink:#6ff0c2; --silhouette:#1c7a5e;
+}
+.tier-hielo {     /* Valla invicta */
+  --frame-1:#eefaff; --frame-2:#8fd3f0; --frame-3:#2f7896; --frame-4:#c7ecff;
+  --body-1:#1b4f5e; --body-2:#0c2a33; --body-3:#051318;
+  --ink:#eef9ff; --ink-soft:#a8cfdc; --stat:#9fe3ff; --ribbon-bg:#9fe3ff; --ribbon-ink:#06202a;
+  --glow:rgba(159,227,255,.38); --trim:rgba(159,227,255,.55); --pattern:rgba(159,227,255,.07);
+  --crest-bg:#051318; --crest-ink:#9fe3ff; --silhouette:#2b6a7c;
+}
+.tier-plata {     /* Presente siempre */
+  --frame-1:#ffffff; --frame-2:#b6c2bb; --frame-3:#5d6b63; --frame-4:#e9efeb;
+  --body-1:#f4f7f5; --body-2:#cfd8d3; --body-3:#97a59d;
+  --ink:#0b1c12; --ink-soft:#33463b; --stat:#0b1c12; --ribbon-bg:#0b1c12; --ribbon-ink:#e9efeb;
+  --glow:rgba(255,255,255,.85); --trim:rgba(11,28,18,.30); --pattern:rgba(40,60,50,.08);
+  --crest-bg:#0b1c12; --crest-ink:#e9efeb; --silhouette:#aab6af;
+}
+.tier-fuego {     /* Hat-trick */
+  --frame-1:#fff0c4; --frame-2:#ff9a3d; --frame-3:#a8320f; --frame-4:#ffd27a;
+  --body-1:#5a2410; --body-2:#2a0f07; --body-3:#120604;
+  --ink:#fff4ea; --ink-soft:#f0bfa0; --stat:#ffb547; --ribbon-bg:#ff9a3d; --ribbon-ink:#1d0a03;
+  --glow:rgba(255,154,61,.45); --trim:rgba(255,181,71,.55); --pattern:rgba(255,154,61,.07);
+  --crest-bg:#120604; --crest-ink:#ffb547; --silhouette:#7a3418;
+}
+.tier-bronce {    /* Debut */
+  --frame-1:#ffe6cc; --frame-2:#c98a55; --frame-3:#6e3e1c; --frame-4:#f2c398;
+  --body-1:#f1c9a1; --body-2:#cf9561; --body-3:#94582c;
+  --ink:#1e1008; --ink-soft:#4a2a14; --stat:#1e1008; --ribbon-bg:#2a170b; --ribbon-ink:#f6cfa6;
+  --glow:rgba(255,232,206,.70); --trim:rgba(30,16,8,.35); --pattern:rgba(90,45,15,.10);
+  --crest-bg:#2a170b; --crest-ink:#f6cfa6; --silhouette:#b97c4a;
+}
+.tier-cancha {    /* Capitán/a */
+  --frame-1:#f4f6e6; --frame-2:#e8ead8; --frame-3:#8d9c86; --frame-4:#ffffff;
+  --body-1:#1fa552; --body-2:#147a3a; --body-3:#0a4a22;
+  --ink:#ffffff; --ink-soft:#d8f0df; --stat:#ffffff; --ribbon-bg:#e8ead8; --ribbon-ink:#0b3a1c;
+  --glow:rgba(232,234,216,.40); --trim:rgba(232,243,234,.55); --pattern:rgba(255,255,255,.06);
+  --crest-bg:#0b3a1c; --crest-ink:#e8ead8; --silhouette:#2aa95a;
+}
+.tier-pizarra {   /* DT del mes */
+  --frame-1:#b8f25a; --frame-2:#3a5c46; --frame-3:#0b1c12; --frame-4:#7ff0c8;
+  --body-1:#16251c; --body-2:#0a120d; --body-3:#030604;
+  --ink:#eef6ef; --ink-soft:#9bb5a4; --stat:#b8f25a; --ribbon-bg:#b8f25a; --ribbon-ink:#0c1a10;
+  --glow:rgba(184,242,90,.22); --trim:rgba(184,242,90,.45); --pattern:rgba(232,234,216,.05);
+  --crest-bg:#24402f; --crest-ink:#b8f25a; --silhouette:#24382b;
+}
+
+/* ---------- CARD ---------- */
+.card { position: relative; width: 720px; height: 1000px; font-family: var(--font-sans); color: var(--ink); }
+.card .shape { position: absolute; inset: 0; width: 720px; height: 1000px; }
+.card .frame { clip-path: path("M 36 0 H 262 L 290 22 H 430 L 458 0 H 684 Q 720 0 720 36 V 800 Q 720 858 664 886 L 398 992 Q 360 1006 322 992 L 56 886 Q 0 858 0 800 V 36 Q 0 0 36 0 Z");
+  background: linear-gradient(135deg, var(--frame-1) 0%, var(--frame-2) 22%, var(--frame-3) 46%, var(--frame-4) 62%, var(--frame-2) 80%, var(--frame-3) 100%); }
+.card .body { clip-path: path("M 46 12 H 257 L 285 34 H 435 L 463 12 H 674 Q 708 12 708 46 V 796 Q 708 850 656 876 L 394 980 Q 360 993 326 980 L 64 876 Q 12 850 12 796 V 46 Q 12 12 46 12 Z");
+  background:
+    radial-gradient(ellipse 420px 360px at 430px 300px, var(--glow), transparent 70%),
+    repeating-linear-gradient(118deg, transparent 0 38px, var(--pattern) 38px 40px),
+    linear-gradient(180deg, var(--body-1) 0%, var(--body-2) 52%, var(--body-3) 100%);
+  overflow: hidden; }
+.tier-cancha .card .body, .card.tier-cancha .body {
+  background:
+    radial-gradient(ellipse 420px 360px at 430px 300px, var(--glow), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.055) 0 60px, transparent 60px 120px),
+    linear-gradient(180deg, var(--body-1) 0%, var(--body-2) 52%, var(--body-3) 100%); }
+.card .trim { position: absolute; inset: 0; pointer-events: none; }
+.card .trim path { fill: none; stroke: var(--trim); stroke-width: 2; }
+
+/* Decoración de pizarra (DT) */
+.card .chalk { position: absolute; inset: 0; opacity: .9; }
+.card .chalk * { fill: none; stroke: rgba(232,234,216,.10); stroke-width: 4; stroke-linecap: round; }
+
+/* Brillo */
+.card .shine { position: absolute; inset: 0;
+  background: linear-gradient(112deg, transparent 18%, rgba(255,255,255,.0) 30%, rgba(255,255,255,.22) 38%, rgba(255,255,255,0) 46%, transparent 100%);
+  mix-blend-mode: screen; pointer-events: none; }
+.card .shine-top { position: absolute; left: 0; right: 0; top: 0; height: 220px;
+  background: linear-gradient(180deg, rgba(255,255,255,.18), transparent); mix-blend-mode: soft-light; }
+
+/* Foto */
+.card .foto { position: absolute; left: 196px; top: 38px; width: 500px; height: 560px; }
+.card .foto img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%;
+  -webkit-mask-image: linear-gradient(180deg, #000 72%, transparent 100%); mask-image: linear-gradient(180deg, #000 72%, transparent 100%); }
+.card .foto .fallback { display: none; position: absolute; inset: 0; }
+.card[data-foto="no"] .foto img { display: none; }
+.card[data-foto="no"] .foto .fallback { display: block; }
+.card .fallback svg { position: absolute; left: 50px; top: 70px; width: 400px; height: 490px; }
+.card .fallback svg path, .card .fallback svg circle { fill: var(--silhouette); }
+.card .fallback .ini { position: absolute; left: 0; right: 0; top: 372px; text-align: center;
+  font: 800 136px/1 var(--font-display); color: var(--stat); letter-spacing: .03em;
+  text-shadow: 0 6px 24px rgba(0,0,0,.18); }
+
+/* Columna izquierda (estilo rating FUT) */
+.card .col { position: absolute; left: 44px; top: 58px; width: 160px; text-align: center; }
+.card .big { font: 800 168px/0.86 var(--font-display); color: var(--stat); letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-shadow: 0 4px 18px rgba(0,0,0,.18); }
+.card .big-label { margin-top: 6px; font: 700 23px/1.05 var(--font-display); letter-spacing: .12em; color: var(--ink); text-transform: uppercase; }
+.card .puesto { margin-top: 18px; font: 700 50px/1 var(--font-display); letter-spacing: .04em; color: var(--ink); }
+.card .dorsal { margin-top: 4px; font: 700 30px/1 var(--font-display); color: var(--ink-soft); letter-spacing: .04em; }
+.card .sep { width: 70px; height: 3px; margin: 18px auto; background: var(--trim); border-radius: 2px; }
+.card .crest { position: relative; width: 84px; height: 96px; margin: 0 auto; }
+.card .crest .crest-shape { position: absolute; inset: 0; background: var(--crest-bg);
+  clip-path: path("M 0 8 Q 0 0 8 0 H 76 Q 84 0 84 8 V 52 Q 84 80 42 96 Q 0 80 0 52 Z");
+  display: grid; place-items: center; padding-bottom: 10px;
+  font: 800 34px/1 var(--font-display); color: var(--crest-ink); letter-spacing: .03em; }
+.card .crest img { position: absolute; inset: 0; width: 84px; height: 96px; object-fit: cover;
+  clip-path: path("M 0 8 Q 0 0 8 0 H 76 Q 84 0 84 8 V 52 Q 84 80 42 96 Q 0 80 0 52 Z"); display: none; }
+.card[data-escudo="si"] .crest img { display: block; }
+
+/* Cinta del título */
+.card .ribbon { position: absolute; left: 40px; right: 40px; top: 566px; height: 60px;
+  background: var(--ribbon-bg); color: var(--ribbon-ink);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 26px) 100%, 26px 100%);
+  display: flex; align-items: center; justify-content: center;
+  font: 800 38px/1 var(--font-display); letter-spacing: .09em; text-transform: uppercase; white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.card .contexto { position: absolute; left: 70px; right: 70px; top: 636px; text-align: center;
+  font: 600 24px/1.2 var(--font-sans); color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .nombre { position: absolute; left: 50px; right: 50px; top: 670px; height: 100px; text-align: center;
+  font: 800 96px/100px var(--font-display); color: var(--ink); text-transform: uppercase; letter-spacing: .01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .equipo { position: absolute; left: 90px; right: 90px; top: 774px; text-align: center;
+  font: 700 20px/1.2 var(--font-sans); color: var(--ink-soft); text-transform: uppercase; letter-spacing: .16em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .stats { position: absolute; left: 92px; right: 92px; top: 812px; height: 74px; display: flex;
+  border-top: 2px solid var(--trim); padding-top: 10px; }
+.card .stats > div { flex: 1; text-align: center; position: relative; }
+.card .stats > div + div::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 6px; width: 2px; background: var(--trim); }
+.card .stats b { display: block; font: 700 42px/1 var(--font-display); color: var(--ink); white-space: nowrap; }
+.card .stats span { display: block; margin-top: 3px; font: 700 15px/1 var(--font-sans); letter-spacing: .14em; color: var(--ink-soft); text-transform: uppercase; }
+.card .marca { position: absolute; left: 0; right: 0; top: 906px; display: flex; justify-content: center; align-items: center; gap: 9px;
+  font: 700 17px/1 var(--font-display); letter-spacing: .16em; color: var(--ink-soft); text-transform: uppercase; }
+.card .marca svg { width: 30px; height: 30px; border-radius: 7px; }
+
+/* Decoraciones por tipo */
+.card .deco { position: absolute; }
+.card .balls { left: 44px; width: 160px; top: 494px; display: flex; justify-content: center; gap: 8px; }
+.card .balls svg { width: 40px; height: 40px; }
+.card .checks { left: 44px; width: 160px; top: 494px; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.card .checks i { width: 30px; height: 30px; border-radius: 50%; background: var(--ribbon-bg); position: relative; }
+.card .checks i::after { content: ""; position: absolute; left: 10px; top: 5px; width: 8px; height: 15px; border: solid var(--ribbon-ink); border-width: 0 4px 4px 0; transform: rotate(45deg); }
+.card .brazalete { right: 40px; top: 70px; width: 92px; height: 92px; border-radius: 50%; background: var(--mv-accent); color: var(--mv-accent-fg);
+  display: grid; place-items: center; font: 800 62px/1 var(--font-display); box-shadow: 0 0 0 6px rgba(11,28,18,.85), 0 10px 26px rgba(0,0,0,.35); }
+.card .tag { right: 48px; top: 66px; padding: 8px 14px; border-radius: 8px; background: var(--ribbon-bg); color: var(--ribbon-ink);
+  font: 800 22px/1 var(--font-display); letter-spacing: .12em; text-transform: uppercase; }
+
+/* ---------- STORY 1080x1920 ---------- */
+body.solo-story { width: 1080px; height: 1920px; overflow: hidden; }
+.story { position: relative; width: 1080px; height: 1920px; overflow: hidden; font-family: var(--font-sans); color: var(--mv-fg);
+  background:
+    radial-gradient(ellipse 760px 700px at 540px 860px, var(--glow), transparent 70%),
+    repeating-linear-gradient(118deg, transparent 0 58px, rgba(184,242,90,.035) 58px 61px),
+    linear-gradient(180deg, #0f2a1a 0%, var(--mv-bg) 45%, var(--mv-void) 100%); }
+.story .lineas { position: absolute; inset: 0; }
+.story .lineas * { fill: none; stroke: rgba(232,243,234,.07); stroke-width: 4; }
+.story .head { position: absolute; top: 210px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 16px;
+  font: 700 34px/1 var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: var(--mv-fg); }
+.story .head svg { width: 54px; height: 54px; border-radius: 12px; }
+.story .kicker { position: absolute; top: 284px; left: 80px; right: 80px; text-align: center; font: 600 30px/1.2 var(--font-sans); color: var(--mv-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.story .holder { position: absolute; left: 126px; top: 350px; width: 720px; height: 1000px; transform: scale(1.15); transform-origin: 0 0;
+  filter: drop-shadow(0 30px 60px rgba(0,0,0,.55)); }
+.story .frase { position: absolute; top: 1534px; left: 70px; right: 70px; text-align: center;
+  font: 800 76px/1.02 var(--font-display); text-transform: uppercase; color: var(--mv-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.story .frase em { font-style: normal; color: var(--mv-accent); }
+.story .sub { position: absolute; top: 1628px; left: 80px; right: 80px; text-align: center; font: 600 36px/1.25 var(--font-sans); color: var(--mv-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.story .url { position: absolute; top: 1712px; left: 0; right: 0; text-align: center; font: 700 30px/1 var(--font-display); letter-spacing: .18em; color: var(--mv-accent); text-transform: uppercase; }
