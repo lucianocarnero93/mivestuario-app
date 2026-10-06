@@ -195,6 +195,8 @@ export type ClubEvent = {
   planActivo?: "a" | "b" | "c";
   /** Jugada en cuadros. */
   pasos?: JugadaPaso;
+  /** Pelota parada de este partido. */
+  pelotaParada?: JugadaPaso;
   /** Link de un video. No se sube el archivo. */
   videoUrl?: string;
   /** Quién abrió la pizarra. */

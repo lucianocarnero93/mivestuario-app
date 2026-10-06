@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { ArrowUpRight, Circle, Eraser, Eye, Link2, Mic, Pause, Play, SquareDashed, Undo2 } from "lucide-react";
+import { Eye, Link2, Mic, Pause, Play } from "lucide-react";
 import { Pitch } from "@/components/fija/pitch";
-import { JugadaPanel } from "@/components/fija/jugada-panel";
 import { SquadPanel } from "@/components/fija/squad-panel";
 import { Segmented } from "@/components/fija/segmented";
 import { Button } from "@/components/ui/button";
@@ -11,12 +10,10 @@ import { FORMATIONS, MODALITY_SHORT, MODALITIES, puestoDe } from "@/lib/fija/for
 import { personLabel, uid } from "@/lib/fija/format";
 import { loadAudioJugada, saveAudioJugada } from "@/lib/fija/cloud";
 import {
-  deshacerDibujo,
   editarPlan,
   faltanVer,
   guardarPasos,
   JUGADAS_ABIERTAS,
-  limpiarDibujos,
   moverEnCuadro,
   nombreDeJugada,
   PELOTAS_PARADAS,
@@ -31,12 +28,11 @@ import {
   videoLimpio,
 } from "@/lib/fija/pizarra";
 import { useFija, useIsStaff } from "@/lib/fija/store";
-import type { ClubEvent, Dibujo, PlanId, Trazo } from "@/lib/fija/types";
+import type { ClubEvent, Dibujo, JugadaGuardada, PlanId, Trazo } from "@/lib/fija/types";
 
 type Vista =
   | "puesto"
   | "planes"
-  | "dibujar"
   | "jugada"
   | "pelota"
   | "charla"
@@ -48,7 +44,6 @@ type Vista =
 const VISTAS: { id: Vista; label: string; staff?: boolean }[] = [
   { id: "puesto", label: "Tu puesto" },
   { id: "planes", label: "Planes" },
-  { id: "dibujar", label: "Dibujar", staff: true },
   { id: "jugada", label: "Jugada" },
   { id: "pelota", label: "Pelota parada" },
   { id: "charla", label: "Charla" },
@@ -73,14 +68,12 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
   const setSpot = useFija((s) => s.setSpot);
   const setBoardShape = useFija((s) => s.setBoardShape);
   const setTactics = useFija((s) => s.setTactics);
-  const setJugada = useFija((s) => s.setJugada);
   const setNotaJugador = useFija((s) => s.setNota);
   const setJuega = useFija((s) => s.setJuega);
   const publishLineup = useFija((s) => s.publishLineup);
   const rsvps = useFija((s) => s.rsvps);
   const [vista, setVista] = useState<Vista>("puesto");
   const [planId, setPlanId] = useState<PlanId>(event.planActivo ?? "a");
-  const [trazo, setTrazo] = useState<Trazo>("flecha");
   const [slot, setSlot] = useState<string | null>(null);
   const [nota, setNota] = useState("");
   const [aviso, setAviso] = useState("");
@@ -128,7 +121,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
         ))}
       </div>
 
-      {vista === "puesto" || vista === "planes" || vista === "dibujar" || vista === "partido" ? (
+      {vista === "puesto" || vista === "planes" || vista === "partido" ? (
         <div className="mt-3">
           {vista === "planes" || vista === "partido" ? <Planes planId={planId} onPlan={setPlanId} /> : null}
           {vista === "puesto" && !staff && me ? (
@@ -180,17 +173,12 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
             event={event}
             planId={planId}
             editable={staff && (vista === "planes" || vista === "puesto")}
-            dibujar={staff && vista === "dibujar"}
-            trazo={trazo}
+            dibujar={false}
+            trazo="flecha"
             highlightId={staff ? undefined : me?.id}
             onSlot={setSlot}
             onDibujo={(dibujo) => aplicarEvento(sumarDibujo(event, planId, dibujo))}
           />
-          {staff && vista === "dibujar" ? (
-            <div className="mt-3">
-              <Herramientas trazo={trazo} onTrazo={setTrazo} onUndo={() => aplicarEvento(deshacerDibujo(event, planId))} onClear={() => aplicarEvento(limpiarDibujos(event, planId))} />
-            </div>
-          ) : null}
           {vista === "planes" && staff ? (
             <div className="mt-3 grid gap-2">
               <p className="text-sm text-muted">{SENTIDO[planId]}</p>
@@ -262,14 +250,27 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
         </div>
       ) : null}
 
-      {vista === "puesto" || vista === "charla" ? (
-        <JugadaPanel staff={staff} code={code} eventId={event.id} jugada={event.jugada} onChange={(notas) => setJugada(event.id, notas)} />
-      ) : null}
-
       {vista === "charla" && me ? <AudioPropio event={event} meId={me.id} code={code} staff={staff} onAviso={setAviso} /> : null}
       {vista === "charla" ? <VideoLink event={event} staff={staff} onChange={(url) => aplicar(event.id, { videoUrl: url })} /> : null}
       {vista === "jugada" || vista === "pelota" ? (
-        <Pasos event={event} seccion={vista === "pelota" ? "pelota" : "jugada"} onGuardar={(next) => aplicarEvento(guardarPasos(event, next))} />
+        <Pasos
+          key={vista}
+          event={event}
+          seccion={vista === "pelota" ? "pelota" : "jugada"}
+          guardado={vista === "pelota" ? event.pelotaParada : event.pasos}
+          predeterminadas={biblioteca}
+          onMovimiento={(play) => {
+            const next = guardarPasos(event, play);
+            if (!next.pasos) return;
+            if (vista === "pelota") aplicar(event.id, { pelotaParada: next.pasos });
+            else aplicar(event.id, { pasos: next.pasos });
+            setAviso("Movimiento guardado.");
+          }}
+          onPredeterminada={(item) => {
+            guardarEnBiblioteca(item);
+            setAviso("Predeterminada guardada.");
+          }}
+        />
       ) : null}
       {vista === "vistos" ? <Vistos event={event} ids={players.map((p) => p.id)} nombres={members} onRecordar={setAviso} /> : null}
       {vista === "biblioteca" ? (
@@ -344,31 +345,6 @@ function Planes({ planId, onPlan }: { planId: PlanId; onPlan: (id: PlanId) => vo
           Plan {id.toUpperCase()}
         </button>
       ))}
-    </div>
-  );
-}
-
-function Herramientas({ trazo, onTrazo, onUndo, onClear }: { trazo: Trazo; onTrazo: (t: Trazo) => void; onUndo: () => void; onClear: () => void }) {
-  const tools: { id: Trazo; label: string; icon: typeof ArrowUpRight }[] = [
-    { id: "flecha", label: "Movimiento", icon: ArrowUpRight },
-    { id: "pase", label: "Pase", icon: SquareDashed },
-    { id: "zona", label: "Zona", icon: SquareDashed },
-    { id: "circulo", label: "Círculo", icon: Circle },
-  ];
-  return (
-    <div className="grid gap-2">
-      <div className="flex gap-2 overflow-x-auto">
-        {tools.map((tool) => (
-          <button key={tool.id} type="button" className={`flex h-12 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-semibold ${trazo === tool.id ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => onTrazo(tool.id)}>
-            <tool.icon className="size-4" />
-            {tool.label}
-          </button>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <button type="button" className="flex h-12 items-center justify-center gap-2 rounded-md bg-surface text-sm font-semibold" onClick={onUndo}><Undo2 className="size-4" /> Deshacer</button>
-        <button type="button" className="flex h-12 items-center justify-center gap-2 rounded-md bg-surface text-sm font-semibold" onClick={onClear}><Eraser className="size-4" /> Borrar</button>
-      </div>
     </div>
   );
 }
@@ -449,15 +425,45 @@ function TrazoSvg({ dibujo }: { dibujo: Dibujo }) {
   return <line x1={dibujo.x1} y1={dibujo.y1} x2={dibujo.x2} y2={dibujo.y2} stroke="#e8f3ea" strokeWidth="0.8" strokeDasharray={dibujo.trazo === "pase" ? "2 1.4" : undefined} />;
 }
 
-function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "jugada" | "pelota"; onGuardar: (pasos: NonNullable<ClubEvent["pasos"]>) => void }) {
+function Pasos({
+  event,
+  seccion,
+  guardado,
+  predeterminadas,
+  onMovimiento,
+  onPredeterminada,
+}: {
+  event: ClubEvent;
+  seccion: "jugada" | "pelota";
+  guardado?: ClubEvent["pasos"];
+  predeterminadas: JugadaGuardada[];
+  onMovimiento: (pasos: NonNullable<ClubEvent["pasos"]>) => void;
+  onPredeterminada: (item: JugadaGuardada) => void;
+}) {
   const staff = useIsStaff();
   const forma = FORMATIONS[event.modality].find((item) => item.id === event.formacion) ?? FORMATIONS[event.modality][0];
   const puestos = forma.slots.map((slot) => ({ key: slot.key, x: slot.x, y: slot.y, memberId: event.lineup[slot.key] }));
   const catalogo = seccion === "pelota" ? PELOTAS_PARADAS : JUGADAS_ABIERTAS;
-  const guardado = event.pasos;
-  const sirve = Boolean(guardado && guardado.cuadros.some((cuadro) => cuadro.fichas.length > 0) && (seccion === "jugada" ? guardado?.tipo === "jugada" : guardado?.tipo !== "jugada"));
-  const [elegida, setElegida] = useState<ClaveJugada>(catalogo[0].id);
-  const pasos = sirve && guardado ? guardado : armarJugada(elegida, puestos);
+  const propias = predeterminadas.filter((item) => (seccion === "jugada" ? item.tipo === "jugada" : item.tipo !== "jugada"));
+  const lista = [
+    ...catalogo.map((item) => propias.find((propia) => propia.id === item.id) ?? item),
+    ...propias.filter((item) => !catalogo.some((base) => base.id === item.id)),
+  ];
+  function cargar(id: string) {
+    const propia = propias.find((item) => item.id === id);
+    if (propia && propia.cuadros.length >= 2) {
+      return {
+        id: propia.id,
+        nombre: propia.nombre,
+        tipo: (propia.tipo === "jugada" || propia.tipo === "corned" || propia.tipo === "tiro" || propia.tipo === "lateral" || propia.tipo === "salida" ? propia.tipo : seccion === "jugada" ? "jugada" : "corned") as NonNullable<ClubEvent["pasos"]>["tipo"],
+        cuadros: propia.cuadros,
+      };
+    }
+    const clave = (catalogo.find((item) => item.id === id)?.id ?? catalogo[0].id) as ClaveJugada;
+    return armarJugada(clave, puestos);
+  }
+  const deAqui = Boolean(guardado && guardado.cuadros.some((cuadro) => cuadro.fichas.length > 0) && (seccion === "jugada" ? guardado.tipo === "jugada" : guardado.tipo !== "jugada"));
+  const [pasos, setPasos] = useState(() => (deAqui && guardado ? guardado : armarJugada(catalogo[0].id, puestos)));
   const [cuadro, setCuadro] = useState(0);
   const [play, setPlay] = useState(false);
   const [vivo, setVivo] = useState<{ quien: string; x: number; y: number } | null>(null);
@@ -499,7 +505,7 @@ function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "juga
           className="h-12 w-full rounded-md bg-surface px-3 text-base font-semibold"
           maxLength={40}
           value={pasos.nombre}
-          onChange={(e) => onGuardar(nombreDeJugada(pasos, e.target.value))}
+          onChange={(e) => setPasos(nombreDeJugada(pasos, e.target.value))}
         />
       ) : (
         <p className="text-xs font-semibold uppercase tracking-widest text-accent">{pasos.nombre}</p>
@@ -525,7 +531,7 @@ function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "juga
               onPointerMove={(pointer) => vivo?.quien === ficha.memberId && setVivo({ quien: ficha.memberId, ...coords(pointer) })}
               onPointerUp={() => {
                 if (vivo?.quien !== ficha.memberId) return;
-                onGuardar(moverEnCuadro(pasos, indice, ficha.memberId, vivo.x, vivo.y));
+                setPasos(moverEnCuadro(pasos, indice, ficha.memberId, vivo.x, vivo.y));
                 setVivo(null);
               }}
             >
@@ -542,7 +548,7 @@ function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "juga
             onPointerMove={(pointer) => vivo?.quien === "pelota" && setVivo({ quien: "pelota", ...coords(pointer) })}
             onPointerUp={() => {
               if (vivo?.quien !== "pelota") return;
-              onGuardar(moverEnCuadro(pasos, indice, "pelota", vivo.x, vivo.y));
+              setPasos(moverEnCuadro(pasos, indice, "pelota", vivo.x, vivo.y));
               setVivo(null);
             }}
           >
@@ -556,7 +562,7 @@ function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "juga
           className="mt-3 min-h-20 w-full rounded-md bg-surface px-3 py-2 text-base"
           maxLength={80}
           value={actual?.texto ?? ""}
-          onChange={(e) => onGuardar(textoDePaso(pasos, indice, e.target.value))}
+          onChange={(e) => setPasos(textoDePaso(pasos, indice, e.target.value))}
         />
       ) : (
         <p className="mt-3 text-lg font-medium leading-snug">{actual?.texto}</p>
@@ -570,17 +576,29 @@ function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "juga
       </div>
       {staff ? (
         <div className="mt-2 grid grid-cols-2 gap-2">
-          <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" disabled={pasos.cuadros.length >= 4} onClick={() => { onGuardar(sumarPaso(pasos)); setCuadro(pasos.cuadros.length); }}>Otro paso</button>
-          <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" disabled={pasos.cuadros.length <= 2} onClick={() => { onGuardar(sacarPaso(pasos, indice)); setCuadro(Math.max(0, indice - 1)); }}>Sacar este paso</button>
+          <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" disabled={pasos.cuadros.length >= 4} onClick={() => { setPasos(sumarPaso(pasos)); setCuadro(pasos.cuadros.length); }}>Otro paso</button>
+          <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" disabled={pasos.cuadros.length <= 2} onClick={() => { setPasos(sacarPaso(pasos, indice)); setCuadro(Math.max(0, indice - 1)); }}>Sacar este paso</button>
         </div>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
-        {catalogo.map((item) => (
-          <button key={item.id} type="button" className={`h-11 rounded-md px-3 text-sm font-semibold ${pasos.id === item.id ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => { setElegida(item.id); setCuadro(0); setPlay(false); onGuardar(armarJugada(item.id, puestos)); }}>
+        {lista.map((item) => (
+          <button key={item.id} type="button" className={`h-11 rounded-md px-3 text-sm font-semibold ${pasos.id === item.id ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => { setPasos(cargar(item.id)); setCuadro(0); setPlay(false); }}>
             {item.nombre}
           </button>
         ))}
       </div>
+      {staff ? (
+        <div className="mt-3 grid gap-2">
+          <Button className="h-12 w-full" onClick={() => onMovimiento(pasos)}>Guardar movimiento</Button>
+          <Button variant="secondary" className="h-12 w-full" onClick={() => onPredeterminada({ id: pasos.id, nombre: pasos.nombre || "Jugada", tipo: pasos.tipo, cuadros: pasos.cuadros })}>Guardar predeterminada</Button>
+          <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" onClick={() => {
+            const id = uid("jg").slice(0, 16);
+            const nueva = { ...pasos, id, nombre: "Nueva" };
+            setPasos(nueva);
+            onPredeterminada({ id, nombre: nueva.nombre, tipo: nueva.tipo, cuadros: nueva.cuadros });
+          }}>Nueva predeterminada</button>
+        </div>
+      ) : null}
       <Button className="mt-3 h-12 w-full" onClick={() => setPlay((v) => !v)}>{play ? <Pause className="size-4" /> : <Play className="size-4" />} {play ? "Pausa" : "Ver el movimiento"}</Button>
     </div>
   );
