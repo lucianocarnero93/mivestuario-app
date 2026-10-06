@@ -5,16 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { formatWhen } from "@/lib/fija/format";
 import { inboxVisible, useFija, useMe } from "@/lib/fija/store";
-import type { InboxItem } from "@/lib/fija/types";
+import type { InboxItem, InboxKind } from "@/lib/fija/types";
 import { cn } from "@/lib/utils";
 
-const KIND_LABEL = {
+const KIND_LABEL: Record<InboxKind, string> = {
   convocatoria: "Convocatoria",
   recordatorio: "Recordatorio",
   formacion: "Pizarra",
   charla: "Charla técnica",
   equipamiento: "Equipamiento",
-} as const;
+  caja: "Caja",
+};
 
 export function InboxBell() {
   const me = useMe();
@@ -97,11 +98,19 @@ function InboxRow({
       ? "/cancha"
       : item.kind === "charla"
         ? "/chat"
-        : "/";
+        : item.kind === "caja"
+          ? "/caja"
+          : "/";
+  const search =
+    href === "/chat"
+      ? { title: undefined, text: undefined, url: undefined }
+      : href === "/caja"
+        ? { mp: undefined }
+        : undefined;
   return (
     <Link
       to={href}
-      search={href === "/chat" ? { title: undefined, text: undefined, url: undefined } : undefined}
+      search={search}
       onClick={onOpen}
       className={cn(
         "block rounded-lg px-3 py-3",

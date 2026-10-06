@@ -52,6 +52,24 @@ test("si la planilla está cerrada no queda como próximo", () => {
   assert.equal(grupos.proximos.length, 0);
 });
 
+test("una planilla sin terminar no cuenta como jugado", () => {
+  const ahora = Date.parse("2026-10-05T22:00:00-03:00");
+  const event = partido("p1", "2026-10-05T18:00:00-03:00");
+  const sheet: MatchSheet = {
+    eventId: "p1",
+    opponent: "Rival",
+    goalsFor: 1,
+    goalsAgainst: 0,
+    notes: "",
+    recordedAt: "2026-10-05T20:00:00-03:00",
+    players: [],
+  };
+  assert.equal(estaJugado(event, sheet), false);
+  const grupos = clasificarAgenda([event], [sheet], ahora);
+  assert.equal(grupos.jugados.length, 0);
+  assert.equal(grupos.falta.length, 1);
+});
+
 test("las confirmaciones cuentan solo al que juega", () => {
   const cuentas = contarConfirmaciones(
     [{ id: "a" }, { id: "b" }, { id: "c" }],
@@ -81,8 +99,8 @@ test("una reacción por persona y la encuesta no tiene texto libre", () => {
 
 test("el recap mira la semana", () => {
   const ahora = Date.parse("2026-10-05T22:00:00-03:00");
-  const event = partido("p1", "2026-10-04T18:00:00-03:00");
-  const viejo = partido("p0", "2026-09-01T18:00:00-03:00");
+  const event = partido("p1", "2026-10-04T18:00:00-03:00", { resultClosedAt: "2026-10-04T20:00:00-03:00" });
+  const viejo = partido("p0", "2026-09-01T18:00:00-03:00", { resultClosedAt: "2026-09-01T20:00:00-03:00" });
   const recap = recapSemana(
     [event, viejo],
     [

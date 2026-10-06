@@ -172,6 +172,29 @@ export function aplicarCobro(caja: Caja, cobro: Cobro): Caja {
   return { ...caja, cobros: cobros.slice(-400), gastos: conCierre({ ...caja, cobros }).gastos };
 }
 
+export function cobrosConfiables(previous: Cobro[] | undefined, incoming: Cobro[] | undefined): Cobro[] {
+  const conocidos = new Set((previous ?? []).map((item) => item.paymentId).filter((id): id is string => Boolean(id)));
+  return (incoming ?? []).filter((cobro) => {
+    if (cobro.medio === "mp" || cobro.paymentId) return Boolean(cobro.paymentId && conocidos.has(cobro.paymentId));
+    return cobro.estado === "confirmado";
+  });
+}
+
+export function cobrosDelJugador(previous: Cobro[] | undefined, incoming: Cobro[] | undefined, memberId: string): Cobro[] {
+  if (!memberId) return [];
+  const previos = previous ?? [];
+  const conocidos = new Set(previos.map((item) => item.paymentId).filter((id): id is string => Boolean(id)));
+  return (incoming ?? []).filter((cobro) => {
+    if (cobro.memberId !== memberId) return false;
+    if (cobro.medio === "mp" || cobro.paymentId) return Boolean(cobro.paymentId && conocidos.has(cobro.paymentId));
+    if (cobro.estado !== "marcado") return false;
+    const viejo = previos.find(
+      (item) => item.id === cobro.id || (item.gastoId === cobro.gastoId && item.memberId === memberId),
+    );
+    return viejo?.estado !== "confirmado";
+  });
+}
+
 export function mergeCaja(previous?: Caja, incoming?: Caja): Caja {
   if (!incoming) return previous ?? cajaVacia();
   if (!previous) return incoming;

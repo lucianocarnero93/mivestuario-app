@@ -451,6 +451,7 @@ export type ClaimMode = "join" | "resume";
 
 export type ClaimOutcome =
   | { kind: "removed"; error: string }
+  | { kind: "staff"; error: string }
   | { kind: "keep"; members: Member[] }
   | { kind: "notMember"; error: string }
   | { kind: "join"; members: Member[] };
@@ -477,6 +478,9 @@ export function decideClaim(input: {
     !byAccount && input.mode === "join" && input.claimId
       ? input.members.find((person) => person.id === input.claimId && !person.accountId && !dropped.has(person.id))
       : undefined;
+  if (claimed && claimed.role !== "jugador") {
+    return { kind: "staff", error: "Ese lugar es del cuerpo técnico. Entrá con tu nombre." };
+  }
   const current = byAccount ?? claimed;
   if (current && (dropped.has(current.id) || dropped.has(input.accountId))) {
     return { kind: "keep", members: input.members };
@@ -542,7 +546,7 @@ export function detachAccount(bundle: ClubBundle, accountId: string): ClubBundle
   return {
     ...bundle,
     members: bundle.members.map((person) =>
-      person.accountId === accountId ? { ...person, accountId: null } : person,
+      person.accountId === accountId ? { ...person, accountId: null, photo: null } : person,
     ),
   };
 }

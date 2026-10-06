@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { ROLE_LABEL, personLabel } from "@/lib/fija/format";
 import { MAX_BYTES } from "@/lib/fija/club-rules";
 import { alumniMember, playerRows, rankedBy, teamRecord } from "@/lib/fija/stats";
-import { useFija, useIsCreator, useIsStaff, useMe } from "@/lib/fija/store";
+import { sheetsForScope, useFija, useIsCreator, useIsStaff, useMe } from "@/lib/fija/store";
 import type { Role } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/equipo")({ component: EquipoPage });
@@ -34,7 +34,8 @@ function EquipoPage() {
   const setJuega = useFija((s) => s.setJuega);
   const removeMember = useFija((s) => s.removeMember);
   const members = useFija((s) => s.members);
-  const sheets = useFija((s) => s.matchSheets);
+  const events = useFija((s) => s.events);
+  const sheets = sheetsForScope(useFija((s) => s.matchSheets), events, "general");
   const record = teamRecord(sheets);
   const rows = playerRows(sheets, members);
   const scorers = rankedBy(rows, "goals").slice(0, 5);

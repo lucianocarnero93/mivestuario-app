@@ -147,6 +147,27 @@ test("join usa el nombre cargado a mano si se lo pedís", () => {
   assert.equal(result.members.filter((item) => item.name === "Enzo").length, 1);
 });
 
+test("no se puede tomar el lugar del DT ni del ayudante", () => {
+  const dt = decideClaim({
+    members: [person({ id: "dt", name: "Lucho", role: "dt" })],
+    accountId: "acc-nueva",
+    mode: "join",
+    draft: { name: "Lucho", nick: "Lucho", number: null, menor: false },
+    freshId: "m-nuevo",
+    claimId: "dt",
+  });
+  assert.equal(dt.kind, "staff");
+  const ayuda = decideClaim({
+    members: [person({ id: "ayu", name: "Nico", role: "ayudante" })],
+    accountId: "acc-nueva",
+    mode: "join",
+    draft: { name: "Nico", nick: "Nico", number: null, menor: false },
+    freshId: "m-nuevo",
+    claimId: "ayu",
+  });
+  assert.equal(ayuda.kind, "staff");
+});
+
 test("un miembro tachado no se reescribe", () => {
   const result = decideClaim({
     members: [person({ id: "j1", name: "Pibe", accountId: "acc-p" })],
@@ -504,12 +525,13 @@ test("sacar a alguien deja el nombre para el ranking", () => {
 test("borrar la cuenta suelta el nombre y no lo borra", () => {
   const team = bundle([
     person({ id: "dt", name: "Lucho", role: "dt", accountId: "acc-dt" }),
-    person({ id: "j1", name: "Pibe", accountId: "acc-p" }),
+    person({ id: "j1", name: "Pibe", accountId: "acc-p", photo: "data:image/png;base64,abc" }),
   ]);
   const next = detachAccount(team, "acc-p");
   const pibe = next.members.find((item) => item.id === "j1");
   assert.equal(pibe?.name, "Pibe");
   assert.equal(pibe?.accountId, null);
+  assert.equal(pibe?.photo, null);
 });
 
 test("un aviso inventado no sale si no está en el equipo", () => {

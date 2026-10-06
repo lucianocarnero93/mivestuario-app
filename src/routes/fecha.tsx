@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { EnCancha, FiguraPartido, ParaLaFamilia } from "@/components/fija/partido";
 import { Button } from "@/components/ui/button";
 import { enJuego, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
+import { resultIsOpen } from "@/lib/fija/club-rules";
 import { leerFamilia } from "@/lib/fija/familia";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
 import type { ClubEvent, ReaccionFecha } from "@/lib/fija/types";
@@ -27,7 +28,10 @@ function FechaPage() {
   const staff = useIsStaff();
   const elegido = events.find((event) => event.id === partido && event.kind === "partido");
   const vivo = events.find((event) => event.kind === "partido" && enJuego(event) && !event.fechaOculta);
-  const actual = elegido ?? vivo;
+  const ultimo = [...events]
+    .filter((event) => event.kind === "partido" && event.resultClosedAt && (staff || !event.fechaOculta))
+    .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))[0];
+  const actual = elegido ?? vivo ?? ultimo;
   const recap = recapSemana(events, sheets);
 
   return (
@@ -39,7 +43,7 @@ function FechaPage() {
           Esta semana: {recap.pj} {recap.pj === 1 ? "partido" : "partidos"} · {recap.gf} goles a favor.
         </p>
       ) : null}
-      {actual ? <FechaViva event={actual} /> : null}
+      {actual ? <FechaViva key={actual.id} event={actual} /> : null}
       <Historial actualId={actual?.id} staff={staff} />
     </main>
   );
@@ -98,11 +102,15 @@ function FechaViva({ event }: { event: ClubEvent }) {
       {staff && !cerrado ? <EnCancha event={event} /> : null}
       {staff ? <ParaLaFamilia event={event} /> : null}
       <div className="mt-3 grid gap-2">
-        {staff && !cerrado ? (
+        {staff && !cerrado && resultIsOpen(event.startsAt) && sheet ? (
           <Button
             className="h-14"
             onClick={() => {
-              markMatchResult(event.id, true);
+              const ok = markMatchResult(event.id, true);
+              if (!ok) {
+                setNota("El partido tiene que haber empezado y tener planilla.");
+                return;
+              }
               void flushCloud();
               setNota("Partido terminado. La familia ve el final si el link sigue abierto.");
             }}
@@ -151,7 +159,7 @@ function Historial({ actualId, staff }: { actualId?: string; staff: boolean }) {
   const members = useFija((s) => s.members);
   const pasados = events
     .filter((event) => event.kind === "partido" && event.id !== actualId && (staff || !event.fechaOculta))
-    .filter((event) => event.resultClosedAt || sheetFor(event.id, sheets))
+    .filter((event) => event.resultClosedAt)
     .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt));
   if (pasados.length === 0) {
     return <p className="mt-8 text-sm text-muted">Todavía no hay fechas. Cuando carguen el primer resultado, aparece acá.</p>;

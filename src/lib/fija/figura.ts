@@ -1,6 +1,14 @@
-import type { ClubEvent, FiguraVote, MatchSheet, Member } from "./types";
+import { resultIsOpen } from "./club-rules.ts";
+import type { ClubEvent, FiguraVote, MatchSheet, Member } from "./types.ts";
 
 const TZ = "America/Argentina/Buenos_Aires";
+
+export function figuraPermitida(vote: FiguraVote, events: ClubEvent[]): boolean {
+  if (!vote?.eventId || !vote.voterId || !vote.pickId || vote.voterId === vote.pickId) return false;
+  const event = events.find((item) => item.id === vote.eventId);
+  if (!event || event.kind !== "partido") return false;
+  return resultIsOpen(event.startsAt);
+}
 
 export function mergeFiguraVotes(
   kept: FiguraVote[] | undefined,

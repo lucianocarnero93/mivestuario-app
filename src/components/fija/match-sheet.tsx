@@ -81,7 +81,6 @@ export function MatchSheetForm({
           },
           tournamentClosed ? { confirmClosed: true } : undefined,
         );
-        markMatchResult(event.id, true);
         setSaved(true);
         setAskDone(true);
       }}

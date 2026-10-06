@@ -123,6 +123,8 @@ export type ClubEvent = {
   convocados?: string[];
   /** Banco. Tienen que estar convocados y no pueden ser titulares. */
   suplentes?: string[];
+  /** Cuándo se cambió el título, la hora o la cancha. Gana la copia más nueva. */
+  detailsUpdatedAt?: string;
   /** Cuándo se armó la formación. Gana la copia más nueva, aunque tenga menos jugadores. */
   lineupUpdatedAt?: string;
   /** Cuándo el DT confirmó que la planilla está completa. */

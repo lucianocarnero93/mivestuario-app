@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { figuraDe, goleadorDelMes, mergeFiguraVotes } from "./figura.ts";
+import { figuraDe, figuraPermitida, goleadorDelMes, mergeFiguraVotes } from "./figura.ts";
 import type { ClubEvent, MatchSheet } from "./types.ts";
 
 test("la figura más nueva pisa el voto viejo del mismo jugador", () => {
@@ -15,6 +15,17 @@ test("la figura más nueva pisa el voto viejo del mismo jugador", () => {
 test("nadie se vota a sí mismo", () => {
   const votes = mergeFiguraVotes([], [{ eventId: "p1", voterId: "a", pickId: "a", at: "2026-10-01T19:00:00Z" }]);
   assert.equal(votes.length, 0);
+});
+
+test("la figura no vale en un entrenamiento ni antes del partido", () => {
+  const pasado = { id: "p1", kind: "partido", startsAt: "2020-01-01T20:00:00-03:00" } as ClubEvent;
+  const futuro = { id: "p2", kind: "partido", startsAt: "2099-01-01T20:00:00-03:00" } as ClubEvent;
+  const entreno = { id: "e1", kind: "entrenamiento", startsAt: "2020-01-01T20:00:00-03:00" } as ClubEvent;
+  const voto = { eventId: "p1", voterId: "a", pickId: "b", at: "2026-10-01T19:00:00Z" };
+  assert.equal(figuraPermitida(voto, [pasado]), true);
+  assert.equal(figuraPermitida({ ...voto, eventId: "p2" }, [futuro]), false);
+  assert.equal(figuraPermitida({ ...voto, eventId: "e1" }, [entreno]), false);
+  assert.equal(figuraPermitida({ ...voto, eventId: "no" }, [pasado]), false);
 });
 
 test("si empatan la figura, quedan los dos", () => {

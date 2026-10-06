@@ -101,6 +101,16 @@ function CajaPage() {
           />
         </label>
       ) : null}
+      {tesorero && club ? (
+        <Button
+          className="mt-3 h-14 w-full"
+          onClick={() => {
+            window.location.assign(`/api/mp/callback?ir=conectar&club=${encodeURIComponent(club.inviteCode)}`);
+          }}
+        >
+          {conectado ? "Reconectar Mercado Pago" : "Conectar Mercado Pago"}
+        </Button>
+      ) : null}
       {tesorero ? <NuevoGasto members={members} events={events} rsvps={rsvps} onCreate={crearGasto} onSave={() => void flushCloud()} /> : null}
       <ul className="mt-4 space-y-3">
         {(caja?.gastos ?? []).filter((gasto) => !gasto.anulado).map((gasto) => (

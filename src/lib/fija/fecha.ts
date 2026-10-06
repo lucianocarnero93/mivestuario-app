@@ -2,11 +2,8 @@ import type { ClubEvent, Encuesta, MatchSheet, ReaccionFecha, Rsvp } from "./typ
 
 const HORA = 3_600_000;
 
-export function estaJugado(event: ClubEvent, sheet?: MatchSheet): boolean {
-  if (event.kind !== "partido") return false;
-  if (event.resultClosedAt) return true;
-  if (event.resultPending) return false;
-  return Boolean(sheet);
+export function estaJugado(event: ClubEvent, _sheet?: MatchSheet): boolean {
+  return event.kind === "partido" && Boolean(event.resultClosedAt);
 }
 
 export function enJuego(event: ClubEvent, now = Date.now()): boolean {
@@ -96,8 +93,12 @@ export function rachaVoy(events: ClubEvent[], rsvps: Rsvp[], memberId: string, s
   return n;
 }
 
+function sheetCerrada(sheet: MatchSheet, events: ClubEvent[]): boolean {
+  return Boolean(events.find((event) => event.id === sheet.eventId)?.resultClosedAt);
+}
+
 export function rachaInvicto(sheets: MatchSheet[], events: ClubEvent[]): number {
-  const orden = [...sheets].sort((a, b) => {
+  const orden = [...sheets].filter((sheet) => sheetCerrada(sheet, events)).sort((a, b) => {
     const aStart = Date.parse(events.find((event) => event.id === a.eventId)?.startsAt ?? a.recordedAt);
     const bStart = Date.parse(events.find((event) => event.id === b.eventId)?.startsAt ?? b.recordedAt);
     return bStart - aStart;
@@ -111,7 +112,7 @@ export function rachaInvicto(sheets: MatchSheet[], events: ClubEvent[]): number 
 }
 
 export function rachaGoles(sheets: MatchSheet[], events: ClubEvent[], memberId: string): number {
-  const orden = [...sheets].sort((a, b) => {
+  const orden = [...sheets].filter((sheet) => sheetCerrada(sheet, events)).sort((a, b) => {
     const aStart = Date.parse(events.find((event) => event.id === a.eventId)?.startsAt ?? a.recordedAt);
     const bStart = Date.parse(events.find((event) => event.id === b.eventId)?.startsAt ?? b.recordedAt);
     return bStart - aStart;
@@ -135,7 +136,7 @@ export function recapSemana(events: ClubEvent[], sheets: MatchSheet[], now = Dat
       })
       .map((event) => event.id),
   );
-  const jugados = sheets.filter((sheet) => ids.has(sheet.eventId));
+  const jugados = sheets.filter((sheet) => ids.has(sheet.eventId) && sheetCerrada(sheet, events));
   return {
     pj: jugados.length,
     gf: jugados.reduce((sum, sheet) => sum + sheet.goalsFor, 0),

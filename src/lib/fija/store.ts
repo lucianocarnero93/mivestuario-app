@@ -119,7 +119,7 @@ type State = ReturnType<typeof createSeed> & {
   assignRole: (memberId: string, role: Role) => void;
     setJuega: (memberId: string, juega: boolean) => void;
     saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">, options?: { confirmClosed?: boolean }) => void;
-  anotarEnCancha: (eventId: string, kind: "gol" | "gol-rival" | "tarjeta", memberId?: string) => void;
+  anotarEnCancha: (eventId: string, kind: "gol" | "gol-rival" | "tarjeta", memberId?: string) => boolean;
   deshacerEnCancha: (eventId: string) => void;
   reaccionarFecha: (eventId: string, emoji: ReaccionFecha["emoji"]) => void;
   ocultarFecha: (eventId: string, oculta: boolean) => void;
@@ -147,7 +147,7 @@ type State = ReturnType<typeof createSeed> & {
   createTournament: (name: string) => string | null;
   renameTournament: (id: string, name: string) => void;
   finishTournament: (id: string) => void;
-  markMatchResult: (eventId: string, done: boolean) => void;
+  markMatchResult: (eventId: string, done: boolean) => boolean;
   setGpsConsent: (value: GpsConsent) => void;
   leaveClub: () => Promise<{ ok: boolean; error?: string }>;
   forgetClub: (clubId: string, message: string) => void;
@@ -330,6 +330,7 @@ export const useFija = create<State>()(
           tactics: "",
           lineupPublishedAt: null,
           tournamentId: input.kind === "partido" ? input.tournamentId || null : null,
+          detailsUpdatedAt: new Date().toISOString(),
         };
                 const players = get().members.filter(
           (person) => person.juega ?? person.role === "jugador",
@@ -363,6 +364,14 @@ export const useFija = create<State>()(
           "tactics" in patch ||
           "convocados" in patch ||
           "suplentes" in patch;
+        const touchesDetails =
+          (patch.title != null && patch.title !== current.title) ||
+          (patch.place != null && patch.place !== current.place) ||
+          (patch.mapsQuery != null && patch.mapsQuery !== current.mapsQuery) ||
+          ("lat" in patch && patch.lat !== current.lat) ||
+          ("lng" in patch && patch.lng !== current.lng) ||
+          (patch.startsAt != null && patch.startsAt !== current.startsAt);
+        const nowIso = new Date().toISOString();
         const nextStart = patch.startsAt ?? current.startsAt;
         const scheduleChanged =
           (patch.startsAt != null && patch.startsAt !== current.startsAt) ||
@@ -384,7 +393,8 @@ export const useFija = create<State>()(
               ? {
                   ...event,
                   ...patch,
-                  lineupUpdatedAt: touchesBoard ? new Date().toISOString() : event.lineupUpdatedAt,
+                  lineupUpdatedAt: touchesBoard ? nowIso : event.lineupUpdatedAt,
+                  detailsUpdatedAt: touchesDetails ? nowIso : event.detailsUpdatedAt,
                 }
               : event,
           ),
@@ -1046,17 +1056,17 @@ export const useFija = create<State>()(
       },
 
       anotarEnCancha: (eventId, kind, memberId) => {
-        if (!isStaffId(get())) return;
+        if (!isStaffId(get())) return false;
         const event = get().events.find((item) => item.id === eventId);
-        if (!event || event.kind !== "partido" || !resultIsOpen(event.startsAt) || event.resultClosedAt) return;
+        if (!event || event.kind !== "partido" || !resultIsOpen(event.startsAt) || event.resultClosedAt) return false;
         const tournament = get().tournaments.find((item) => item.id === event.tournamentId);
-        if (tournament?.status === "finished") return;
+        if (tournament?.status === "finished") return false;
         const existing = get().matchSheets.find((sheet) => sheet.eventId === eventId);
         const players = (existing?.players ?? []).map((row) => ({ ...row }));
         let goalsFor = existing?.goalsFor ?? 0;
         let goalsAgainst = existing?.goalsAgainst ?? 0;
         if (kind === "gol") {
-          if (!memberId || !get().members.some((person) => person.id === memberId)) return;
+          if (!memberId || !get().members.some((person) => person.id === memberId)) return false;
           goalsFor = clampStat(goalsFor + 1);
           const row = players.find((item) => item.memberId === memberId) ?? emptyStat(memberId);
           row.goals = clampStat(row.goals + 1);
@@ -1064,12 +1074,12 @@ export const useFija = create<State>()(
         }
         if (kind === "gol-rival") goalsAgainst = clampStat(goalsAgainst + 1);
         if (kind === "tarjeta") {
-          if (!memberId) return;
+          if (!memberId) return false;
           const row = players.find((item) => item.memberId === memberId) ?? emptyStat(memberId);
           row.yellow = clampStat(row.yellow + 1);
           if (!players.some((item) => item.memberId === memberId)) players.push(row);
         }
-        if (players.reduce((sum, row) => sum + row.goals, 0) > goalsFor) return;
+        if (players.reduce((sum, row) => sum + row.goals, 0) > goalsFor) return false;
         const now = new Date().toISOString();
         const sheet: MatchSheet = {
           eventId,
@@ -1096,6 +1106,7 @@ export const useFija = create<State>()(
               : item,
           ),
         });
+        return true;
       },
 
       deshacerEnCancha: (eventId) => {
@@ -1208,15 +1219,18 @@ export const useFija = create<State>()(
         const caja = get().caja ?? cajaVacia(get().activeId);
         const gasto = armarGasto({ ...input, id: uid("ga"), at: new Date().toISOString() });
         if (!gasto) return false;
-        const aviso: InboxItem = {
-          id: uid("in"),
-          kind: "caja",
-          title: "Nuevo gasto",
-          body: `${gasto.titulo}. Mirá tu cupón en Caja.`,
-          audience: "all",
-          at: gasto.at,
-          readBy: [get().activeId],
-        };
+        const deudores = cuponesDe(gasto)
+          .filter((cupon) => !cupon.exento && cupon.id !== gasto.pagadoPor && !cupon.id.startsWith("inv"))
+          .map((cupon) => ({
+            id: uid("in"),
+            kind: "caja" as const,
+            title: "Nuevo gasto",
+            body: `${gasto.titulo}. Te tocan $${cupon.monto}.`,
+            audience: "miembro" as const,
+            memberId: cupon.id,
+            at: gasto.at,
+            readBy: [get().activeId],
+          }));
         const armada = conCierre({
           tesoreroId: caja.tesoreroId || get().activeId,
           alias: caja.alias,
@@ -1225,7 +1239,7 @@ export const useFija = create<State>()(
         });
         set({
           caja: armada,
-          inbox: [...get().inbox, aviso],
+          inbox: [...get().inbox, ...deudores],
         });
         return true;
       },
@@ -1434,20 +1448,27 @@ export const useFija = create<State>()(
       },
 
       markMatchResult: (eventId, done) => {
-        if (!isStaffId(get())) return;
+        if (!isStaffId(get())) return false;
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event || event.kind !== "partido") return false;
+        if (done) {
+          const sheet = get().matchSheets.some((item) => item.eventId === eventId);
+          if (!resultIsOpen(event.startsAt) || !sheet) return false;
+        }
         const now = new Date().toISOString();
         set({
-          events: get().events.map((event) =>
-            event.id === eventId
+          events: get().events.map((item) =>
+            item.id === eventId
               ? {
-                  ...event,
+                  ...item,
                   resultClosedAt: done ? now : null,
                   resultPending: !done,
                   resultUpdatedAt: now,
                 }
-              : event,
+              : item,
           ),
         });
+        return true;
       },
 
       // El usuario aceptó o rechazó usar el GPS para marcar la cancha.
@@ -3201,18 +3222,15 @@ export function sheetsForScope(
   events: ClubEvent[],
   tournamentId: string | "general",
 ): MatchSheet[] {
-  if (tournamentId === "general") return sheets;
-  const ids = new Set(
-    events.filter((e) => e.tournamentId === tournamentId).map((e) => e.id),
-  );
-  return sheets.filter((s) => ids.has(s.eventId));
+  const closed = new Set(events.filter((event) => event.resultClosedAt).map((event) => event.id));
+  const base = tournamentId === "general"
+    ? sheets
+    : sheets.filter((sheet) => events.some((event) => event.id === sheet.eventId && event.tournamentId === tournamentId));
+  return base.filter((sheet) => closed.has(sheet.eventId));
 }
 
-export function matchSettled(event: ClubEvent, sheet?: MatchSheet): boolean {
-  if (event.kind !== "partido") return false;
-  if (event.resultPending) return false;
-  if (event.resultClosedAt) return true;
-  return Boolean(sheet);
+export function matchSettled(event: ClubEvent, _sheet?: MatchSheet): boolean {
+  return event.kind === "partido" && Boolean(event.resultClosedAt);
 }
 
 export function eventOfClosedTournament(event: ClubEvent, tournaments: Tournament[]): boolean {

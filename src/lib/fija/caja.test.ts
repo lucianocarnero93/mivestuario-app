@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aplicarCobro, armarCupones, armarGasto, cajaVacia, deudaDe, liquidar, pagoAlcanza, partesIguales, saldosDe } from "./caja.ts";
+import { aplicarCobro, armarCupones, armarGasto, cajaVacia, cobrosConfiables, cobrosDelJugador, deudaDe, liquidar, pagoAlcanza, partesIguales, saldosDe } from "./caja.ts";
 
 test("reparte en partes iguales y el resto va a los primeros", () => {
   assert.deepEqual(partesIguales(10, ["a", "b", "c"]), [
@@ -117,4 +117,40 @@ test("el cupón fijo y el exento no deben", () => {
     at: "2026-10-08T21:00:00Z",
   });
   assert.equal(paga.gastos[0]?.cerrado, true);
+});
+
+test("un cobro de Mercado Pago nuevo no se confirma solo", () => {
+  const previo = {
+    id: "c1",
+    gastoId: "g",
+    memberId: "a",
+    monto: 3,
+    medio: "mp" as const,
+    estado: "confirmado" as const,
+    paymentId: "pay-1",
+    at: "t",
+  };
+  const falso = { ...previo, id: "c2", memberId: "b", paymentId: "pay-nuevo", at: "t2" };
+  assert.equal(cobrosConfiables([previo], [falso]).length, 0);
+  assert.equal(cobrosConfiables([previo], [previo]).length, 1);
+  assert.equal(cobrosConfiables([], [{ ...previo, medio: "manual", paymentId: undefined, estado: "confirmado" }]).length, 1);
+});
+
+test("un jugador solo marca el suyo y no lo confirma", () => {
+  const marcado = {
+    id: "c1",
+    gastoId: "g",
+    memberId: "a",
+    monto: 3,
+    medio: "manual" as const,
+    estado: "marcado" as const,
+    at: "t",
+  };
+  assert.equal(cobrosDelJugador([], [marcado], "a").length, 1);
+  assert.equal(cobrosDelJugador([], [{ ...marcado, estado: "confirmado" }], "a").length, 0);
+  assert.equal(cobrosDelJugador([], [{ ...marcado, memberId: "b" }], "a").length, 0);
+  assert.equal(
+    cobrosDelJugador([{ ...marcado, estado: "confirmado" }], [marcado], "a").length,
+    0,
+  );
 });

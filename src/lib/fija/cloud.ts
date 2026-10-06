@@ -3,11 +3,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
-import { mergeFiguraVotes } from "./figura";
+import { mergeCaja, cobrosConfiables, cobrosDelJugador } from "./caja";
+import { figuraPermitida, mergeFiguraVotes } from "./figura";
 import { FORMATIONS } from "./formations";
 import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoAttemptKey, vivoPointerAllows, VIVO_READ_LIMIT, type PuestoPublico } from "./vivo";
 import { preferirJugada } from "./jugada";
-import { mergeCaja } from "./caja";
 import { contarFamilia } from "./familia";
 import { sanitizeCode } from "./sanitize";
 import {
@@ -686,6 +686,7 @@ export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
     liveUpdatedAt: liveSource.liveUpdatedAt,
     jugada: preferirJugada(previous.jugada, incoming.jugada),
     ...camposFecha(previous, incoming),
+    ...datosDeFecha(previous, incoming),
   };
 }
 
@@ -745,6 +746,21 @@ function mergeEvents(kept: ClubEvent[], incoming: ClubEvent[]): ClubEvent[] {
     map.set(event.id, previous ? pickEvent(previous, event) : event);
   }
   return [...map.values()];
+}
+
+function datosDeFecha(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, "title" | "place" | "mapsQuery" | "lat" | "lng" | "startsAt" | "detailsUpdatedAt"> {
+  const prev = boardStamp(previous.detailsUpdatedAt);
+  const next = boardStamp(incoming.detailsUpdatedAt);
+  const source = prev === 0 && next === 0 ? previous : next > prev ? incoming : previous;
+  return {
+    title: source.title,
+    place: source.place,
+    mapsQuery: source.mapsQuery,
+    lat: source.lat,
+    lng: source.lng,
+    startsAt: source.startsAt,
+    detailsUpdatedAt: source.detailsUpdatedAt,
+  };
 }
 
 function camposFecha(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, "liveLog" | "reacciones" | "fechaOculta" | "encuesta" | "fechaUpdatedAt"> {
@@ -834,6 +850,24 @@ function mergeRsvps(kept: Rsvp[], incoming: Rsvp[]): Rsvp[] {
   return [...map.values()];
 }
 
+function cajaAlGuardar(
+  existing: ClubBundle["caja"],
+  incoming: ClubBundle["caja"],
+  staff: boolean,
+  memberId?: string,
+): ClubBundle["caja"] {
+  const tesoreroId = incoming?.tesoreroId || existing?.tesoreroId;
+  const puede = staff || Boolean(memberId && tesoreroId && memberId === tesoreroId);
+  if (puede) {
+    if (!incoming) return existing;
+    return mergeCaja(existing, { ...incoming, cobros: cobrosConfiables(existing?.cobros, incoming.cobros) });
+  }
+  const propios = cobrosDelJugador(existing?.cobros, incoming?.cobros, memberId ?? "");
+  if (propios.length === 0) return existing;
+  const base = existing ?? { tesoreroId: "", gastos: [], cobros: [] };
+  return mergeCaja(existing, { ...base, cobros: propios });
+}
+
 function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId: string): ClubBundle {
   if (!existing) {
     return pruneBundle(
@@ -841,7 +875,12 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
         withoutDroppedEvents(
           { ...incoming,
           members: capRoster([], capOversizedPhotos([], incoming.members)),
-          messages: clipTextList(incoming.messages ?? []),
+          messages: clipTextList(
+            (incoming.messages ?? []).filter((item) => {
+              const author = incoming.members.find((person) => person.id === item.memberId);
+              return Boolean(author && (author.accountId === userId || author.id === userId));
+            }),
+          ),
           charla: clipTextList(incoming.charla ?? []),
           inbox: clipInbox(incoming.inbox ?? []),
           matchSheets: (incoming.matchSheets ?? [])
@@ -851,6 +890,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
             })
             .map(sanitizeSheet),
           alumni: mergeAlumni([], incoming.alumni),
+          caja: incoming.caja
+            ? { ...incoming.caja, cobros: cobrosConfiables(undefined, incoming.caja.cobros) }
+            : incoming.caja,
         },
           new Set(incoming.droppedEventIds ?? []),
         ),
@@ -932,6 +974,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   const listed = lockStaffRoles(existing, capped, userId);
   const eventIds = new Set(existing.events.map((event) => event.id));
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
+  const mergedEvents = staff ? mergeEvents(existing.events, incoming.events) : existing.events;
+  const votos = (staff ? incoming.figuraVotes ?? [] : (incoming.figuraVotes ?? []).filter((row) => row.voterId === me?.id))
+    .filter((row) => figuraPermitida(row, mergedEvents));
   return withoutDroppedCharla(
     pruneBundle(
     lightenClosedMatches(
@@ -946,26 +991,25 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           createdBy: callerIsCreator(existing, userId)
             ? incoming.club.createdBy || creatorId
             : creatorId,
+          crest: callerIsCreator(existing, userId) ? incoming.club.crest ?? existing.club.crest : existing.club.crest,
         }
       : existing.club,
     members: listed,
-    events: staff ? mergeEvents(existing.events, incoming.events) : existing.events,
+    events: mergedEvents,
     rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => listed.some((person) => person.id === row.memberId)),
-    messages: clipTextList(unionById(existing.messages, incoming.messages)),
+    messages: clipTextList(
+      unionById(
+        existing.messages,
+        (incoming.messages ?? []).filter((item) => Boolean(me?.id) && item.memberId === me?.id),
+      ),
+    ),
     charla: clipTextList(staff ? unionById(existing.charla, incoming.charla) : existing.charla),
     matchSheets: staff
-      ? mergeSheetsByTime(
-          existing.matchSheets,
-          incoming.matchSheets,
-          [
-            ...existing.events.map((event) => incoming.events.find((item) => item.id === event.id) ?? event),
-            ...incoming.events.filter((event) => !existing.events.some((item) => item.id === event.id)),
-          ],
-        )
+      ? mergeSheetsByTime(existing.matchSheets, incoming.matchSheets, mergedEvents)
       : existing.matchSheets,
     figuraVotes: mergeFiguraVotes(
-      existing.figuraVotes,
-      staff ? incoming.figuraVotes : (incoming.figuraVotes ?? []).filter((row) => row.voterId === me?.id),
+      (existing.figuraVotes ?? []).filter((row) => figuraPermitida(row, mergedEvents)),
+      votos,
     ),
     invites: staff ? unionById(existing.invites, incoming.invites) : existing.invites,
     convocatorias: staff
@@ -989,9 +1033,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     droppedIds: [...dropped],
     alumni,
     bannedAccounts,
-    caja: staff
-      ? mergeCaja(existing.caja, incoming.caja)
-      : mergeCaja(existing.caja, incoming.caja ? { ...(existing.caja ?? { tesoreroId: "", gastos: [], cobros: [] }), cobros: incoming.caja.cobros } : undefined),
+    caja: cajaAlGuardar(existing.caja, incoming.caja, staff, me?.id),
       },
       droppedEvents,
     ),
@@ -1122,6 +1164,7 @@ export const claimMember = createServerFn({ method: "POST" })
           claimId: data.id,
         });
         if (decision.kind === "removed") return { removed: true as const, members: existing.members };
+        if (decision.kind === "staff") return { staffError: decision.error, members: existing.members };
         if (decision.kind === "notMember") return { notMember: true as const, members: existing.members };
         if (decision.kind === "keep") return { members: decision.members };
         const next = pruneBundle({ ...existing, members: decision.members });
@@ -1134,6 +1177,9 @@ export const claimMember = createServerFn({ method: "POST" })
       });
       if ("removed" in members && members.removed) {
         return { ok: false, removed: true, error: "El DT te sacó de este equipo." };
+      }
+      if ("staffError" in members && members.staffError) {
+        return { ok: false, error: members.staffError };
       }
       if ("notMember" in members && members.notMember) {
         return { ok: false, notMember: true, error: "Ya no estás en el plantel de este equipo." };

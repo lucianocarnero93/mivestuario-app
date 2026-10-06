@@ -34,6 +34,10 @@ function HomePage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const event = nextEvent(events, { tournaments, sheets });
+  const convocatoria = nextEvent(
+    events.filter((item) => item.kind === "partido"),
+    { tournaments, sheets },
+  );
   const players = members.filter((m) => m.juega ?? m.role === "jugador");
   const inviteOk = Boolean(
     club && search.invite && search.invite.toUpperCase() === club.inviteCode,
@@ -161,7 +165,7 @@ function HomePage() {
         )
       ) : (
         <>
-          {event.kind === "partido" ? <StaffCallup event={event} /> : null}
+          {convocatoria ? <StaffCallup event={convocatoria} /> : null}
           {(me.juega ?? me.role === "jugador") && !alreadyPlayed ? (
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Button

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cerrarMarcador, publicarMarcador } from "@/lib/fija/cloud";
+import { resultIsOpen } from "@/lib/fija/club-rules";
 import { candidatosFigura, figuraDe } from "@/lib/fija/figura";
 import { personLabel } from "@/lib/fija/format";
 import { vivoUrl, whatsAppEnVivo, whatsAppResultado, whatsAppSinConfirmar } from "@/lib/fija/share";
@@ -67,14 +68,15 @@ export function EnCancha({ event }: { event: ClubEvent }) {
   const sheets = useFija((s) => s.matchSheets);
   const [modo, setModo] = useState<"gol" | "tarjeta" | null>(null);
   const [aviso, setAviso] = useState("");
-  if (!staff || event.kind !== "partido" || event.resultClosedAt) return null;
+  if (!staff || event.kind !== "partido" || event.resultClosedAt || !resultIsOpen(event.startsAt)) return null;
   const sheet = sheetFor(event.id, sheets);
   const nombres = candidatosFigura(event, members);
   const marcas = event.liveLog ?? [];
 
   function elegir(personId: string) {
     if (!modo) return;
-    anotarEnCancha(event.id, modo === "gol" ? "gol" : "tarjeta", personId);
+    const ok = anotarEnCancha(event.id, modo === "gol" ? "gol" : "tarjeta", personId);
+    if (!ok) return;
     const nick = nombres.find((person) => person.id === personId)?.nick ?? "Jugador";
     setAviso(modo === "gol" ? `Gol de ${nick}.` : `Amarilla para ${nick}.`);
     setModo(null);
@@ -103,7 +105,9 @@ export function EnCancha({ event }: { event: ClubEvent }) {
         <Button className="h-14" onClick={() => setModo(modo === "gol" ? null : "gol")}>
           Gol nuestro
         </Button>
-        <Button variant="secondary" className="h-14" onClick={() => anotarEnCancha(event.id, "gol-rival")}>
+        <Button variant="secondary" className="h-14" onClick={() => {
+          if (anotarEnCancha(event.id, "gol-rival")) setAviso("Gol de ellos.");
+        }}>
           Gol de ellos
         </Button>
         <Button variant="outline" className="h-14" onClick={() => setModo(modo === "tarjeta" ? null : "tarjeta")}>
