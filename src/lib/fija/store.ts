@@ -7,6 +7,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
 import { alertsDue, pickMemberIdentity, preferRsvp, resultIsOpen, escudoElegido } from "./club-rules";
+import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { pruneBundle } from "./prune";
 import { clampHours } from "./share";
 import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
@@ -36,6 +37,7 @@ import type {
   GpsConsent,
   InboxItem,
   Invite,
+  JugadaGuardada,
   ItemEquipamiento,
   MatchSheet,
   Member,
@@ -101,6 +103,11 @@ type State = ReturnType<typeof createSeed> & {
   setJugada: (eventId: string, notas: NotaJugada[]) => void;
   setRival: (eventId: string, rival: string) => void;
   setNota: (eventId: string, memberId: string, nota: string) => void;
+  aplicarPizarra: (eventId: string, patch: Partial<ClubEvent>) => void;
+  marcarVisto: (eventId: string) => void;
+  pasarAlPlan: (eventId: string, planId: "a" | "b" | "c") => void;
+  guardarEnBiblioteca: (item: JugadaGuardada) => void;
+  duplicarEnBiblioteca: (id: string) => void;
   publishLineup: (eventId: string) => void;
   sendChat: (text: string) => void;
   postCharla: (text: string) => void;
@@ -655,6 +662,61 @@ export const useFija = create<State>()(
             return { ...event, notas, lineupUpdatedAt: now };
           }),
         });
+      },
+
+      aplicarPizarra: (eventId, patch) => {
+        if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) =>
+            event.id === eventId ? { ...event, ...patch, lineupUpdatedAt: now } : event,
+          ),
+        });
+      },
+
+      marcarVisto: (eventId) => {
+        const memberId = get().activeId;
+        if (!memberId) return;
+        const now = new Date().toISOString();
+        set({
+          events: get().events.map((event) => (event.id === eventId ? vistoDe(event, memberId, now) : event)),
+        });
+      },
+
+      pasarAlPlan: (eventId, planId) => {
+        if (!isStaffId(get())) return;
+        const event = get().events.find((item) => item.id === eventId);
+        if (!event) return;
+        const now = new Date().toISOString();
+        const letra = planId.toUpperCase();
+        const notice: InboxItem = {
+          id: uid("in"),
+          kind: "formacion",
+          title: `Pasamos al plan ${letra}`,
+          body: `El DT cambió al plan ${letra}.`,
+          eventId,
+          audience: "all",
+          at: now,
+          readBy: [get().activeId],
+        };
+        set({
+          inbox: [notice, ...get().inbox].slice(0, 80),
+          events: get().events.map((item) =>
+            item.id === eventId ? { ...item, planActivo: planId, lineupUpdatedAt: now } : item,
+          ),
+        });
+      },
+
+      guardarEnBiblioteca: (item) => {
+        if (!isStaffId(get())) return;
+        const lista = [...(get().biblioteca ?? []).filter((row) => row.id !== item.id), item].slice(-30);
+        set({ biblioteca: lista });
+      },
+
+      duplicarEnBiblioteca: (id) => {
+        if (!isStaffId(get())) return;
+        set({ biblioteca: duplicarJugada(get().biblioteca, id, uid("jg")) });
       },
 
       // Avisa a todo el plantel que la formación ya está publicada.
@@ -2479,6 +2541,7 @@ export const useFija = create<State>()(
         droppedEventIds: s.droppedEventIds ?? [],
         droppedCharlaIds: s.droppedCharlaIds ?? [],
         alumni: s.alumni ?? [],
+        biblioteca: s.biblioteca ?? [],
         reminder: s.reminder,
         dirty: s.dirty,
         savedMine: s.savedMine,
@@ -2505,6 +2568,7 @@ export const useFija = create<State>()(
         if (!Array.isArray(state.droppedEventIds)) state.droppedEventIds = [];
         if (!Array.isArray(state.droppedCharlaIds)) state.droppedCharlaIds = [];
         if (!Array.isArray(state.alumni)) state.alumni = [];
+        if (!Array.isArray(state.biblioteca)) state.biblioteca = [];
         if (!state.profile) {
           state.profile = createSeed().profile;
         }
@@ -2810,6 +2874,7 @@ function mergeClubBundles(
             ? { ...(remote.caja ?? cajaVacia()), cobros: local.caja.cobros }
             : undefined,
         ),
+    biblioteca: who.staff && who.dirty ? (local.biblioteca ?? remote.biblioteca ?? []) : (remote.biblioteca ?? local.biblioteca ?? []),
       },
       droppedEvents,
     ),
@@ -2964,6 +3029,7 @@ function toBundle(state: {
   droppedCharlaIds?: string[];
   alumni?: { id: string; name: string; nick: string }[];
   caja?: Caja;
+  biblioteca?: JugadaGuardada[];
 }): ClubBundle {
   return {
     club: state.club,
@@ -2985,6 +3051,7 @@ function toBundle(state: {
     droppedCharlaIds: state.droppedCharlaIds ?? [],
     alumni: state.alumni ?? [],
     caja: state.caja ?? cajaVacia(),
+    biblioteca: state.biblioteca ?? [],
   };
 }
 

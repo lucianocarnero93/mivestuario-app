@@ -8,6 +8,7 @@ import { figuraPermitida, mergeFiguraVotes, votosAceptables } from "./figura";
 import { FORMATIONS } from "./formations";
 import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoAttemptKey, vivoPointerAllows, VIVO_READ_LIMIT, type PuestoPublico } from "./vivo";
 import { preferirJugada } from "./jugada";
+import { aplicarVistosJugador, juntarVistos } from "./pizarra";
 import { contarFamilia } from "./familia";
 import { sanitizeCode } from "./sanitize";
 import {
@@ -712,7 +713,7 @@ export function lightenClosedMatches(bundle: ClubBundle): ClubBundle {
       ) {
         return event;
       }
-      return { ...event, lineup: {}, tactics: "", formacion: undefined, suplentes: [], convocados: [] };
+      return { ...event, lineup: {}, tactics: "", formacion: undefined, suplentes: [], convocados: [], planes: undefined, pasos: undefined, vistos: undefined };
     }),
     rsvps: (bundle.rsvps ?? []).filter((row) => !ids.has(row.eventId)),
     inbox: (bundle.inbox ?? []).filter((item) => !item.eventId || !ids.has(item.eventId)),
@@ -762,6 +763,7 @@ export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
     liveToken: liveSource.liveToken ?? null,
     liveUpdatedAt: liveSource.liveUpdatedAt,
     jugada: preferirJugada(previous.jugada, incoming.jugada),
+    vistos: juntarVistos(previous.vistos, incoming.vistos),
     ...camposFecha(previous, incoming),
     ...datosDeFecha(previous, incoming),
   };
@@ -1051,7 +1053,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   const listed = lockStaffRoles(existing, capped, userId);
   const eventIds = new Set(existing.events.map((event) => event.id));
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
-  const mergedEvents = staff ? mergeEvents(existing.events, incoming.events) : existing.events;
+  const mergedEvents = staff
+    ? mergeEvents(existing.events, incoming.events)
+    : aplicarVistosJugador(existing.events, incoming.events, me?.id);
   const votos = (staff ? incoming.figuraVotes ?? [] : (incoming.figuraVotes ?? []).filter((row) => row.voterId === me?.id))
     .filter((row) => figuraPermitida(row, mergedEvents));
   const votosPrevios = (existing.figuraVotes ?? []).filter((row) => figuraPermitida(row, mergedEvents));
@@ -1109,6 +1113,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     alumni,
     bannedAccounts,
     caja: cajaAlGuardar(existing.caja, incoming.caja, staff, me?.id),
+    biblioteca: staff ? (incoming.biblioteca ?? existing.biblioteca ?? []).slice(0, 30) : (existing.biblioteca ?? []),
       },
       droppedEvents,
     ),

@@ -1,17 +1,9 @@
-// Pizarra: el DT y el ayudante arman la formación del partido.
+// Pizarra: el DT arma el plan y el jugador ve primero su puesto.
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Pitch } from "@/components/fija/pitch";
-import { JugadaPanel } from "@/components/fija/jugada-panel";
-import { SquadPanel } from "@/components/fija/squad-panel";
-import { Segmented } from "@/components/fija/segmented";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES, puestoDe } from "@/lib/fija/formations";
-import { formatWhen, personLabel } from "@/lib/fija/format";
+import { useState } from "react";
+import { PizarraViva } from "@/components/fija/pizarra-viva";
+import { formatWhen } from "@/lib/fija/format";
 import { matchSettled, nextEvent, sheetFor, useFija, useIsStaff } from "@/lib/fija/store";
-import type { Modality } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/cancha")({ component: CanchaPage });
 
@@ -20,17 +12,6 @@ function CanchaPage() {
   const events = useFija((s) => s.events);
   const tournaments = useFija((s) => s.tournaments);
   const sheets = useFija((s) => s.matchSheets);
-  const members = useFija((s) => s.members);
-  const setSpot = useFija((s) => s.setSpot);
-  const setBoardShape = useFija((s) => s.setBoardShape);
-  const setTactics = useFija((s) => s.setTactics);
-  const setJugada = useFija((s) => s.setJugada);
-  const setNotaJugador = useFija((s) => s.setNota);
-  const code = useFija((s) => s.club?.inviteCode ?? "");
-  const rsvps = useFija((s) => s.rsvps);
-  const publishLineup = useFija((s) => s.publishLineup);
-    const setJuega = useFija((s) => s.setJuega);
-  const me = useFija((s) => s.members.find((m) => m.id === s.activeId));
   const matchEvents = events
     .filter((event) => event.kind === "partido")
     .filter((event) => {
@@ -44,261 +25,41 @@ function CanchaPage() {
   const fallback = nextEvent(matchEvents, { tournaments, sheets }) ?? matchEvents[matchEvents.length - 1];
   const [eventId, setEventId] = useState(fallback?.id ?? "");
   const event = matchEvents.find((e) => e.id === eventId) ?? fallback;
-  const [slot, setSlot] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
-  const players = members.filter((m) => m.juega ?? m.role === "jugador");
-  const used = useMemo(() => new Set(Object.values(event?.lineup ?? {})), [event]);
-  const filled = Object.keys(event?.lineup ?? {}).length;
-  function cambiarFormacion(nuevaId: string) {
-    if (!event) return;
-    const actual = event.formacion ?? FORMATIONS[event.modality][0].id;
-    if (actual === nuevaId) return;
-    setNote(setBoardShape(event.id, event.modality, nuevaId));
-  }
-
-  function cambiarModalidad(modality: Modality) {
-    if (!event || event.modality === modality) return;
-    setNote(setBoardShape(event.id, modality, FORMATIONS[modality][0].id));
-  }
 
   if (!event) {
     return (
       <main className="px-4 py-6">
         <h1 className="text-3xl font-semibold">Sin pizarra</h1>
-        <p className="mt-2 text-sm text-muted">
-          Agendá un partido para armar la formación. También entran los amistosos.
-        </p>
+        <p className="mt-2 text-sm text-muted">Agendá un partido para armar la formación.</p>
       </main>
     );
   }
 
-  const forma = FORMATIONS[event.modality].find((item) => item.id === event.formacion) ?? FORMATIONS[event.modality][0];
-  const miPuesto = me ? puestoDe(event.lineup, me.id, forma.slots) : undefined;
-  const miNota = me ? event.notas?.[me.id] : undefined;
-
   return (
     <main className="px-4 py-5">
       <h1 className="text-3xl font-semibold">Pizarra</h1>
-      <p className="text-sm text-muted">{formatWhen(event.startsAt)}</p>
-
+      <p className="text-sm text-muted">{event.title} · {formatWhen(event.startsAt)}</p>
       {matchEvents.length > 1 ? (
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {matchEvents.map((e) => (
+          {matchEvents.map((item) => (
             <button
-              key={e.id}
+              key={item.id}
               type="button"
-              onClick={() => setEventId(e.id)}
-              className={`h-11 shrink-0 rounded-md px-3 text-xs font-semibold ${
-                e.id === event.id ? "bg-accent text-accent-fg" : "bg-surface text-muted"
-              }`}
+              onClick={() => setEventId(item.id)}
+              className={`h-11 shrink-0 rounded-md px-3 text-xs font-semibold ${item.id === event.id ? "bg-accent text-accent-fg" : "bg-surface text-muted"}`}
             >
-              {e.title}
+              {item.title}
             </button>
           ))}
         </div>
       ) : null}
-
       {staff || event.lineupPublishedAt ? (
-        <section className="vestuario-board mt-4 rounded-3xl p-3">
-          <p className="px-1 text-lg font-semibold text-line">{event.title}</p>
-          <div className="mt-3">
-              {staff ? (
-                <Segmented
-                  className="mt-1"
-                  value={event.modality}
-                  onChange={cambiarModalidad}
-                  options={MODALITIES.map((id) => ({ id, label: MODALITY_SHORT[id] }))}
-                />
-              ) : (
-                <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-                  {MODALITY_LABEL[event.modality]}
-                </p>
-              )}
-              {staff ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {FORMATIONS[event.modality].map((item) => {
-                    const activa = forma.id === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => cambiarFormacion(item.id)}
-                        className={`h-11 shrink-0 rounded-md px-3 text-xs font-semibold ${
-                          activa ? "bg-accent text-accent-fg" : "bg-bg text-muted"
-                        }`}
-                      >
-                        {item.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : null}
-              {staff && me ? (
-                <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-line/80">
-                  <input
-                    type="checkbox"
-                    className="size-5 accent-accent"
-                    checked={me.juega ?? false}
-                    onChange={(e) => setJuega(me.id, e.target.checked)}
-                  />
-                  Jugar yo también
-                </label>
-              ) : null}
-              {!staff && me ? (
-                <div className="mb-3 rounded-2xl border border-line/25 bg-black/30 p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Tu puesto</p>
-                  {miPuesto ? (
-                    <>
-                      <p className="mt-1 text-2xl font-semibold text-line">
-                        {me.nick}
-                        {me.number != null ? ` · ${me.number}` : ""} · {miPuesto.label}
-                      </p>
-                      <p className="mt-2 text-xl font-medium leading-snug text-line">
-                        {miNota || "El DT todavía no te dejó una indicación."}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="mt-2 text-base text-line">Hoy no salís. La formación está abajo.</p>
-                  )}
-                </div>
-              ) : null}
-              <Pitch
-                modality={event.modality}
-                formacionId={event.formacion}
-                lineup={event.lineup}
-                members={members}
-                editable={staff}
-                highlightId={staff ? undefined : me?.id}
-                onSlot={staff ? setSlot : undefined}
-              />
-              {staff ? (
-                <ul className="mt-3 grid gap-2">
-                  {Object.entries(event.lineup).map(([key, id]) => {
-                    const person = members.find((item) => item.id === id);
-                    const puesto = forma.slots.find((slot) => slot.key === key);
-                    if (!person) return null;
-                    return (
-                      <li key={key}>
-                        <label className="block text-xs text-line/80">
-                          {person.nick} · {puesto?.label ?? "Puesto"}
-                          <input
-                            className="mt-1 h-12 w-full rounded-md bg-black/30 px-3 text-base text-line"
-                            maxLength={80}
-                            placeholder="Su indicación"
-                            value={event.notas?.[id] ?? ""}
-                            onChange={(e) => setNotaJugador(event.id, id, e.target.value)}
-                          />
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : null}
-              {staff ? (
-                <p className="mt-2 text-center text-xs text-line/80">Tocá un puesto para poner o sacar a alguien.</p>
-              ) : null}
-              <JugadaPanel
-                staff={staff}
-                code={code}
-                eventId={event.id}
-                jugada={event.jugada}
-                onChange={(notas) => setJugada(event.id, notas)}
-              />
-            </div>
-            <div className="mt-3 rounded-2xl border border-line/25 bg-black/30 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">
-                {staff ? "Indicaciones" : "Para todo el equipo"}
-              </p>
-              {staff ? (
-                <Textarea
-                  className="mt-2 min-h-28 border-line/30 bg-transparent text-base text-line placeholder:text-line/40"
-                  rows={4}
-                  maxLength={180}
-                  value={event.tactics}
-                  onChange={(e) => setTactics(event.id, e.target.value)}
-                  placeholder="Lo que se dice en el vestuario, antes de salir."
-                />
-              ) : (
-                <p className="mt-2 whitespace-pre-wrap text-xl font-medium leading-snug text-line">
-                  {event.tactics || "El DT todavía no dejó indicaciones."}
-                </p>
-              )}
-            </div>
-        </section>
+        <PizarraViva key={event.id} event={event} />
       ) : (
         <p className="mt-4 rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">
           El DT todavía no publicó la formación.
         </p>
       )}
-
-      {note ? <p className="mt-3 text-center text-sm font-semibold text-accent">{note}</p> : null}
-      {staff ? (
-        <Button
-          className="mt-3 h-14 w-full text-base"
-          disabled={filled === 0}
-          onClick={() => {
-            publishLineup(event.id);
-            setNote("Publicado. El plantel ya puede ver la pizarra.");
-          }}
-        >
-          {event.lineupPublishedAt ? "Actualizar formación y avisar" : "Publicar formación"}
-        </Button>
-      ) : null}
-      {event.lineupPublishedAt && !staff ? (
-        <p className="mt-2 text-center text-xs text-muted">Formación publicada.</p>
-      ) : null}
-      {staff || event.lineupPublishedAt ? <SquadPanel event={event} staff={staff} onNotice={setNote} /> : null}
-
-      <Dialog open={slot != null} onOpenChange={(o) => !o && setSlot(null)}>
-        <DialogContent title="Elegí jugador">
-          <ul className="max-h-80 space-y-1 overflow-auto">
-            {slot ? (
-              <li>
-                <Button
-                  variant="ghost"
-                  className="h-12 w-full justify-start"
-                  onClick={() => {
-                    if (!staff || !slot) return;
-                    setNote(setSpot(event.id, slot, null));
-                    setSlot(null);
-                  }}
-                >
-                  Dejar vacío
-                </Button>
-              </li>
-            ) : null}
-            <li className="px-3 py-2 text-sm text-muted">
-              Entran los convocados que no dijeron que no van. Si todavía no contestaron, podés ponerlos igual.
-            </li>
-            {players
-              .filter((p) => {
-                const llamado = event.convocados ? event.convocados.includes(p.id) : true;
-                const noVa = rsvps.some(
-                  (row) => row.eventId === event.id && row.memberId === p.id && row.status === "no",
-                );
-                return llamado && !noVa;
-              })
-              .map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  className="flex h-12 w-full items-center justify-between rounded-md px-3 text-sm hover:bg-surface-2"
-                  onClick={() => {
-                    if (!staff || !slot) return;
-                    setNote(setSpot(event.id, slot, p.id));
-                    setSlot(null);
-                  }}
-                >
-                  <span>
-                    {personLabel(p, players)}
-                  </span>
-                  <span className="text-xs text-muted">{used.has(p.id) ? "en cancha" : p.name.split(" ")[1]}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </DialogContent>
-      </Dialog>
     </main>
   );
 }

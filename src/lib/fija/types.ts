@@ -26,6 +26,50 @@ export type TournamentStatus = "active" | "finished";
 export type GpsConsent = "unset" | "granted" | "denied";
 export type ItemEquipamiento = "remeras" | "pelotas";
 
+export type PlanId = "a" | "b" | "c";
+export type Trazo = "flecha" | "pase" | "zona" | "circulo";
+
+export type Dibujo = {
+  id: string;
+  trazo: Trazo;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+};
+
+export type PlanPizarra = {
+  id: PlanId;
+  idea: string;
+  cambio: string;
+  lineup: Record<string, string>;
+  dibujos: Dibujo[];
+};
+
+export type FichaPaso = { memberId: string; x: number; y: number };
+
+export type CuadroPaso = {
+  texto: string;
+  fichas: FichaPaso[];
+  pelota: { x: number; y: number };
+};
+
+export type TipoPelota = "jugada" | "corned" | "tiro" | "lateral" | "salida";
+
+export type JugadaPaso = {
+  id: string;
+  nombre: string;
+  tipo: TipoPelota;
+  cuadros: CuadroPaso[];
+};
+
+export type JugadaGuardada = {
+  id: string;
+  nombre: string;
+  tipo: string;
+  cuadros: CuadroPaso[];
+};
+
 export type Member = {
   id: string;
   name: string;
@@ -145,6 +189,18 @@ export type ClubEvent = {
   encuesta?: Encuesta;
   /** Gana la copia más nueva de la card. */
   fechaUpdatedAt?: string;
+  /** Planes B y C. El A es la formación publicada. */
+  planes?: PlanPizarra[];
+  /** El plan que está mirando el plantel. */
+  planActivo?: "a" | "b" | "c";
+  /** Jugada en cuadros. */
+  pasos?: JugadaPaso;
+  /** Link de un video. No se sube el archivo. */
+  videoUrl?: string;
+  /** Quién abrió la pizarra. */
+  vistos?: { memberId: string; at: string }[];
+  /** Jugadores que tienen un audio propio. */
+  audioDe?: string[];
 };
 
 
@@ -232,6 +288,8 @@ export type ClubBundle = {
   /** Cuentas que el DT sacó. No las manda el celular: las escribe el servidor. */
   bannedAccounts?: { accountId: string; name: string; at: string }[];
   caja?: Caja;
+  /** Jugadas que el DT guarda para otro partido. */
+  biblioteca?: JugadaGuardada[];
 };
 
 export type Alumni = {
@@ -326,6 +384,7 @@ export type AppState = {
   droppedCharlaIds?: string[];
   alumni?: Alumni[];
   caja?: Caja;
+  biblioteca?: JugadaGuardada[];
   archivedClubs: ClubBundle[];
   profile: Profile;
   gpsConsent: GpsConsent;

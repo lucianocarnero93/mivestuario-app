@@ -469,6 +469,7 @@ export function createSeed(): Omit<AppState, "hydrated"> {
     gpsConsent: "unset",
     charla: callups.charla,
     caja: { tesoreroId: "dt", gastos: [], cobros: [] },
+    biblioteca: [],
     messages: [
       {
         id: "m1",
