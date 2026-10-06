@@ -13,6 +13,7 @@ import {
   editarPlan,
   faltanVer,
   guardarPasos,
+  cambiarEsquema,
   JUGADAS_ABIERTAS,
   moverEnCuadro,
   nombreDeJugada,
@@ -63,7 +64,8 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
   const marcarVisto = useFija((s) => s.marcarVisto);
   const pasarAlPlan = useFija((s) => s.pasarAlPlan);
   const guardarEnBiblioteca = useFija((s) => s.guardarEnBiblioteca);
-  const duplicarEnBiblioteca = useFija((s) => s.duplicarEnBiblioteca);
+  const sacarDeBiblioteca = useFija((s) => s.sacarDeBiblioteca);
+  const mostrarJugada = useFija((s) => s.mostrarJugada);
   const biblioteca = useFija((s) => s.biblioteca ?? []);
   const setSpot = useFija((s) => s.setSpot);
   const setBoardShape = useFija((s) => s.setBoardShape);
@@ -78,7 +80,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
   const [nota, setNota] = useState("");
   const [aviso, setAviso] = useState("");
   const plan = planVisible(event, planId);
-  const forma = FORMATIONS[event.modality].find((item) => item.id === event.formacion) ?? FORMATIONS[event.modality][0];
+  const forma = FORMATIONS[event.modality].find((item) => item.id === (plan.formacion || event.formacion)) ?? FORMATIONS[event.modality][0];
   const miPuesto = me ? puestoDe(plan.lineup, me.id, forma.slots) : undefined;
   const vistas = VISTAS.filter((item) => !item.staff || staff);
 
@@ -146,16 +148,21 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
             <div className="mb-3">
               <Segmented
                 value={event.modality}
-                onChange={(modality) => setNota(setBoardShape(event.id, modality, FORMATIONS[modality][0].id) ?? "")}
+                onChange={(modality) => {
+                  setNota(setBoardShape(event.id, modality, FORMATIONS[modality][0].id) ?? "");
+                  const fresco = useFija.getState().events.find((item) => item.id === event.id);
+                  if (fresco?.planes?.length) aplicar(event.id, { planes: fresco.planes.map((item) => ({ ...item, formacion: undefined })) });
+                }}
                 options={MODALITIES.map((id) => ({ id, label: MODALITY_SHORT[id] }))}
               />
-              <div className="mt-3 flex flex-wrap gap-2">
+              <p className="mt-3 text-xs text-muted">El esquema es de este plan.</p>
+              <div className="mt-2 flex flex-wrap gap-2">
                 {FORMATIONS[event.modality].map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    className={`h-11 rounded-md px-3 text-xs font-semibold ${forma.id === item.id ? "bg-accent text-accent-fg" : "bg-surface text-muted"}`}
-                    onClick={() => setNota(setBoardShape(event.id, event.modality, item.id) ?? "")}
+                    className={`h-11 rounded-md px-3 text-xs font-semibold ${(plan.formacion || event.formacion) === item.id ? "bg-accent text-accent-fg" : "bg-surface text-muted"}`}
+                    onClick={() => aplicarEvento(cambiarEsquema(event, planId, item.id))}
                   >
                     {item.name}
                   </button>
@@ -257,6 +264,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
           key={vista}
           event={event}
           seccion={vista === "pelota" ? "pelota" : "jugada"}
+          formacionId={plan.formacion}
           guardado={vista === "pelota" ? event.pelotaParada : event.pasos}
           predeterminadas={biblioteca}
           onMovimiento={(play) => {
@@ -276,17 +284,11 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
       {vista === "biblioteca" ? (
         <Biblioteca
           items={biblioteca}
-          onGuardar={() => {
-            if (!event.pasos) return;
-            guardarEnBiblioteca({ id: uid("jg"), nombre: event.pasos.nombre, tipo: event.pasos.tipo, cuadros: event.pasos.cuadros });
-            setAviso("Quedó en Mis jugadas.");
+          onSacar={(id) => {
+            sacarDeBiblioteca(id);
+            setAviso("Jugada eliminada.");
           }}
-          onDuplicar={(id) => {
-            duplicarEnBiblioteca(id);
-            const item = biblioteca.find((row) => row.id === id);
-            if (item) aplicar(event.id, { pasos: { id: uid("jp").slice(0, 16), nombre: item.nombre, tipo: "jugada", cuadros: item.cuadros } });
-            setAviso("Lista para este partido.");
-          }}
+          onMostrar={(id, visible) => mostrarJugada(id, visible)}
         />
       ) : null}
       {vista === "compartir" ? <Compartir event={event} crest={crest} lineup={plan.lineup} /> : null}
@@ -387,7 +389,7 @@ function CanchaConDibujo({
 
   return (
     <div ref={ref} className="relative mx-auto aspect-[5/7] w-full desk:w-[min(100%,calc(min(72dvh,100dvh-12rem)*5/7))]">
-      <Pitch modality={event.modality} formacionId={event.formacion} lineup={plan.lineup} members={members} editable={editable} highlightId={highlightId} onSlot={editable ? onSlot : undefined} />
+      <Pitch modality={event.modality} formacionId={plan.formacion || event.formacion} lineup={plan.lineup} members={members} editable={editable} highlightId={highlightId} onSlot={editable ? onSlot : undefined} />
       <svg className={`absolute inset-0 h-full w-full ${dibujar ? "" : "pointer-events-none"}`} viewBox="0 0 100 100" preserveAspectRatio="none"
         onPointerDown={(pointer) => {
           if (!dibujar) return;
@@ -429,6 +431,7 @@ function Pasos({
   event,
   seccion,
   guardado,
+  formacionId,
   predeterminadas,
   onMovimiento,
   onPredeterminada,
@@ -436,19 +439,17 @@ function Pasos({
   event: ClubEvent;
   seccion: "jugada" | "pelota";
   guardado?: ClubEvent["pasos"];
+  formacionId?: string;
   predeterminadas: JugadaGuardada[];
   onMovimiento: (pasos: NonNullable<ClubEvent["pasos"]>) => void;
   onPredeterminada: (item: JugadaGuardada) => void;
 }) {
   const staff = useIsStaff();
-  const forma = FORMATIONS[event.modality].find((item) => item.id === event.formacion) ?? FORMATIONS[event.modality][0];
+  const forma = FORMATIONS[event.modality].find((item) => item.id === (formacionId || event.formacion)) ?? FORMATIONS[event.modality][0];
   const puestos = forma.slots.map((slot) => ({ key: slot.key, x: slot.x, y: slot.y, memberId: event.lineup[slot.key] }));
   const catalogo = seccion === "pelota" ? PELOTAS_PARADAS : JUGADAS_ABIERTAS;
   const propias = predeterminadas.filter((item) => (seccion === "jugada" ? item.tipo === "jugada" : item.tipo !== "jugada"));
-  const lista = [
-    ...catalogo.map((item) => propias.find((propia) => propia.id === item.id) ?? item),
-    ...propias.filter((item) => !catalogo.some((base) => base.id === item.id)),
-  ];
+  const visibles = propias.filter((item) => item.visible !== false);
   function cargar(id: string) {
     const propia = propias.find((item) => item.id === id);
     if (propia && propia.cuadros.length >= 2) {
@@ -496,6 +497,10 @@ function Pasos({
   function lugar(quien: string, x: number, y: number) {
     if (vivo?.quien === quien) return { x: vivo.x, y: vivo.y };
     return { x, y };
+  }
+
+  if (!staff && !deAqui) {
+    return <p className="mt-4 rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">El DT todavía no guardó este movimiento.</p>;
   }
 
   return (
@@ -580,22 +585,38 @@ function Pasos({
           <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" disabled={pasos.cuadros.length <= 2} onClick={() => { setPasos(sacarPaso(pasos, indice)); setCuadro(Math.max(0, indice - 1)); }}>Sacar este paso</button>
         </div>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {lista.map((item) => (
-          <button key={item.id} type="button" className={`h-11 rounded-md px-3 text-sm font-semibold ${pasos.id === item.id ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => { setPasos(cargar(item.id)); setCuadro(0); setPlay(false); }}>
-            {item.nombre}
-          </button>
-        ))}
-      </div>
+      {staff ? (
+        <>
+          {visibles.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {visibles.map((item) => (
+                <button key={item.id} type="button" className={`h-11 rounded-md px-3 text-sm font-semibold ${pasos.id === item.id ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => { setPasos(cargar(item.id)); setCuadro(0); setPlay(false); }}>
+                  {item.nombre}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-muted">No hay jugadas marcadas para mostrar. Las armás en Mis jugadas.</p>
+          )}
+          <p className="mt-3 text-xs font-semibold uppercase tracking-widest text-muted">De base</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {catalogo.map((item) => (
+              <button key={item.id} type="button" className="h-11 rounded-md bg-surface px-3 text-sm font-semibold" onClick={() => { setPasos(armarJugada(item.id, puestos)); setCuadro(0); setPlay(false); }}>
+                {item.nombre}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
       {staff ? (
         <div className="mt-3 grid gap-2">
           <Button className="h-12 w-full" onClick={() => onMovimiento(pasos)}>Guardar movimiento</Button>
-          <Button variant="secondary" className="h-12 w-full" onClick={() => onPredeterminada({ id: pasos.id, nombre: pasos.nombre || "Jugada", tipo: pasos.tipo, cuadros: pasos.cuadros })}>Guardar predeterminada</Button>
+          <Button variant="secondary" className="h-12 w-full" onClick={() => onPredeterminada({ id: pasos.id, nombre: pasos.nombre || "Jugada", tipo: pasos.tipo, cuadros: pasos.cuadros, visible: true })}>Guardar predeterminada</Button>
           <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" onClick={() => {
             const id = uid("jg").slice(0, 16);
             const nueva = { ...pasos, id, nombre: "Nueva" };
             setPasos(nueva);
-            onPredeterminada({ id, nombre: nueva.nombre, tipo: nueva.tipo, cuadros: nueva.cuadros });
+            onPredeterminada({ id, nombre: nueva.nombre, tipo: nueva.tipo, cuadros: nueva.cuadros, visible: true });
           }}>Nueva predeterminada</button>
         </div>
       ) : null}
@@ -712,17 +733,30 @@ function Vistos({ event, ids, nombres, onRecordar }: { event: ClubEvent; ids: st
   );
 }
 
-function Biblioteca({ items, onGuardar, onDuplicar }: { items: { id: string; nombre: string; tipo: string }[]; onGuardar: () => void; onDuplicar: (id: string) => void }) {
+function Biblioteca({
+  items,
+  onSacar,
+  onMostrar,
+}: {
+  items: JugadaGuardada[];
+  onSacar: (id: string) => void;
+  onMostrar: (id: string, visible: boolean) => void;
+}) {
   return (
     <div className="mt-3">
-      <Button className="h-12 w-full" onClick={onGuardar}>Guardar la jugada de este partido</Button>
+      <p className="text-sm text-muted">Acá están las predeterminadas. El movimiento de un partido no entra solo. Mostrá las que querés usar al armar.</p>
       <ul className="mt-3 grid gap-2">
-        {items.length === 0 ? <li className="text-sm text-muted">Todavía no guardaste jugadas.</li> : null}
+        {items.length === 0 ? <li className="text-sm text-muted">Todavía no guardaste ninguna.</li> : null}
         {items.map((item) => (
           <li key={item.id} className="rounded-lg bg-surface p-4">
-            <p className="text-xs uppercase tracking-widest text-muted">{item.tipo}</p>
+            <p className="text-xs uppercase tracking-widest text-muted">{item.tipo === "jugada" ? "Jugada" : "Pelota parada"}</p>
             <p className="mt-1 font-semibold">{item.nombre}</p>
-            <button type="button" className="mt-3 h-11 rounded-md bg-surface-2 px-3 text-sm font-semibold" onClick={() => onDuplicar(item.id)}>Usar en este partido</button>
+            <div className="mt-3 flex gap-2">
+              <button type="button" className="h-11 rounded-md bg-surface-2 px-3 text-sm font-semibold" onClick={() => onMostrar(item.id, item.visible === false)}>
+                {item.visible === false ? "Mostrar" : "Ocultar"}
+              </button>
+              <button type="button" className="h-11 rounded-md bg-surface-2 px-3 text-sm font-semibold" onClick={() => onSacar(item.id)}>Eliminar</button>
+            </div>
           </li>
         ))}
       </ul>

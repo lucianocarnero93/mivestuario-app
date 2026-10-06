@@ -1,3 +1,4 @@
+import { FORMATIONS } from "./formations.ts";
 import type {
   ClubEvent,
   CuadroPaso,
@@ -30,6 +31,7 @@ export function planVisible(event: ClubEvent, id: PlanId): PlanPizarra {
       cambio: textoPropio(saved?.cambio),
       lineup: event.lineup ?? {},
       dibujos: saved?.dibujos ?? [],
+      formacion: saved?.formacion || event.formacion,
     };
   }
   return {
@@ -38,6 +40,7 @@ export function planVisible(event: ClubEvent, id: PlanId): PlanPizarra {
     cambio: textoPropio(saved?.cambio),
     lineup: saved?.lineup ? { ...saved.lineup } : { ...(event.lineup ?? {}) },
     dibujos: saved?.dibujos ?? [],
+    formacion: saved?.formacion || event.formacion,
   };
 }
 
@@ -46,11 +49,12 @@ function guardarPlan(event: ClubEvent, siguiente: PlanPizarra): ClubEvent {
   return {
     ...event,
     lineup: siguiente.id === "a" ? siguiente.lineup : event.lineup,
+    formacion: siguiente.id === "a" && siguiente.formacion ? siguiente.formacion : event.formacion,
     planes: planes.map((plan) => (plan.id === "a" ? { ...plan, lineup: {} } : plan)),
   };
 }
 
-export function editarPlan(event: ClubEvent, id: PlanId, patch: Partial<Pick<PlanPizarra, "idea" | "cambio" | "lineup" | "dibujos">>): ClubEvent {
+export function editarPlan(event: ClubEvent, id: PlanId, patch: Partial<Pick<PlanPizarra, "idea" | "cambio" | "lineup" | "dibujos" | "formacion">>): ClubEvent {
   const actual = planVisible(event, id);
   return guardarPlan(event, {
     ...actual,
@@ -58,7 +62,34 @@ export function editarPlan(event: ClubEvent, id: PlanId, patch: Partial<Pick<Pla
     cambio: patch.cambio !== undefined ? patch.cambio.slice(0, 80) : actual.cambio,
     lineup: patch.lineup ?? actual.lineup,
     dibujos: (patch.dibujos ?? actual.dibujos).slice(0, 30),
+    formacion: patch.formacion !== undefined ? patch.formacion : actual.formacion,
   });
+}
+
+function slotsDe(modality: ClubEvent["modality"], formacionId?: string) {
+  const lista = FORMATIONS[modality];
+  return (lista.find((item) => item.id === formacionId) ?? lista[0]).slots;
+}
+
+export function cambiarEsquema(event: ClubEvent, planId: PlanId, formacionId: string): ClubEvent {
+  let base = event;
+  for (const id of ["a", "b", "c"] as PlanId[]) {
+    const guardado = base.planes?.find((plan) => plan.id === id)?.formacion;
+    if (!guardado) base = editarPlan(base, id, { formacion: planVisible(base, id).formacion || base.formacion });
+  }
+  const actual = planVisible(base, planId);
+  const ordered = slotsDe(base.modality, actual.formacion)
+    .map((slot) => actual.lineup[slot.key])
+    .filter((id): id is string => Boolean(id));
+  const lineup: Record<string, string> = {};
+  const used = new Set<string>();
+  slotsDe(base.modality, formacionId).forEach((slot, index) => {
+    const id = ordered[index];
+    if (!id || used.has(id)) return;
+    lineup[slot.key] = id;
+    used.add(id);
+  });
+  return editarPlan(base, planId, { lineup, formacion: formacionId });
 }
 
 export function ponerEnPlan(event: ClubEvent, id: PlanId, slot: string, memberId: string | null): ClubEvent {

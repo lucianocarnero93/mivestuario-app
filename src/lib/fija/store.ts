@@ -108,6 +108,8 @@ type State = ReturnType<typeof createSeed> & {
   pasarAlPlan: (eventId: string, planId: "a" | "b" | "c") => void;
   guardarEnBiblioteca: (item: JugadaGuardada) => void;
   duplicarEnBiblioteca: (id: string) => void;
+  sacarDeBiblioteca: (id: string) => void;
+  mostrarJugada: (id: string, visible: boolean) => void;
   publishLineup: (eventId: string) => void;
   sendChat: (text: string) => void;
   postCharla: (text: string) => void;
@@ -717,6 +719,18 @@ export const useFija = create<State>()(
       duplicarEnBiblioteca: (id) => {
         if (!isStaffId(get())) return;
         set({ biblioteca: duplicarJugada(get().biblioteca, id, uid("jg")) });
+      },
+
+      sacarDeBiblioteca: (id) => {
+        if (!isStaffId(get())) return;
+        set({ biblioteca: (get().biblioteca ?? []).filter((row) => row.id !== id) });
+      },
+
+      mostrarJugada: (id, visible) => {
+        if (!isStaffId(get())) return;
+        set({
+          biblioteca: (get().biblioteca ?? []).map((row) => (row.id === id ? { ...row, visible } : row)),
+        });
       },
 
       // Avisa a todo el plantel que la formación ya está publicada.

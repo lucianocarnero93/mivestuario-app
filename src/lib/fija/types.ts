@@ -44,6 +44,8 @@ export type PlanPizarra = {
   cambio: string;
   lineup: Record<string, string>;
   dibujos: Dibujo[];
+  /** Esquema de este plan. Si falta, usa el del partido. */
+  formacion?: string;
 };
 
 export type FichaPaso = { memberId: string; x: number; y: number };
@@ -68,6 +70,8 @@ export type JugadaGuardada = {
   nombre: string;
   tipo: string;
   cuadros: CuadroPaso[];
+  /** Si es false, no aparece para armar la del partido. */
+  visible?: boolean;
 };
 
 export type Member = {

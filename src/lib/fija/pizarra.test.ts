@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   aplicarVistosJugador,
+  cambiarEsquema,
   deshacerDibujo,
   duplicarJugada,
   editarPlan,
@@ -68,6 +69,17 @@ test("la jugada pide dos cuadros y el video tiene que ser un link", () => {
   assert.equal(guardarPasos(partido(), { id: "x", nombre: "x", tipo: "jugada", cuadros: [] }).pasos, undefined);
   assert.equal(videoLimpio("https://youtube.com/watch?v=1"), "https://youtube.com/watch?v=1");
   assert.equal(videoLimpio("nota.mp4"), "");
+});
+
+test("cada plan tiene su esquema", () => {
+  const base = { ...partido(), formacion: "clasica" };
+  const soloB = cambiarEsquema(base, "b", "ofensiva");
+  assert.equal(soloB.formacion, "clasica");
+  assert.equal(planVisible(soloB, "a").formacion, "clasica");
+  assert.equal(planVisible(soloB, "b").formacion, "ofensiva");
+  const soloA = cambiarEsquema(base, "a", "ofensiva");
+  assert.equal(soloA.formacion, "ofensiva");
+  assert.equal(planVisible(soloA, "b").formacion, "clasica");
 });
 
 test("el dt mueve una ficha y puede sumar un paso", () => {
