@@ -16,6 +16,7 @@ import { PwaRegister } from "./pwa-register";
 import { SignInPanel } from "./sign-in-panel";
 import { EdadGate } from "./edad-gate";
 import { traerImagenesEquipo } from "@/lib/fija/fotos-card";
+import { TeamCrest } from "./team-crest";
 
 const NAV = [
   { to: "/", label: "Inicio", icon: House, exact: true },
