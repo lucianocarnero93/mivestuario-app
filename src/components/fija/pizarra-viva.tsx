@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Eye, Link2, Mic, Pause, Play } from "lucide-react";
+import { Link2, Mic, Pause, Play } from "lucide-react";
 import { Pitch } from "@/components/fija/pitch";
 import { SquadPanel } from "@/components/fija/squad-panel";
 import { Segmented } from "@/components/fija/segmented";
@@ -11,7 +11,6 @@ import { personLabel, uid } from "@/lib/fija/format";
 import { loadAudioJugada, saveAudioJugada } from "@/lib/fija/cloud";
 import {
   editarPlan,
-  faltanVer,
   guardarPasos,
   cambiarEsquema,
   JUGADAS_ABIERTAS,
@@ -37,7 +36,6 @@ type Vista =
   | "jugada"
   | "pelota"
   | "charla"
-  | "vistos"
   | "biblioteca"
   | "partido"
   | "compartir";
@@ -48,7 +46,6 @@ const VISTAS: { id: Vista; label: string; staff?: boolean }[] = [
   { id: "jugada", label: "Jugada" },
   { id: "pelota", label: "Pelota parada" },
   { id: "charla", label: "Charla" },
-  { id: "vistos", label: "Quién lo vio", staff: true },
   { id: "biblioteca", label: "Mis jugadas", staff: true },
   { id: "partido", label: "Modo partido", staff: true },
   { id: "compartir", label: "Compartir" },
@@ -61,7 +58,6 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
   const code = useFija((s) => s.club?.inviteCode ?? "");
   const crest = useFija((s) => s.club?.crest);
   const aplicar = useFija((s) => s.aplicarPizarra);
-  const marcarVisto = useFija((s) => s.marcarVisto);
   const pasarAlPlan = useFija((s) => s.pasarAlPlan);
   const guardarEnBiblioteca = useFija((s) => s.guardarEnBiblioteca);
   const sacarDeBiblioteca = useFija((s) => s.sacarDeBiblioteca);
@@ -83,10 +79,6 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
   const forma = FORMATIONS[event.modality].find((item) => item.id === (plan.formacion || event.formacion)) ?? FORMATIONS[event.modality][0];
   const miPuesto = me ? puestoDe(plan.lineup, me.id, forma.slots) : undefined;
   const vistas = VISTAS.filter((item) => !item.staff || staff);
-
-  useEffect(() => {
-    if (me?.id) marcarVisto(event.id);
-  }, [event.id, me?.id, marcarVisto]);
 
   function aplicarEvento(next: ClubEvent) {
     aplicar(event.id, {
@@ -292,7 +284,6 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
           }}
         />
       ) : null}
-      {vista === "vistos" ? <Vistos event={event} ids={players.map((p) => p.id)} nombres={members} onRecordar={setAviso} /> : null}
       {vista === "biblioteca" ? (
         <Biblioteca
           items={biblioteca}
@@ -726,29 +717,6 @@ function VideoLink({ event, staff, onChange }: { event: ClubEvent; staff: boolea
       ) : (
         <p className="mt-2 text-sm text-muted">Un link de YouTube o un clip. No se sube el video.</p>
       )}
-    </div>
-  );
-}
-
-function Vistos({ event, ids, nombres, onRecordar }: { event: ClubEvent; ids: string[]; nombres: { id: string; nick: string }[]; onRecordar: (t: string) => void }) {
-  const vistos = new Set((event.vistos ?? []).map((item) => item.memberId));
-  const faltan = faltanVer(event, ids);
-  return (
-    <div className="mt-3">
-      <h2 className="font-display text-4xl font-bold">{ids.length - faltan.length} de {ids.length}</h2>
-      <ul className="mt-3 grid gap-2">
-        {ids.map((id) => (
-          <li key={id} className="flex h-12 items-center justify-between rounded-md bg-surface px-3">
-            <span>{nombres.find((item) => item.id === id)?.nick ?? "Jugador"}</span>
-            <span className={vistos.has(id) ? "flex items-center gap-1 text-sm text-accent" : "text-sm text-muted"}>{vistos.has(id) ? <Eye className="size-4" /> : null}{vistos.has(id) ? "Vio" : "No vio"}</span>
-          </li>
-        ))}
-      </ul>
-      <Button className="mt-3 h-14 w-full" onClick={() => {
-        const texto = `Mirá tu puesto antes del partido. Todavía no lo viste.`;
-        void navigator.clipboard?.writeText(texto);
-        onRecordar("Aviso copiado para WhatsApp.");
-      }}>Recordar a los que no lo vieron</Button>
     </div>
   );
 }
