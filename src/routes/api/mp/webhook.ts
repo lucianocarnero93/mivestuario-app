@@ -1,20 +1,29 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { marcarPagoMp } from "@/lib/fija/mercadopago";
+import { firmaMpValida } from "@/lib/fija/mp-firma";
 
 export const Route = createFileRoute("/api/mp/webhook")({
   server: {
     handlers: {
       POST: async ({ request }) => {
         const url = new URL(request.url);
-        let paymentId = url.searchParams.get("id") ?? "";
+        let paymentId = url.searchParams.get("data.id") ?? url.searchParams.get("id") ?? "";
         let topic = url.searchParams.get("topic") ?? url.searchParams.get("type") ?? "";
         try {
           const body = (await request.json()) as { type?: string; data?: { id?: string | number } };
           topic = body.type || topic;
-          if (body.data?.id) paymentId = String(body.data.id);
+          if (!paymentId && body.data?.id) paymentId = String(body.data.id);
         } catch {
           // Mercado Pago a veces avisa solo por query.
         }
+        const secret = process.env.MP_WEBHOOK_SECRET?.trim() ?? "";
+        const firmado = firmaMpValida({
+          secret,
+          signature: request.headers.get("x-signature"),
+          requestId: request.headers.get("x-request-id"),
+          dataId: url.searchParams.get("data.id") ?? paymentId,
+        });
+        if (!firmado) return new Response("no", { status: 401 });
         if ((topic === "payment" || url.searchParams.get("topic") === "payment") && paymentId) {
           const { getSql } = await import("@/lib/db");
           const sql = await getSql();
