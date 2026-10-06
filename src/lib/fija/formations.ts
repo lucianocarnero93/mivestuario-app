@@ -209,6 +209,23 @@ export const FORMATIONS: Record<Modality, Formation[]> = {
       ],
     },
     {
+      id: "4-4-2-enganche",
+      name: "4-4-2 (con enganche)",
+      slots: [
+        { key: "ARQ", label: "ARQ", x: 50, y: 88 },
+        { key: "LI", label: "LI", x: 14, y: 68 },
+        { key: "DFI", label: "DF", x: 34, y: 74 },
+        { key: "DFD", label: "DF", x: 66, y: 74 },
+        { key: "LD", label: "LD", x: 86, y: 68 },
+        { key: "MI", label: "MI", x: 16, y: 46 },
+        { key: "MC", label: "MC", x: 50, y: 54 },
+        { key: "ENG", label: "ENG", x: 50, y: 34 },
+        { key: "MD", label: "MD", x: 84, y: 46 },
+        { key: "DC1", label: "DC", x: 38, y: 18 },
+        { key: "DC2", label: "DC", x: 62, y: 18 },
+      ],
+    },
+    {
       id: "4-3-3",
       name: "4-3-3 (ofensiva)",
       slots: [
