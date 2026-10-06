@@ -76,6 +76,7 @@ function EquipoPage() {
       {staff ? (
         <div className="mt-4">
           <CrestPicker src={club?.crest} name={club?.name} onChange={setClubCrest} />
+          <p className="mt-1 text-xs text-muted">Lo cambian el DT y el ayudante. Quitar foto lo saca del equipo.</p>
         </div>
       ) : null}
       <div className="mt-4">

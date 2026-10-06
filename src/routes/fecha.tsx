@@ -5,7 +5,8 @@ import { PremiosFecha } from "@/components/fija/premios-fecha";
 import { useContextoPremios } from "@/components/fija/use-premios";
 import { PlayerAvatar } from "@/components/fija/stat-blocks";
 import { Button } from "@/components/ui/button";
-import { enJuego, estaJugado, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
+import { enJuego, estaJugado, fechaVisible, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
+import { formatWhen } from "@/lib/fija/format";
 import { etiquetaPremio, premiosDelPartido } from "@/lib/fija/premios";
 import { alumniMember } from "@/lib/fija/stats";
 import { resultIsOpen } from "@/lib/fija/club-rules";
@@ -32,11 +33,7 @@ function FechaPage() {
   const sheets = useFija((s) => s.matchSheets);
   const staff = useIsStaff();
   const elegido = events.find((event) => event.id === partido && event.kind === "partido");
-  const vivo = events.find((event) => event.kind === "partido" && enJuego(event) && !event.fechaOculta);
-  const ultimo = [...events]
-    .filter((event) => event.kind === "partido" && event.resultClosedAt && (staff || !event.fechaOculta))
-    .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))[0];
-  const actual = elegido ?? vivo ?? ultimo;
+  const actual = elegido ?? fechaVisible(events, undefined, staff);
   const recap = recapSemana(events, sheets);
 
   return (
@@ -86,9 +83,10 @@ function FechaViva({ event }: { event: ClubEvent }) {
   return (
     <section className="mt-4">
       <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-        {cerrado ? "Final" : enJuego(event) ? "En juego" : "Próximo"}
+        {cerrado ? "Final" : enJuego(event) ? "En juego" : Date.parse(event.startsAt) <= Date.now() ? "Falta el resultado" : "Próximo"}
       </p>
       <h2 className="mt-1 text-3xl font-semibold">{event.title}</h2>
+      <p className="text-sm text-muted">{formatWhen(event.startsAt)}</p>
       <p className="text-sm text-muted">
         {event.place || "Sin cancha"}
         {racha > 1 ? ` · ${racha} voy seguidos` : ""}
@@ -104,7 +102,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
         <p className="mt-3 text-sm text-muted">Todavía no hay marcador.</p>
       )}
       {goleadores ? <p className="mt-2 text-sm">Goles: {goleadores}</p> : null}
-      {staff && !cerrado ? <EnCancha event={event} /> : null}
+      {staff && !cerrado && enJuego(event) ? <EnCancha event={event} /> : null}
       {staff ? <ParaLaFamilia event={event} /> : null}
       <div className="mt-3 grid gap-2">
         {staff && !cerrado && resultIsOpen(event.startsAt) && sheet ? (

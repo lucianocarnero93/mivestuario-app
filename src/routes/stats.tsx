@@ -92,7 +92,7 @@ function StatsPage() {
   const scorers = rankedBy(rows, "goals");
   const assists = rankedBy(rows, "assists");
   const cardRows = rows.filter((row) => row.yellow > 0 || row.red > 0);
-  const ultimoConResultado = partidos.find((item) => sheetFor(item.id, sheets));
+  const ultimoConResultado = partidos.find((item) => matchSettled(item) && sheetFor(item.id, sheets));
   const figura = ultimoConResultado ? figuraDe(votes, ultimoConResultado.id) : null;
   const delMes = goleadorDelMes(scopedSheets, events);
   const byId = new Map(members.map((m) => [m.id, m]));
@@ -103,7 +103,7 @@ function StatsPage() {
     ? partidos.filter(
         (e) =>
           !eventOfClosedTournament(e, tournaments) &&
-          !sheetFor(e.id, sheets) &&
+          !matchSettled(e) &&
           +new Date(e.startsAt) < Date.now(),
       )
     : [];
@@ -302,7 +302,7 @@ function StatsPage() {
         ) : (
           <ul className="mt-2 space-y-2">
             {partidos
-              .filter((e) => sheetFor(e.id, sheets))
+              .filter((e) => matchSettled(e) && sheetFor(e.id, sheets))
               .map((event) => {
                 const sheet = sheetFor(event.id, sheets)!;
                 const result = outcome(sheet.goalsFor, sheet.goalsAgainst);

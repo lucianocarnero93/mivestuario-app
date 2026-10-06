@@ -6,7 +6,7 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
-import { alertsDue, pickMemberIdentity, preferRsvp, resultIsOpen } from "./club-rules";
+import { alertsDue, pickMemberIdentity, preferRsvp, resultIsOpen, escudoElegido } from "./club-rules";
 import { pruneBundle } from "./prune";
 import { clampHours } from "./share";
 import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
@@ -2753,8 +2753,9 @@ function mergeClubBundles(
   const club = trustLocal ? { ...remote.club, ...local.club } : { ...local.club, ...remote.club, ...(!who.staff ? {} : remote.club) };
   club.inviteCode = remote.club.inviteCode || local.club.inviteCode;
   club.createdBy = trustLocal ? local.club.createdBy || remote.club.createdBy : remote.club.createdBy;
-  if (!trustLocal) club.crest = remote.club.crest || local.club.crest;
-  if (!who.staff && local.club.crest) club.crest = local.club.crest;
+  club.crest = trustLocal
+    ? escudoElegido(remote.club.crest, local.club.crest, true)
+    : escudoElegido(local.club.crest, remote.club.crest, true);
   const droppedEvents = new Set([
     ...(remote.droppedEventIds ?? []),
     ...(who.staff ? (local.droppedEventIds ?? []) : []),

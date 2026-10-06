@@ -7,7 +7,7 @@ import { InviteShareButton } from "@/components/fija/invite-share";
 import { CopiarResultado, FiguraPartido } from "@/components/fija/partido";
 import { ConfirmGroups, StaffCallup } from "@/components/fija/staff-callup";
 import { Button } from "@/components/ui/button";
-import { ROLE_LABEL } from "@/lib/fija/format";
+import { ROLE_LABEL, formatWhen } from "@/lib/fija/format";
 import { nextEvent, sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
 
 export const Route = createFileRoute("/")({
@@ -165,7 +165,16 @@ function HomePage() {
         )
       ) : (
         <>
-          {convocatoria ? <StaffCallup event={convocatoria} /> : null}
+          {convocatoria ? (
+            <section className="mt-5">
+              {convocatoria.id !== event.id ? (
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">
+                  Convocatoria · {convocatoria.title} · {formatWhen(convocatoria.startsAt)}
+                </h2>
+              ) : null}
+              <StaffCallup event={convocatoria} />
+            </section>
+          ) : null}
           {(me.juega ?? me.role === "jugador") && !alreadyPlayed ? (
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Button

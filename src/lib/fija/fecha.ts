@@ -1,6 +1,7 @@
 import type { ClubEvent, Encuesta, MatchSheet, ReaccionFecha, Rsvp } from "./types.ts";
 
 const HORA = 3_600_000;
+const EN_JUEGO_HORAS = 8;
 
 export function estaJugado(event: ClubEvent, _sheet?: MatchSheet): boolean {
   return event.kind === "partido" && Boolean(event.resultClosedAt);
@@ -9,7 +10,34 @@ export function estaJugado(event: ClubEvent, _sheet?: MatchSheet): boolean {
 export function enJuego(event: ClubEvent, now = Date.now()): boolean {
   if (event.kind !== "partido" || event.resultClosedAt) return false;
   const start = Date.parse(event.startsAt);
-  return Number.isFinite(start) && start <= now;
+  if (!Number.isFinite(start) || start > now) return false;
+  return now - start <= EN_JUEGO_HORAS * HORA;
+}
+
+export function fechaVisible(
+  events: ClubEvent[],
+  elegidoId: string | undefined,
+  staff: boolean,
+  now = Date.now(),
+): ClubEvent | undefined {
+  const partidos = events.filter((event) => event.kind === "partido" && (staff || !event.fechaOculta));
+  const elegido = partidos.find((event) => event.id === elegidoId);
+  if (elegido) return elegido;
+  const vivo = partidos
+    .filter((event) => enJuego(event, now))
+    .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))[0];
+  if (vivo) return vivo;
+  const proximo = partidos
+    .filter((event) => !event.resultClosedAt && Date.parse(event.startsAt) > now)
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))[0];
+  if (proximo) return proximo;
+  const falta = partidos
+    .filter((event) => !event.resultClosedAt && Date.parse(event.startsAt) <= now)
+    .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))[0];
+  if (falta) return falta;
+  return partidos
+    .filter((event) => event.resultClosedAt)
+    .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))[0];
 }
 
 export function clasificarAgenda(events: ClubEvent[], sheets: MatchSheet[], now = Date.now()) {

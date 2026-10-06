@@ -22,6 +22,7 @@ import {
   noticeFits,
   pickMemberIdentity,
   resultIsOpen,
+  escudoElegido,
   playerNoticeAllowed,
   removeMemberEverywhere,
   sanitizeSheet,
@@ -562,6 +563,13 @@ test("la planilla no deja más goles individuales que el resultado", () => {
   });
   assert.equal(sheet.goalsFor, 1);
   assert.equal(sheet.players.reduce((sum, row) => sum + row.goals, 0), 1);
+});
+
+test("el ayudante cambia el escudo y quitarlo lo borra", () => {
+  const foto = "data:image/jpeg;base64,abc";
+  assert.equal(escudoElegido(null, foto, true), foto);
+  assert.equal(escudoElegido(foto, null, true), null);
+  assert.equal(escudoElegido(foto, "data:image/jpeg;base64,nueva", false), foto);
 });
 
 test("el apodo del DT no lo pisa el celular del jugador", () => {

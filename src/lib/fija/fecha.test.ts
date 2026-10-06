@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clasificarAgenda, contarConfirmaciones, estaJugado, ponerReaccion, recapSemana, votarEncuesta } from "./fecha.ts";
+import { clasificarAgenda, contarConfirmaciones, enJuego, estaJugado, fechaVisible, ponerReaccion, recapSemana, votarEncuesta } from "./fecha.ts";
 import type { ClubEvent, MatchSheet } from "./types.ts";
 
 function partido(id: string, startsAt: string, extra: Partial<ClubEvent> = {}): ClubEvent {
@@ -50,6 +50,16 @@ test("si la planilla está cerrada no queda como próximo", () => {
   assert.deepEqual(grupos.jugados.map((item) => item.id), ["p1"]);
   assert.equal(grupos.falta.length, 0);
   assert.equal(grupos.proximos.length, 0);
+});
+
+test("un partido de hace días no sigue en juego y la fecha muestra el de hoy", () => {
+  const ahora = Date.parse("2026-10-06T15:00:00-03:00");
+  const viejo = partido("olvidado", "2026-09-30T21:00:00-03:00", { title: "vs Olvidado" });
+  const hoy = partido("hoy", "2026-10-06T21:00:00-03:00", { title: "vs Hoy" });
+  assert.equal(enJuego(viejo, ahora), false);
+  assert.equal(enJuego(partido("vivo", "2026-10-06T14:00:00-03:00"), ahora), true);
+  assert.equal(enJuego(hoy, ahora), false);
+  assert.equal(fechaVisible([viejo, hoy], undefined, true, ahora)?.id, "hoy");
 });
 
 test("una planilla sin terminar no cuenta como jugado", () => {

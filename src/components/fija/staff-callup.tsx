@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { whatsAppClaimUrl } from "@/lib/fija/share";
+import { formatWhen } from "@/lib/fija/format";
 import { CopiarSinConfirmar } from "@/components/fija/partido";
 import {
   convocatoriaFor,
@@ -37,11 +38,13 @@ export function StaffCallup({ event }: { event: ClubEvent }) {
     <section className="mt-5">
       {conv ? (
         <p className="text-xs text-muted">
-          Convocatoria enviada. La alerta al jugador sale cuando faltan {policy.firstHours} h para el partido.
+          Convocatoria de {event.title} ({formatWhen(event.startsAt)}) enviada. La alerta al jugador sale cuando faltan {policy.firstHours} h para el partido.
           La lista de WhatsApp, cuando faltan {policy.secondHours} h.
         </p>
       ) : (
-        <p className="text-xs text-muted">Todavía no mandaste la convocatoria de este partido.</p>
+        <p className="text-xs text-muted">
+          Todavía no mandaste la convocatoria de {event.title} ({formatWhen(event.startsAt)}).
+        </p>
       )}
 
       <Button

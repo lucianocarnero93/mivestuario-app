@@ -24,6 +24,7 @@ import {
   guardMember,
   pickMemberIdentity,
   resultIsOpen,
+  escudoElegido,
   HARD_BYTES,
   mergeAlumni,
   mergePlayerAlerts,
@@ -1068,7 +1069,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           createdBy: callerIsCreator(existing, userId)
             ? incoming.club.createdBy || creatorId
             : creatorId,
-          crest: callerIsCreator(existing, userId) ? incoming.club.crest ?? existing.club.crest : existing.club.crest,
+          crest: escudoElegido(existing.club.crest, incoming.club.crest, staff),
         }
       : existing.club,
     members: listed,

@@ -341,6 +341,18 @@ export function resultIsOpen(startsAt: string, now = Date.now()): boolean {
   return Number.isFinite(start) && start <= now;
 }
 
+/** El escudo lo cambia el DT o el ayudante. `null` lo saca. Un jugador no lo pisa. */
+export function escudoElegido(
+  anterior: string | null | undefined,
+  pedido: string | null | undefined,
+  mandaElPedido: boolean,
+): string | null {
+  const previo = anterior?.startsWith("data:image/") ? anterior : null;
+  if (!mandaElPedido) return previo;
+  if (pedido && pedido.startsWith("data:image/") && pedido.length < 120_000) return pedido;
+  return null;
+}
+
 const FUTURE_SKEW_MS = 2 * 60 * 1000;
 
 function stampMillis(value: string | undefined, now: number): number | null {
