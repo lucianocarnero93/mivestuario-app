@@ -2,6 +2,15 @@ import type { Modality } from "./types";
 
 export type Slot = { key: string; label: string; x: number; y: number };
 
+export function puestoDe(
+  lineup: Record<string, string>,
+  memberId: string,
+  slots: Slot[],
+): Slot | undefined {
+  const key = Object.entries(lineup).find(([, id]) => id === memberId)?.[0];
+  return key ? slots.find((slot) => slot.key === key) : undefined;
+}
+
 export type Formation = {
   id: string;
   name: string;

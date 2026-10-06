@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { puestoDe } from "./formations.ts";
 import { notasVisibles, preferirJugada, sanitizeJugada } from "./jugada.ts";
+
+test("el puesto es el lugar del jugador en la formación", () => {
+  const slots = [
+    { key: "mc", label: "Volante", x: 50, y: 50 },
+    { key: "dc", label: "Delantero", x: 50, y: 20 },
+  ];
+  assert.equal(puestoDe({ mc: "mati", dc: "tobi" }, "mati", slots)?.label, "Volante");
+  assert.equal(puestoDe({ mc: "mati" }, "enzo", slots), undefined);
+});
 
 test("una jugada guarda el texto y si tiene audio", () => {
   const jugada = sanitizeJugada({

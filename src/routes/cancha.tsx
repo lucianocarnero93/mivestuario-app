@@ -8,7 +8,7 @@ import { Segmented } from "@/components/fija/segmented";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES } from "@/lib/fija/formations";
+import { FORMATIONS, MODALITY_LABEL, MODALITY_SHORT, MODALITIES, puestoDe } from "@/lib/fija/formations";
 import { formatWhen, personLabel } from "@/lib/fija/format";
 import { matchSettled, nextEvent, sheetFor, useFija, useIsStaff } from "@/lib/fija/store";
 import type { Modality } from "@/lib/fija/types";
@@ -25,6 +25,7 @@ function CanchaPage() {
   const setBoardShape = useFija((s) => s.setBoardShape);
   const setTactics = useFija((s) => s.setTactics);
   const setJugada = useFija((s) => s.setJugada);
+  const setNotaJugador = useFija((s) => s.setNota);
   const code = useFija((s) => s.club?.inviteCode ?? "");
   const rsvps = useFija((s) => s.rsvps);
   const publishLineup = useFija((s) => s.publishLineup);
@@ -72,6 +73,8 @@ function CanchaPage() {
   }
 
   const forma = FORMATIONS[event.modality].find((item) => item.id === event.formacion) ?? FORMATIONS[event.modality][0];
+  const miPuesto = me ? puestoDe(event.lineup, me.id, forma.slots) : undefined;
+  const miNota = me ? event.notas?.[me.id] : undefined;
 
   return (
     <main className="px-4 py-5">
@@ -141,14 +144,56 @@ function CanchaPage() {
                   Jugar yo también
                 </label>
               ) : null}
+              {!staff && me ? (
+                <div className="mb-3 rounded-2xl border border-line/25 bg-black/30 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Tu puesto</p>
+                  {miPuesto ? (
+                    <>
+                      <p className="mt-1 text-2xl font-semibold text-line">
+                        {me.nick}
+                        {me.number != null ? ` · ${me.number}` : ""} · {miPuesto.label}
+                      </p>
+                      <p className="mt-2 text-xl font-medium leading-snug text-line">
+                        {miNota || "El DT todavía no te dejó una indicación."}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-base text-line">Hoy no salís. La formación está abajo.</p>
+                  )}
+                </div>
+              ) : null}
               <Pitch
                 modality={event.modality}
                 formacionId={event.formacion}
                 lineup={event.lineup}
                 members={members}
                 editable={staff}
+                highlightId={staff ? undefined : me?.id}
                 onSlot={staff ? setSlot : undefined}
               />
+              {staff ? (
+                <ul className="mt-3 grid gap-2">
+                  {Object.entries(event.lineup).map(([key, id]) => {
+                    const person = members.find((item) => item.id === id);
+                    const puesto = forma.slots.find((slot) => slot.key === key);
+                    if (!person) return null;
+                    return (
+                      <li key={key}>
+                        <label className="block text-xs text-line/80">
+                          {person.nick} · {puesto?.label ?? "Puesto"}
+                          <input
+                            className="mt-1 h-12 w-full rounded-md bg-black/30 px-3 text-base text-line"
+                            maxLength={80}
+                            placeholder="Su indicación"
+                            value={event.notas?.[id] ?? ""}
+                            onChange={(e) => setNotaJugador(event.id, id, e.target.value)}
+                          />
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
               {staff ? (
                 <p className="mt-2 text-center text-xs text-line/80">Tocá un puesto para poner o sacar a alguien.</p>
               ) : null}
@@ -161,7 +206,9 @@ function CanchaPage() {
               />
             </div>
             <div className="mt-3 rounded-2xl border border-line/25 bg-black/30 p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Indicaciones</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">
+                {staff ? "Indicaciones" : "Para todo el equipo"}
+              </p>
               {staff ? (
                 <Textarea
                   className="mt-2 min-h-28 border-line/30 bg-transparent text-base text-line placeholder:text-line/40"

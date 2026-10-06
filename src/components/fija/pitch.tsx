@@ -10,6 +10,7 @@ export function Pitch({
   members,
   onSlot,
   editable,
+  highlightId,
 }: {
   modality: Modality;
   formacionId?: string;
@@ -17,6 +18,7 @@ export function Pitch({
   members: Member[];
   onSlot?: (key: string) => void;
   editable?: boolean;
+  highlightId?: string;
 }) {
   const formaciones = FORMATIONS[modality];
   const formacion = formaciones.find((f) => f.id === formacionId) ?? formaciones[0];
@@ -55,6 +57,7 @@ export function Pitch({
       <div className="absolute inset-0">
         {slots.map((slot) => {
           const member = byId.get(lineup[slot.key] ?? "");
+          const yo = Boolean(highlightId && member?.id === highlightId);
           const Comp = editable ? "button" : "div";
           return (
             <Comp
@@ -68,8 +71,10 @@ export function Pitch({
                 <span
                   className={cn(
                     "grid overflow-hidden place-items-center rounded-full border-2 font-bold shadow-md",
-                    dense ? "size-9 text-xs" : "size-11 text-xs",
-                    member
+                    dense && !yo ? "size-9 text-xs" : "size-11 text-xs",
+                    yo
+                      ? "border-accent bg-accent text-accent-fg ring-4 ring-fg"
+                      : member
                       ? "border-line bg-surface text-accent"
                       : "border-dashed border-line/80 bg-bg/35 text-line",
                   )}
