@@ -27,8 +27,8 @@ export function Pitch({
   const dense = modality === "f11" || modality === "f9";
 
   return (
-    <div className="relative overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep shadow-pitch desk:shadow-[inset_0_0_36px_rgba(0,0,0,0.28),0_18px_40px_rgba(0,0,0,0.35)]">
-      <svg viewBox="0 0 100 140" className="block h-auto w-full text-line/55 desk:mx-auto desk:max-h-[calc(100dvh-8rem)] desk:w-auto desk:max-w-full" aria-hidden>
+    <div className="relative mx-auto w-full overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep shadow-pitch desk:w-fit desk:max-w-full desk:shadow-[inset_0_0_36px_rgba(0,0,0,0.28),0_18px_40px_rgba(0,0,0,0.35)]">
+      <svg viewBox="0 0 100 140" className="block h-auto w-full text-line/55 desk:max-h-[calc(100dvh-8rem)] desk:w-auto desk:max-w-full" aria-hidden>
         {Array.from({ length: 10 }, (_, i) => (
           <rect
             key={i}

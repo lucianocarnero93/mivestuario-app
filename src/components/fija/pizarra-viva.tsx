@@ -394,7 +394,7 @@ function CanchaConDibujo({
   const trazos = vivo ? [...plan.dibujos, vivo] : plan.dibujos;
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative mx-auto w-full desk:w-fit">
       <Pitch modality={event.modality} formacionId={event.formacion} lineup={plan.lineup} members={members} editable={editable} highlightId={highlightId} onSlot={editable ? onSlot : undefined} />
       <svg className={`absolute inset-0 h-full w-full ${dibujar ? "" : "pointer-events-none"}`} viewBox="0 0 100 100" preserveAspectRatio="none"
         onPointerDown={(pointer) => {
