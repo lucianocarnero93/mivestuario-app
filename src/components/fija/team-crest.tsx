@@ -34,13 +34,15 @@ export function CrestPicker({
   chooseLabel = "Elegir escudo o foto",
   emptyHint = "Del celular. Se recorta en círculo.",
   imageOptions,
+  preparar,
 }: {
   src?: string | null;
   name?: string;
-  onChange: (crest: string | null) => void;
+  onChange: (crest: string | null, card?: string | null) => void;
   chooseLabel?: string;
   emptyHint?: string;
   imageOptions?: { size?: number; quality?: number; maxChars?: number };
+  preparar?: (file: File) => Promise<{ src: string; card?: string | null } | { error: string }>;
 }) {
   const [error, setError] = useState("");
 
@@ -59,6 +61,16 @@ export function CrestPicker({
               event.target.value = "";
               if (!file) return;
               setError("");
+              if (preparar) {
+                void preparar(file).then((result) => {
+                  if ("error" in result) {
+                    setError(result.error);
+                    return;
+                  }
+                  onChange(result.src, result.card ?? null);
+                });
+                return;
+              }
               void readCrestFile(file, imageOptions).then((crest) => {
                 if (!crest) {
                   setError("No se pudo usar esa imagen. Probá con otra foto.");

@@ -259,6 +259,8 @@ async function foto(ctx: Ctx, src: string): Promise<boolean> {
   const o = off.getContext("2d");
   if (!o) return false;
   o.scale(dpr, dpr);
+  o.imageSmoothingEnabled = true;
+  o.imageSmoothingQuality = "high";
   const scale = Math.max(w / image.width, h / image.height);
   const dw = image.width * scale;
   const dh = image.height * scale;
@@ -279,6 +281,8 @@ async function foto(ctx: Ctx, src: string): Promise<boolean> {
   o.arc(0, 0, ry, 0, Math.PI * 2);
   o.fill();
   o.restore();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(off, 196, 38, w, h);
   return true;
 }

@@ -418,14 +418,56 @@ export const listMyClubs = createServerFn({ method: "POST" })
   });
 
 const PORTRAITS = "retratos";
+const FOTO_MINI = 30_000;
+const FOTO_CARD = 170_000;
+
+function fotoData(value: unknown, max: number): string | null {
+  if (typeof value !== "string" || !value.startsWith("data:image/") || value.length > max || value.length < 16) return null;
+  return value;
+}
+
+type RetratoGuardado =
+  | { borrar: true }
+  | { invalido: true }
+  | { photo: string; photoCard: string | null; soloMini: boolean };
+
+function parseRetrato(raw: { photo?: string; photoCard?: string } | string | null | undefined): {
+  photo: string | null;
+  photoCard: string | null;
+} {
+  let parsed: { photo?: string; photoCard?: string } | null = null;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw) as { photo?: string; photoCard?: string };
+    } catch {
+      parsed = null;
+    }
+  } else if (raw && typeof raw === "object") parsed = raw;
+  return {
+    photo: fotoData(parsed?.photo, FOTO_MINI),
+    photoCard: fotoData(parsed?.photoCard, FOTO_CARD),
+  };
+}
 
 export const savePortrait = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((photo: string | null) => {
-    if (photo == null || photo === "") return null;
-    const value = String(photo);
-    if (!value.startsWith("data:image/") || value.length > 30_000) return null;
-    return value;
+  .validator((input: unknown): RetratoGuardado => {
+    if (input == null || input === "") return { borrar: true };
+    if (typeof input === "string") {
+      const photo = fotoData(input, FOTO_MINI);
+      if (!photo) return { invalido: true };
+      return { photo, photoCard: null, soloMini: true };
+    }
+    if (typeof input === "object") {
+      const raw = input as { photo?: unknown; photoCard?: unknown };
+      const photo = fotoData(raw.photo, FOTO_MINI);
+      if (!photo) return { invalido: true };
+      if (raw.photoCard == null || raw.photoCard === "") return { photo, photoCard: null, soloMini: false };
+      const photoCard = fotoData(raw.photoCard, FOTO_CARD);
+      if (!photoCard) return { invalido: true };
+      return { photo, photoCard, soloMini: false };
+    }
+    return { invalido: true };
   })
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
     const userId = userIdOf(context as { userId?: string });
@@ -437,45 +479,79 @@ export const savePortrait = createServerFn({ method: "POST" })
       await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [PORTRAITS, userId]);
       return { ok: false };
     }
-    if (!data) {
+    if ("borrar" in data) {
       await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [PORTRAITS, userId]);
+      return { ok: true };
+    }
+    if ("invalido" in data) return { ok: false };
+    if (data.soloMini) {
+      await sql.query(
+        `insert into vestuario_docs (collection, id, data, updated_at)
+         values ($1, $2, jsonb_build_object('photo', $3::text), now())
+         on conflict (collection, id)
+         do update set data = vestuario_docs.data || jsonb_build_object('photo', $3::text), updated_at = now()`,
+        [PORTRAITS, userId, data.photo],
+      );
+      return { ok: true };
+    }
+    if (data.photoCard) {
+      await sql.query(
+        `insert into vestuario_docs (collection, id, data, updated_at)
+         values ($1, $2, jsonb_build_object('photo', $3::text, 'photoCard', $4::text), now())
+         on conflict (collection, id)
+         do update set data = excluded.data, updated_at = now()`,
+        [PORTRAITS, userId, data.photo, data.photoCard],
+      );
       return { ok: true };
     }
     await sql.query(
       `insert into vestuario_docs (collection, id, data, updated_at)
-       values ($1, $2, $3::jsonb, now())
+       values ($1, $2, jsonb_build_object('photo', $3::text), now())
        on conflict (collection, id)
-       do update set data = excluded.data, updated_at = now()`,
-      [PORTRAITS, userId, JSON.stringify({ photo: data })],
+       do update set data = (vestuario_docs.data - 'photoCard') || jsonb_build_object('photo', $3::text), updated_at = now()`,
+      [PORTRAITS, userId, data.photo],
     );
     return { ok: true };
   });
 
 export const loadPortrait = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .handler(async ({ context }): Promise<{ photo: string | null }> => {
+  .handler(async ({ context }): Promise<{ photo: string | null; photoCard: string | null }> => {
     const userId = userIdOf(context as { userId?: string });
-    if (!userId) return { photo: null };
+    if (!userId) return { photo: null, photoCard: null };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    const rows = await sql.query<{ data: { photo?: string } | string }>(
+    const rows = await sql.query<{ data: { photo?: string; photoCard?: string } | string }>(
       "select data from vestuario_docs where collection = $1 and id = $2",
       [PORTRAITS, userId],
     );
-    const raw = rows[0]?.data;
-    let parsed: { photo?: string } | null = null;
-    if (typeof raw === "string") {
-      try {
-        parsed = JSON.parse(raw) as { photo?: string };
-      } catch {
-        parsed = null;
-      }
-    } else if (raw && typeof raw === "object") {
-      parsed = raw;
+    return parseRetrato(rows[0]?.data);
+  });
+
+export const loadFotosCard = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((code: unknown) => sanitizeCode(String(code ?? "")))
+  .handler(async ({ data: code, context }): Promise<{ memberId: string; photoCard: string }[]> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !code) return [];
+    const bundle = await readClub(code);
+    const me = memberFor(bundle?.members ?? [], userId);
+    if (!bundle || !me) return [];
+    const cuentas = bundle.members.filter((person) => person.accountId && !person.menor);
+    if (cuentas.length === 0) return [];
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql.query<{ id: string; data: { photo?: string; photoCard?: string } | string }>(
+      "select id, data from vestuario_docs where collection = $1 and id = any($2::text[])",
+      [PORTRAITS, [...new Set(cuentas.map((person) => person.accountId as string))]],
+    );
+    const porCuenta = new Map(rows.map((row) => [row.id, parseRetrato(row.data).photoCard]));
+    const fotos: { memberId: string; photoCard: string }[] = [];
+    for (const person of cuentas) {
+      const photoCard = porCuenta.get(person.accountId as string);
+      if (photoCard) fotos.push({ memberId: person.id, photoCard });
     }
-    const photo = parsed?.photo;
-    if (!photo || !photo.startsWith("data:image/") || photo.length > 30_000) return { photo: null };
-    return { photo };
+    return fotos;
   });
 
 const AUDIOS = "audios";

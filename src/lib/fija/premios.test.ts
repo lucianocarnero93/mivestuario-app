@@ -407,4 +407,19 @@ test("un menor no puede compartir y la card no inventa dorsal ni rival", () => {
   }));
   assert.equal(datos.dorsal, null);
   assert.match(datos.contexto, /Clásico del barrio/);
+  const nitida = datosCard(premio, ctx({
+    events: [event],
+    sheets: [planilla("p1", [{ memberId: "mati", goals: 3, assists: 0, yellow: 0, red: 0 }], { opponent: "   " })],
+    members: [jugador("mati", { number: null, nick: "Mati", photo: "data:image/jpeg;base64,mini" })],
+    fotosCard: { mati: "data:image/jpeg;base64,card" },
+  }));
+  assert.equal(nitida.imagen.tipo, "foto");
+  if (nitida.imagen.tipo === "foto") assert.equal(nitida.imagen.src, "data:image/jpeg;base64,card");
+  const menor = datosCard(premio, ctx({
+    events: [event],
+    sheets: [planilla("p1", [{ memberId: "mati", goals: 3, assists: 0, yellow: 0, red: 0 }], { opponent: "   " })],
+    members: [jugador("mati", { menor: true, photo: "data:image/jpeg;base64,mini" })],
+    fotosCard: { mati: "data:image/jpeg;base64,card" },
+  }));
+  assert.notEqual(menor.imagen.tipo, "foto");
 });

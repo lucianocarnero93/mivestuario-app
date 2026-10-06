@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABEL, personLabel } from "@/lib/fija/format";
 import { MAX_BYTES } from "@/lib/fija/club-rules";
+import { leerFotoJugador } from "@/lib/fija/foto-jugador";
 import { alumniMember, playerRows, rankedBy, teamRecord } from "@/lib/fija/stats";
 import { sheetsForScope, useFija, useIsCreator, useIsStaff, useMe } from "@/lib/fija/store";
 import type { Role } from "@/lib/fija/types";
@@ -84,8 +85,8 @@ function EquipoPage() {
           <CrestPicker
             src={me.photo}
             name={me.name}
-            onChange={setMyPhoto}
-            imageOptions={{ size: 128, quality: 0.7, maxChars: 30_000 }}
+            onChange={(src, card) => setMyPhoto(src, card)}
+            preparar={leerFotoJugador}
             chooseLabel="Elegir mi foto"
             emptyHint="Tu avatar. En la formación se ve en tu puesto."
           />

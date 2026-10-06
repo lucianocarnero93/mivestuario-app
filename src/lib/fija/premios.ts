@@ -69,6 +69,7 @@ export type ContextoPremios = {
   club?: Club | null;
   tournaments?: Tournament[];
   now?: number;
+  fotosCard?: Record<string, string>;
 };
 
 export type DatosCard = {
@@ -419,7 +420,7 @@ export function datosCard(premio: Premio, ctx: ContextoPremios): DatosCard {
     equipo,
     equipoIniciales: letrasEquipo,
     escudo: ctx.club?.crest ?? null,
-    imagen: imagenDe(member),
+    imagen: imagenDe(member, ctx.fotosCard?.[member.id]),
     colores: (ctx.club as ClubPremio | null | undefined)?.colores ?? COLORES_EQUIPO,
     stats: premio.stats.slice(0, 3),
     deco: premio.deco,

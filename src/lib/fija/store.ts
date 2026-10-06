@@ -70,6 +70,8 @@ type State = ReturnType<typeof createSeed> & {
   cloudWeight: number | null;
   savedMine: Record<string, RsvpStatus>;
   ownerAccountId: string | null;
+  miFotoCard: string | null;
+  fotosCard: Record<string, string>;
   setHydrated: () => void;
   setActive: (id: string) => void;
   viewAsRole: (role: Role) => void;
@@ -159,7 +161,7 @@ type State = ReturnType<typeof createSeed> & {
   setActiveClub: (clubId: string) => Promise<void>;
   removeClub: (clubId: string) => Promise<{ ok: boolean; error?: string }>;
   setProfile: (profile: { name: string; nick: string }) => void;
-  setMyPhoto: (photo: string | null) => void;
+  setMyPhoto: (photo: string | null, card?: string | null) => void;
   applyMyEdad: (menor: boolean) => void;
   syncFromCloud: () => Promise<void>;
   restoreMyClubs: () => Promise<void>;
@@ -180,6 +182,8 @@ const blank = {
   gpsConsent: "unset" as const,
   activeId: GUEST_ID,
   ownerAccountId: null as string | null,
+  miFotoCard: null as string | null,
+  fotosCard: {} as Record<string, string>,
 };
 
 /*
@@ -1490,29 +1494,41 @@ export const useFija = create<State>()(
         }),
 
       // La persona actual pone su foto. Sirve para DT, ayudante y jugador.
-      setMyPhoto: (photo) => {
+      setMyPhoto: (photo, card) => {
         const personId = get().activeId;
         const me = get().members.find((person) => person.id === personId);
         if (me?.menor || readMenor()) return;
         const safe = photo && photo.startsWith("data:image/") && photo.length < 30_000 ? photo : null;
+        const nitida = safe && card && card.startsWith("data:image/") && card.length <= 170_000 ? card : null;
+        const fotos = { ...(get().fotosCard ?? {}) };
+        if (personId) {
+          if (nitida) fotos[personId] = nitida;
+          else delete fotos[personId];
+        }
         set({
           members: get().members.map((person) =>
             person.id === personId ? { ...person, photo: safe } : person,
           ),
+          miFotoCard: nitida,
+          fotosCard: fotos,
         });
-        void savePortrait({ data: safe }).catch(() => undefined);
+        void savePortrait({ data: safe ? { photo: safe, photoCard: nitida } : null }).catch(() => undefined);
         void get().flushCloud();
       },
 
       applyMyEdad: (menor) => {
         const personId = get().activeId;
+        const fotos = { ...(get().fotosCard ?? {}) };
+        if (menor) delete fotos[personId];
         set({
           members: get().members.map((person) =>
             person.id === personId
               ? { ...person, menor: menor || person.menor, photo: menor ? null : person.photo }
               : person,
           ),
+          ...(menor ? { miFotoCard: null, fotosCard: fotos } : {}),
         });
+        if (menor) void savePortrait({ data: null }).catch(() => undefined);
       },
 
       // Sale solo del equipo activo. Si hay otros, entra al siguiente.
@@ -1858,6 +1874,7 @@ export const useFija = create<State>()(
           cloudError: get().dirty ? get().cloudError : null,
           savedMine: mineSaved(teamFound.rsvps, linked?.id ?? personId),
           ownerAccountId: account ?? get().ownerAccountId,
+          fotosCard: {},
         });
         applyingCloud = false;
         void get().applySharedPhoto();
@@ -1909,6 +1926,7 @@ export const useFija = create<State>()(
           activeId: me.id,
           hydrated: true,
           ownerAccountId: account ?? state.ownerAccountId,
+          fotosCard: {},
         });
         void get().publishClub().then(() => get().applySharedPhoto());
       },
@@ -1935,6 +1953,7 @@ export const useFija = create<State>()(
           cloudStatus: "syncing",
           dirty: false,
           cloudError: null,
+          fotosCard: {},
         });
         void saveClubDoc({
           data: { code: leaving.bundle.club.inviteCode, bundle: leaving.bundle },
@@ -2137,19 +2156,29 @@ export const useFija = create<State>()(
         const state = get();
         const me = state.members.find((person) => person.id === state.activeId);
         if (!me || me.menor) return;
-        if (me.photo && me.photo.startsWith("data:image/") && me.photo.length < 30_000) {
-          void savePortrait({ data: me.photo }).catch(() => undefined);
+        let remote: { photo: string | null; photoCard: string | null } = { photo: null, photoCard: null };
+        try {
+          remote = await loadPortrait();
+        } catch {
+          remote = { photo: null, photoCard: null };
+        }
+        if (remote.photoCard) {
+          const id = get().activeId;
+          set({
+            miFotoCard: remote.photoCard,
+            fotosCard: id ? { ...(get().fotosCard ?? {}), [id]: remote.photoCard } : get().fotosCard,
+          });
+        }
+        const local = me.photo && me.photo.startsWith("data:image/") && me.photo.length < 30_000 ? me.photo : null;
+        if (local) {
+          if (remote.photo !== local) {
+            void savePortrait({ data: { photo: local, photoCard: remote.photoCard ?? get().miFotoCard } }).catch(() => undefined);
+          }
           return;
         }
         const account = await currentAccount();
         const accountId = account?.id ?? state.ownerAccountId;
-        let photo: string | null = null;
-        try {
-          const remote = await loadPortrait();
-          photo = remote.photo;
-        } catch {
-          photo = null;
-        }
+        let photo = remote.photo;
         if (!photo && accountId) {
           for (const team of state.otherClubs) {
             const person = team.bundle.members.find((item) => {
@@ -2157,7 +2186,7 @@ export const useFija = create<State>()(
               if (item.accountId === accountId || item.id === accountId) return true;
               return item.id === team.activeId && (!item.accountId || item.accountId === accountId);
             });
-            if (person?.photo) {
+            if (person?.photo && person.photo.length < 30_000) {
               photo = person.photo;
               break;
             }
@@ -2166,7 +2195,7 @@ export const useFija = create<State>()(
         if (!photo || !photo.startsWith("data:image/") || photo.length > 30_000) return;
         const still = get().members.find((person) => person.id === get().activeId);
         if (!still || still.menor || still.photo) return;
-        get().setMyPhoto(photo);
+        get().setMyPhoto(photo, remote.photoCard);
       },
 
       // Baja de la nube la última copia del equipo en el que ya estoy.
@@ -2454,6 +2483,7 @@ export const useFija = create<State>()(
         dirty: s.dirty,
         savedMine: s.savedMine,
         ownerAccountId: s.ownerAccountId,
+        miFotoCard: s.miFotoCard,
         seenCodes: s.seenCodes ?? [],
       }),
             onRehydrateStorage: () => (state) => {
@@ -2479,6 +2509,10 @@ export const useFija = create<State>()(
           state.profile = createSeed().profile;
         }
         if (!state.gpsConsent) state.gpsConsent = "unset";
+        if (typeof state.miFotoCard !== "string" || !state.miFotoCard.startsWith("data:image/") || state.miFotoCard.length > 170_000) {
+          state.miFotoCard = null;
+        }
+        state.fotosCard = {};
 
         // Migración: setear `juega` en miembros que no lo tengan.
         // Jugadores → true (ya juegan). Staff → false (hasta que se marque).

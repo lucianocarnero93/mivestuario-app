@@ -11,14 +11,18 @@ export function inicialesDe(member: { name?: string; nick?: string; menor?: bool
   return initials(((member.name || member.nick) ?? "").trim() || "Jugador") || "J";
 }
 
-export function imagenDe(member: {
-  id?: string;
-  name?: string;
-  nick?: string;
-  menor?: boolean;
-  photo?: string | null;
-  avatar?: AvatarPersona | null;
-}): ImagenPersona {
+export function imagenDe(
+  member: {
+    id?: string;
+    name?: string;
+    nick?: string;
+    menor?: boolean;
+    photo?: string | null;
+    avatar?: AvatarPersona | null;
+  },
+  nitida?: string | null,
+): ImagenPersona {
+  if (!member.menor && nitida?.startsWith("data:image/")) return { tipo: "foto", src: nitida };
   if (!member.menor && member.photo?.startsWith("data:image/")) return { tipo: "foto", src: member.photo };
   if (member.avatar) return { tipo: "avatar", avatar: member.avatar };
   return { tipo: "iniciales", letras: inicialesDe(member) };
