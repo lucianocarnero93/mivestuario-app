@@ -470,6 +470,7 @@ export function createSeed(): Omit<AppState, "hydrated"> {
     charla: callups.charla,
     caja: { tesoreroId: "dt", gastos: [], cobros: [] },
     biblioteca: [],
+    bibliotecaAt: "",
     messages: [
       {
         id: "m1",

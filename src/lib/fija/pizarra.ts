@@ -1,5 +1,6 @@
 import { FORMATIONS } from "./formations.ts";
 import type {
+  ClubBundle,
   ClubEvent,
   CuadroPaso,
   Dibujo,
@@ -371,6 +372,50 @@ export function duplicarJugada(lista: JugadaGuardada[] | undefined, id: string, 
   const item = (lista ?? []).find((row) => row.id === id);
   if (!item) return lista ?? [];
   return [...(lista ?? []), { ...item, id: nuevoId, nombre: `${item.nombre} (copia)`.slice(0, 40) }].slice(-30);
+}
+
+function marca(value: string | undefined): number {
+  const time = value ? Date.parse(value) : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function elegirCampo<T>(newer: T | null | undefined, older: T | null | undefined): T | null | undefined {
+  if (newer === null) return null;
+  if (newer !== undefined) return newer;
+  return older === null ? null : older;
+}
+
+/** La jugada y la pelota se mezclan aparte de la formación. null borra y no vuelve. */
+export function camposDePizarra(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, "pasos" | "pelotaParada" | "jugadaVisible" | "pelotaVisible" | "videoUrl" | "notas" | "tactics" | "audioDe"> {
+  const newer = marca(incoming.pizarraUpdatedAt) >= marca(previous.pizarraUpdatedAt) ? incoming : previous;
+  const older = newer === incoming ? previous : incoming;
+  return {
+    pasos: elegirCampo(newer.pasos, older.pasos),
+    pelotaParada: elegirCampo(newer.pelotaParada, older.pelotaParada),
+    jugadaVisible: newer.jugadaVisible !== undefined ? newer.jugadaVisible : older.jugadaVisible,
+    pelotaVisible: newer.pelotaVisible !== undefined ? newer.pelotaVisible : older.pelotaVisible,
+    videoUrl: elegirCampo(newer.videoUrl, older.videoUrl),
+    notas: newer.notas ?? older.notas,
+    tactics: newer.tactics ?? older.tactics,
+    audioDe: newer.audioDe ?? older.audioDe,
+  };
+}
+
+/** Lo que puede llegar al teléfono de un jugador. Sin archivo del DT ni indicaciones ajenas. */
+export function recortarParaJugador(bundle: ClubBundle, memberId: string): ClubBundle {
+  return {
+    ...bundle,
+    bannedAccounts: undefined,
+    biblioteca: [],
+    bibliotecaAt: undefined,
+    events: bundle.events.map((event) => ({
+      ...event,
+      notas: event.notas?.[memberId] ? { [memberId]: event.notas[memberId] } : undefined,
+      pasos: event.jugadaVisible === false ? null : event.pasos,
+      pelotaParada: event.pelotaVisible === false ? null : event.pelotaParada,
+      vistos: undefined,
+    })),
+  };
 }
 
 export function aplicarVistosJugador(base: ClubEvent[], incoming: ClubEvent[], memberId: string | undefined): ClubEvent[] {

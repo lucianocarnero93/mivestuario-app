@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   aplicarVistosJugador,
   cambiarEsquema,
+  camposDePizarra,
   deshacerDibujo,
   duplicarJugada,
   editarPlan,
@@ -13,6 +14,7 @@ import {
   planVisible,
   plantillaPelota,
   ponerEnPlan,
+  recortarParaJugador,
   sacarPaso,
   sumarDibujo,
   sumarPaso,
@@ -89,6 +91,36 @@ test("el dt mueve una ficha y puede sumar un paso", () => {
   assert.equal(sumarPaso(movida).cuadros.length, base.cuadros.length + 1);
   assert.equal(sacarPaso(sumarPaso(movida), 0).cuadros.length, base.cuadros.length);
   assert.equal(sacarPaso(base, 0).cuadros.length, base.cuadros.length);
+});
+
+test("borrar la jugada no la revive y el jugador no recibe lo oculto", () => {
+  const base = partido();
+  const vieja = { ...base, pasos: plantillaPelota("jugada", []), pizarraUpdatedAt: "2026-10-01T00:00:00Z", notas: { mati: "Quedate", fran: "Subí" } };
+  const nueva = { ...base, pasos: null, pizarraUpdatedAt: "2026-10-02T00:00:00Z", notas: { mati: "Quedate", fran: "Subí" } };
+  assert.equal(camposDePizarra(vieja, nueva).pasos, null);
+  assert.equal(camposDePizarra(nueva, vieja).pasos, null);
+  const recortado = recortarParaJugador(
+    {
+      club: { id: "c", name: "A", createdBy: "dt", inviteCode: "ABC123", crest: null },
+      members: [],
+      events: [{ ...vieja, jugadaVisible: false }],
+      rsvps: [],
+      messages: [],
+      charla: [],
+      matchSheets: [],
+      invites: [],
+      convocatorias: [],
+      inbox: [],
+      alertLog: [],
+      reminderPolicy: { firstHours: 24, secondHours: 48 },
+      tournaments: [],
+      biblioteca: [{ id: "p", nombre: "Pared", tipo: "jugada", cuadros: [] }],
+    },
+    "mati",
+  );
+  assert.equal(recortado.events[0]?.pasos, null);
+  assert.deepEqual(recortado.events[0]?.notas, { mati: "Quedate" });
+  assert.deepEqual(recortado.biblioteca, []);
 });
 
 test("duplicar deja la original", () => {

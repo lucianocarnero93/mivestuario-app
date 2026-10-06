@@ -94,7 +94,7 @@ export function Pitch({
                 ) : null}
               </span>
               <span className="mt-0.5 max-w-14 truncate text-center text-xs font-semibold text-line drop-shadow">
-                {member ? member.nick : editable ? "vacío" : ""}
+                {member?.nick ? member.nick : "vacío"}
               </span>
             </Comp>
           );

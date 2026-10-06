@@ -670,9 +670,18 @@ export const useFija = create<State>()(
         if (!isStaffId(get())) return;
         if (tournamentClosedFor(get(), eventId)) return;
         const now = new Date().toISOString();
+        const tocaCancha = "lineup" in patch || "formacion" in patch || "planes" in patch || "modality" in patch;
+        const tocaPizarra = ["pasos", "pelotaParada", "jugadaVisible", "pelotaVisible", "videoUrl", "notas", "tactics", "audioDe"].some((key) => key in patch);
         set({
           events: get().events.map((event) =>
-            event.id === eventId ? { ...event, ...patch, lineupUpdatedAt: now } : event,
+            event.id === eventId
+              ? {
+                  ...event,
+                  ...patch,
+                  lineupUpdatedAt: tocaCancha ? now : event.lineupUpdatedAt,
+                  pizarraUpdatedAt: tocaPizarra ? now : event.pizarraUpdatedAt,
+                }
+              : event,
           ),
         });
       },
@@ -712,24 +721,26 @@ export const useFija = create<State>()(
 
       guardarEnBiblioteca: (item) => {
         if (!isStaffId(get())) return;
+        const ahora = new Date().toISOString();
         const lista = [...(get().biblioteca ?? []).filter((row) => row.id !== item.id), item].slice(-30);
-        set({ biblioteca: lista });
+        set({ biblioteca: lista, bibliotecaAt: ahora });
       },
 
       duplicarEnBiblioteca: (id) => {
         if (!isStaffId(get())) return;
-        set({ biblioteca: duplicarJugada(get().biblioteca, id, uid("jg")) });
+        set({ biblioteca: duplicarJugada(get().biblioteca, id, uid("jg")), bibliotecaAt: new Date().toISOString() });
       },
 
       sacarDeBiblioteca: (id) => {
         if (!isStaffId(get())) return;
-        set({ biblioteca: (get().biblioteca ?? []).filter((row) => row.id !== id) });
+        set({ biblioteca: (get().biblioteca ?? []).filter((row) => row.id !== id), bibliotecaAt: new Date().toISOString() });
       },
 
       mostrarJugada: (id, visible) => {
         if (!isStaffId(get())) return;
         set({
           biblioteca: (get().biblioteca ?? []).map((row) => (row.id === id ? { ...row, visible } : row)),
+          bibliotecaAt: new Date().toISOString(),
         });
       },
 
@@ -2556,6 +2567,7 @@ export const useFija = create<State>()(
         droppedCharlaIds: s.droppedCharlaIds ?? [],
         alumni: s.alumni ?? [],
         biblioteca: s.biblioteca ?? [],
+        bibliotecaAt: s.bibliotecaAt,
         reminder: s.reminder,
         dirty: s.dirty,
         savedMine: s.savedMine,
@@ -2889,7 +2901,12 @@ function mergeClubBundles(
             ? { ...(remote.caja ?? cajaVacia()), cobros: local.caja.cobros }
             : undefined,
         ),
-    biblioteca: who.staff && who.dirty ? (local.biblioteca ?? remote.biblioteca ?? []) : (remote.biblioteca ?? local.biblioteca ?? []),
+    biblioteca: who.staff && who.dirty && Date.parse(local.bibliotecaAt ?? "") >= Date.parse(remote.bibliotecaAt ?? "")
+      ? (local.biblioteca ?? [])
+      : (remote.biblioteca ?? local.biblioteca ?? []),
+    bibliotecaAt: who.staff && who.dirty && Date.parse(local.bibliotecaAt ?? "") >= Date.parse(remote.bibliotecaAt ?? "")
+      ? local.bibliotecaAt
+      : remote.bibliotecaAt ?? local.bibliotecaAt,
       },
       droppedEvents,
     ),
@@ -3045,6 +3062,7 @@ function toBundle(state: {
   alumni?: { id: string; name: string; nick: string }[];
   caja?: Caja;
   biblioteca?: JugadaGuardada[];
+  bibliotecaAt?: string;
 }): ClubBundle {
   return {
     club: state.club,
@@ -3067,6 +3085,7 @@ function toBundle(state: {
     alumni: state.alumni ?? [],
     caja: state.caja ?? cajaVacia(),
     biblioteca: state.biblioteca ?? [],
+    bibliotecaAt: state.bibliotecaAt,
   };
 }
 

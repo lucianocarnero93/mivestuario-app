@@ -8,7 +8,7 @@ import { figuraPermitida, mergeFiguraVotes, votosAceptables } from "./figura";
 import { FORMATIONS } from "./formations";
 import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoAttemptKey, vivoPointerAllows, VIVO_READ_LIMIT, type PuestoPublico } from "./vivo";
 import { preferirJugada } from "./jugada";
-import { aplicarVistosJugador, juntarVistos } from "./pizarra";
+import { aplicarVistosJugador, camposDePizarra, juntarVistos, recortarParaJugador } from "./pizarra";
 import { contarFamilia } from "./familia";
 import { sanitizeCode } from "./sanitize";
 import {
@@ -211,7 +211,8 @@ export const loadClubDoc = createServerFn({ method: "POST" })
       return { ok: false, reason: "forbidden" };
     }
     const me = memberFor(bundle.members, userId);
-    if (!isStaffMember(me)) return { ok: true, bundle: { ...bundle, bannedAccounts: undefined } };
+    if (!me) return { ok: false, reason: "forbidden" };
+    if (!isStaffMember(me)) return { ok: true, bundle: recortarParaJugador(bundle, me.id) };
     return { ok: true, bundle };
   });
 
@@ -560,7 +561,7 @@ const AUDIOS = "audios";
 
 function audioValido(value: unknown): string | null {
   const audio = String(value ?? "");
-  if (!audio.startsWith("data:audio/") || audio.length > 80_000) return null;
+  if (!audio.startsWith("data:audio/") || audio.length > 500_000) return null;
   return audio;
 }
 
@@ -583,6 +584,7 @@ export const saveAudioJugada = createServerFn({ method: "POST" })
     const bundle = await readClub(data.code);
     const me = memberFor(bundle?.members ?? [], userId);
     if (!bundle || !isStaffMember(me)) return { ok: false };
+    if (!bundle.events.some((event) => event.id === data.eventId)) return { ok: false };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
     const id = claveAudio(data.code, data.eventId, data.notaId);
@@ -613,6 +615,8 @@ export const loadAudioJugada = createServerFn({ method: "POST" })
     const bundle = await readClub(data.code);
     const me = memberFor(bundle?.members ?? [], userId);
     if (!bundle || !me) return { audio: null };
+    if (!isStaffMember(me) && data.notaId !== "equipo") return { audio: null };
+    if (!bundle.events.some((event) => event.id === data.eventId)) return { audio: null };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
     const rows = await sql.query<{ data: { audio?: string } | string }>(
@@ -713,7 +717,7 @@ export function lightenClosedMatches(bundle: ClubBundle): ClubBundle {
       ) {
         return event;
       }
-      return { ...event, lineup: {}, tactics: "", formacion: undefined, suplentes: [], convocados: [], planes: undefined, pasos: undefined, vistos: undefined };
+      return { ...event, lineup: {}, tactics: "", formacion: undefined, suplentes: [], convocados: [], planes: undefined, pasos: null, pelotaParada: null, notas: undefined, videoUrl: undefined, vistos: undefined };
     }),
     rsvps: (bundle.rsvps ?? []).filter((row) => !ids.has(row.eventId)),
     inbox: (bundle.inbox ?? []).filter((item) => !item.eventId || !ids.has(item.eventId)),
@@ -764,6 +768,7 @@ export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
     liveUpdatedAt: liveSource.liveUpdatedAt,
     jugada: preferirJugada(previous.jugada, incoming.jugada),
     vistos: juntarVistos(previous.vistos, incoming.vistos),
+    ...camposDePizarra(previous, incoming),
     ...camposFecha(previous, incoming),
     ...datosDeFecha(previous, incoming),
   };
@@ -1113,7 +1118,12 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     alumni,
     bannedAccounts,
     caja: cajaAlGuardar(existing.caja, incoming.caja, staff, me?.id),
-    biblioteca: staff ? (incoming.biblioteca ?? existing.biblioteca ?? []).slice(0, 30) : (existing.biblioteca ?? []),
+    biblioteca: staff && Date.parse(incoming.bibliotecaAt ?? "") >= Date.parse(existing.bibliotecaAt ?? "")
+      ? (incoming.biblioteca ?? []).slice(0, 30)
+      : (existing.biblioteca ?? []),
+    bibliotecaAt: staff && Date.parse(incoming.bibliotecaAt ?? "") >= Date.parse(existing.bibliotecaAt ?? "")
+      ? incoming.bibliotecaAt
+      : existing.bibliotecaAt,
       },
       droppedEvents,
     ),

@@ -80,13 +80,15 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
   const miPuesto = me ? puestoDe(plan.lineup, me.id, forma.slots) : undefined;
   const vistas = VISTAS.filter((item) => !item.staff || staff);
 
+  useEffect(() => {
+    if (!staff && event.planActivo) setPlanId(event.planActivo);
+  }, [staff, event.planActivo]);
+
   function aplicarEvento(next: ClubEvent) {
     aplicar(event.id, {
       lineup: next.lineup,
       planes: next.planes,
-      pasos: next.pasos,
-      videoUrl: next.videoUrl,
-      audioDe: next.audioDe,
+      formacion: next.formacion,
     });
   }
 
@@ -273,8 +275,8 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
             setAviso("El jugador ya no lo ve.");
           }}
           onEliminar={() => {
-            if (vista === "pelota") aplicar(event.id, { pelotaParada: undefined, pelotaVisible: false });
-            else aplicar(event.id, { pasos: undefined, jugadaVisible: false });
+            if (vista === "pelota") aplicar(event.id, { pelotaParada: null, pelotaVisible: false });
+            else aplicar(event.id, { pasos: null, jugadaVisible: false });
             setAviso("Eliminada. El jugador no ve nada.");
           }}
           predeterminadas={biblioteca}
@@ -294,7 +296,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
           onMostrar={(id, visible) => mostrarJugada(id, visible)}
         />
       ) : null}
-      {vista === "compartir" ? <Compartir event={event} crest={crest} lineup={plan.lineup} /> : null}
+      {vista === "compartir" ? <Compartir event={event} crest={crest} lineup={plan.lineup} formacionId={plan.formacion || event.formacion} puede={me ? !me.menor : false} /> : null}
 
       {aviso || nota ? <p className="mt-3 text-sm text-accent">{aviso || nota}</p> : null}
       {staff && (vista === "puesto" || vista === "planes") ? (
@@ -474,6 +476,9 @@ function Pasos({
   }
   const deAqui = Boolean(guardado && guardado.cuadros.some((cuadro) => cuadro.fichas.length > 0) && (seccion === "jugada" ? guardado.tipo === "jugada" : guardado.tipo !== "jugada"));
   const [pasos, setPasos] = useState(() => (deAqui && guardado ? guardado : armarJugada(catalogo[0].id, puestos)));
+  useEffect(() => {
+    if (!staff && visible && deAqui && guardado) setPasos(guardado);
+  }, [staff, visible, deAqui, guardado]);
   const [cuadro, setCuadro] = useState(0);
   const [play, setPlay] = useState(false);
   const [vivo, setVivo] = useState<{ quien: string; x: number; y: number } | null>(null);
@@ -633,10 +638,16 @@ function Pasos({
         <div className="mt-3 grid gap-2">
           <Button className="h-12 w-full" onClick={() => onMostrar(pasos)}>Mostrar al jugador</Button>
           <p className="text-center text-xs text-muted">La predeterminada queda en Mis jugadas. El jugador no la ve ahí.</p>
-          <Button variant="secondary" className="h-12 w-full" onClick={() => onPredeterminada({ id: pasos.id, nombre: pasos.nombre || "Jugada", tipo: pasos.tipo, cuadros: pasos.cuadros, visible: true })}>Guardar predeterminada</Button>
+          <Button variant="secondary" className="h-12 w-full" onClick={() => {
+            const esBase = catalogo.some((item) => item.id === pasos.id);
+            const id = esBase ? uid("jg").slice(0, 16) : pasos.id;
+            const guardada = { ...pasos, id };
+            if (esBase) setPasos(guardada);
+            onPredeterminada({ id, nombre: guardada.nombre || "Jugada", tipo: guardada.tipo, cuadros: guardada.cuadros, visible: true });
+          }}>Guardar predeterminada</Button>
           <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" onClick={() => {
             const id = uid("jg").slice(0, 16);
-            const nueva = { ...pasos, id, nombre: "Nueva" };
+            const nueva = { ...pasos, id, nombre: pasos.nombre || "Nueva" };
             setPasos(nueva);
             onPredeterminada({ id, nombre: nueva.nombre, tipo: nueva.tipo, cuadros: nueva.cuadros, visible: true });
           }}>Nueva predeterminada</button>
@@ -666,7 +677,7 @@ function AudioEquipo({ event, code, staff, onAviso }: { event: ClubEvent; code: 
       return;
     }
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const media = new MediaRecorder(stream);
+    const media = new MediaRecorder(stream, { audioBitsPerSecond: 24_000 });
     const partes: Blob[] = [];
     media.ondataavailable = (item) => partes.push(item.data);
     media.onstop = () => {
@@ -676,6 +687,10 @@ function AudioEquipo({ event, code, staff, onAviso }: { event: ClubEvent; code: 
       const reader = new FileReader();
       reader.onload = () => {
         const data = String(reader.result ?? "");
+        if (data.length > 480_000) {
+          onAviso("El audio quedó muy largo. Grabá de nuevo, más corto.");
+          return;
+        }
         void saveAudioJugada({ data: { code, eventId: event.id, notaId, audio: data } }).then((result) => {
           if (!result.ok) onAviso("No se pudo guardar el audio.");
           else setAudio(data);
@@ -752,10 +767,11 @@ function Biblioteca({
   );
 }
 
-function Compartir({ event, crest, lineup }: { event: ClubEvent; crest?: string | null; lineup: Record<string, string> }) {
+function Compartir({ event, crest, lineup, formacionId, puede }: { event: ClubEvent; crest?: string | null; lineup: Record<string, string>; formacionId?: string; puede: boolean }) {
   const members = useFija((s) => s.members);
   const [imagen, setImagen] = useState<string | null>(null);
   async function armar(story: boolean) {
+    if (!puede) return;
     const canvas = document.createElement("canvas");
     canvas.width = story ? 1080 : 1200;
     canvas.height = story ? 1920 : 630;
@@ -769,11 +785,11 @@ function Compartir({ event, crest, lineup }: { event: ClubEvent; crest?: string 
     ctx.fillStyle = "#b8f25a";
     ctx.font = story ? "700 64px sans-serif" : "600 36px sans-serif";
     ctx.fillText(event.title, 64, story ? 270 : 180);
-    const forma = FORMATIONS[event.modality][0];
+    const forma = FORMATIONS[event.modality].find((item) => item.id === formacionId) ?? FORMATIONS[event.modality][0];
     for (const [key, id] of Object.entries(lineup)) {
       const slot = forma.slots.find((item) => item.key === key);
       const person = members.find((item) => item.id === id);
-      if (!slot || !person) continue;
+      if (!slot || !person || person.menor) continue;
       const x = 80 + (slot.x / 100) * (canvas.width - 160);
       const y = (story ? 420 : 240) + (slot.y / 100) * (story ? 1100 : 280);
       ctx.beginPath();
@@ -791,7 +807,13 @@ function Compartir({ event, crest, lineup }: { event: ClubEvent; crest?: string 
     ctx.textAlign = "left";
     ctx.fillStyle = "#eef6ef";
     ctx.font = "500 28px sans-serif";
-    ctx.fillText(crest ? "Con el escudo del equipo" : "Armado en Mi Vestuario", 64, canvas.height - 80);
+    if (crest?.startsWith("data:image/")) {
+      const img = new Image();
+      img.src = crest;
+      await img.decode().catch(() => undefined);
+      if (img.width > 0) ctx.drawImage(img, 64, canvas.height - 150, 72, 72);
+    }
+    ctx.fillText("Mi Vestuario", crest?.startsWith("data:image/") ? 150 : 64, canvas.height - 80);
     const url = canvas.toDataURL("image/png");
     setImagen(url);
     const blob = await (await fetch(url)).blob();
@@ -805,9 +827,12 @@ function Compartir({ event, crest, lineup }: { event: ClubEvent; crest?: string 
       link.click();
     }
   }
+  if (!puede) {
+    return <p className="mt-4 text-sm text-muted">Esta imagen no se comparte desde una cuenta de menor.</p>;
+  }
   return (
     <div className="mt-3 grid gap-3">
-      <p className="text-sm text-muted">La imagen lleva la formación, el rival y la marca. No lleva audios ni indicaciones.</p>
+      <p className="text-sm text-muted">La imagen lleva la formación de este plan y el escudo. No lleva menores, audios ni indicaciones.</p>
       <Button className="h-14" onClick={() => void armar(false)}>Compartir en WhatsApp</Button>
       <Button variant="secondary" className="h-14" onClick={() => void armar(true)}>Historia de Instagram</Button>
       {imagen ? <img src={imagen} alt="" className="w-full rounded-lg" /> : null}

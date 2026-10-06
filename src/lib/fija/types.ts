@@ -175,6 +175,8 @@ export type ClubEvent = {
   detailsUpdatedAt?: string;
   /** Cuándo se armó la formación. Gana la copia más nueva, aunque tenga menos jugadores. */
   lineupUpdatedAt?: string;
+  /** Cuándo se cambió la jugada, la pelota parada, el video o las indicaciones. */
+  pizarraUpdatedAt?: string;
   /** Cuándo el DT confirmó que la planilla está completa. */
   resultClosedAt?: string | null;
   /** La planilla se guardó, pero el DT dijo que todavía falta. */
@@ -197,10 +199,10 @@ export type ClubEvent = {
   planes?: PlanPizarra[];
   /** El plan que está mirando el plantel. */
   planActivo?: "a" | "b" | "c";
-  /** Jugada en cuadros. */
-  pasos?: JugadaPaso;
-  /** Pelota parada de este partido. */
-  pelotaParada?: JugadaPaso;
+  /** Jugada en cuadros. null significa que el DT la borró. */
+  pasos?: JugadaPaso | null;
+  /** Pelota parada de este partido. null significa que el DT la borró. */
+  pelotaParada?: JugadaPaso | null;
   /** Si es false, el jugador no ve la jugada aunque esté guardada. */
   jugadaVisible?: boolean;
   /** Si es false, el jugador no ve la pelota parada. */
@@ -300,6 +302,8 @@ export type ClubBundle = {
   caja?: Caja;
   /** Jugadas que el DT guarda para otro partido. */
   biblioteca?: JugadaGuardada[];
+  /** Cuándo se cambió Mis jugadas. Una copia vieja no pisa una nueva. */
+  bibliotecaAt?: string;
 };
 
 export type Alumni = {
