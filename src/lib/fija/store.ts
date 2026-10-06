@@ -16,6 +16,7 @@ import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
 import { mergeFiguraVotes } from "./figura";
+import { estadoFigura } from "./premios";
 import { aplicarCobro, armarGasto, cajaVacia, conCierre, cuponesDe, mergeCaja } from "./caja";
 import { ponerReaccion, votarEncuesta } from "./fecha";
 import { sanitizeJugada, type NotaJugada } from "./jugada";
@@ -1304,6 +1305,7 @@ export const useFija = create<State>()(
         const event = get().events.find((item) => item.id === eventId);
         if (!event || !resultIsOpen(event.startsAt)) return;
         if (!get().matchSheets.some((sheet) => sheet.eventId === eventId)) return;
+        if (estadoFigura(event, get().figuraVotes ?? [], Date.now()) !== "abierta") return;
         const vote: FiguraVote = { eventId, voterId, pickId, at: new Date().toISOString() };
         set({
           figuraVotes: mergeFiguraVotes(

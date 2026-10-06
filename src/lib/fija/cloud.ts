@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
 import { mergeCaja, cobrosConfiables, cobrosDelJugador } from "./caja";
-import { figuraPermitida, mergeFiguraVotes } from "./figura";
+import { figuraPermitida, mergeFiguraVotes, votosAceptables } from "./figura";
 import { FORMATIONS } from "./formations";
 import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoAttemptKey, vivoPointerAllows, VIVO_READ_LIMIT, type PuestoPublico } from "./vivo";
 import { preferirJugada } from "./jugada";
@@ -977,6 +977,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   const mergedEvents = staff ? mergeEvents(existing.events, incoming.events) : existing.events;
   const votos = (staff ? incoming.figuraVotes ?? [] : (incoming.figuraVotes ?? []).filter((row) => row.voterId === me?.id))
     .filter((row) => figuraPermitida(row, mergedEvents));
+  const votosPrevios = (existing.figuraVotes ?? []).filter((row) => figuraPermitida(row, mergedEvents));
   return withoutDroppedCharla(
     pruneBundle(
     lightenClosedMatches(
@@ -1007,10 +1008,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     matchSheets: staff
       ? mergeSheetsByTime(existing.matchSheets, incoming.matchSheets, mergedEvents)
       : existing.matchSheets,
-    figuraVotes: mergeFiguraVotes(
-      (existing.figuraVotes ?? []).filter((row) => figuraPermitida(row, mergedEvents)),
-      votos,
-    ),
+    figuraVotes: mergeFiguraVotes(votosPrevios, votosAceptables(votosPrevios, votos, mergedEvents, Date.now())),
     invites: staff ? unionById(existing.invites, incoming.invites) : existing.invites,
     convocatorias: staff
       ? unionById(

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { cerrarMarcador, publicarMarcador } from "@/lib/fija/cloud";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { candidatosFigura, figuraDe } from "@/lib/fija/figura";
+import { estadoFigura } from "@/lib/fija/premios";
 import { personLabel } from "@/lib/fija/format";
 import { vivoUrl, whatsAppEnVivo, whatsAppResultado, whatsAppSinConfirmar } from "@/lib/fija/share";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
@@ -150,6 +151,7 @@ export function FiguraPartido({ event }: { event: ClubEvent }) {
   const mio = (votes ?? []).find((row) => row.eventId === event.id && row.voterId === me.id);
   const figura = figuraDe(votes, event.id);
   const byId = new Map(members.map((person) => [person.id, person]));
+  const cerrada = estadoFigura(event, votes ?? [], Date.now()) !== "abierta";
 
   return (
     <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
@@ -162,12 +164,14 @@ export function FiguraPartido({ event }: { event: ClubEvent }) {
       ) : (
         <p className="mt-1 text-sm text-muted">Todavía no votó nadie.</p>
       )}
+      {cerrada ? <p className="mt-2 text-sm text-muted">Votación cerrada</p> : null}
       <ul className="mt-3 space-y-1">
         {candidatos.map((person) => (
           <li key={person.id}>
             <button
               type="button"
-              className={`h-12 w-full rounded-md px-3 text-left text-sm font-semibold ${
+              disabled={cerrada}
+              className={`h-12 w-full rounded-md px-3 text-left text-sm font-semibold disabled:opacity-50 ${
                 mio?.pickId === person.id ? "bg-accent text-accent-fg" : "bg-bg"
               }`}
               onClick={() => voteFigura(event.id, person.id)}

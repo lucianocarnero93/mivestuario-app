@@ -1,3 +1,5 @@
+import { enviar } from "./lienzo.ts";
+
 export type StoryKind = "convocados" | "vivo" | "final" | "figura";
 
 export async function compartirStory(input: {
@@ -8,24 +10,7 @@ export async function compartirStory(input: {
   detalle: string;
 }): Promise<"shared" | "saved"> {
   const blob = await dibujarStory(input);
-  const file = new File([blob], "fecha.png", { type: "image/png" });
-  const texto = textoStory(input);
-  try {
-    if (typeof navigator.share === "function" && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-      await navigator.share({ files: [file], title: "Mi Vestuario", text: texto });
-      return "shared";
-    }
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw error;
-  }
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "fecha.png";
-  link.click();
-  URL.revokeObjectURL(url);
-  await navigator.clipboard?.writeText(texto);
-  return "saved";
+  return enviar(blob, "fecha.png", textoStory(input), { copiarTexto: true });
 }
 
 function textoStory(input: { kind: StoryKind; titulo: string; marcador: string; detalle: string }): string {

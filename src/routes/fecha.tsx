@@ -1,8 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { EnCancha, FiguraPartido, ParaLaFamilia } from "@/components/fija/partido";
+import { PremiosFecha } from "@/components/fija/premios-fecha";
+import { useContextoPremios } from "@/components/fija/use-premios";
+import { PlayerAvatar } from "@/components/fija/stat-blocks";
 import { Button } from "@/components/ui/button";
-import { enJuego, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
+import { enJuego, estaJugado, rachaGoles, rachaInvicto, rachaVoy, recapSemana } from "@/lib/fija/fecha";
+import { etiquetaPremio, premiosDelPartido } from "@/lib/fija/premios";
+import { alumniMember } from "@/lib/fija/stats";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { leerFamilia } from "@/lib/fija/familia";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
@@ -128,6 +133,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
         </Button>
       </div>
       {cerrado ? <FiguraPartido event={event} /> : null}
+      {estaJugado(event, sheet) ? <PremiosFecha event={event} /> : null}
       <div className="mt-4 flex gap-2">
         {EMOJIS.map((emoji) => {
           const cuenta = event.reacciones?.filter((item) => item.emoji === emoji.id).length ?? 0;
@@ -157,6 +163,7 @@ function Historial({ actualId, staff }: { actualId?: string; staff: boolean }) {
   const events = useFija((s) => s.events);
   const sheets = useFija((s) => s.matchSheets);
   const members = useFija((s) => s.members);
+  const ctx = useContextoPremios();
   const pasados = events
     .filter((event) => event.kind === "partido" && event.id !== actualId && (staff || !event.fechaOculta))
     .filter((event) => event.resultClosedAt)
@@ -173,6 +180,7 @@ function Historial({ actualId, staff }: { actualId?: string; staff: boolean }) {
           const goles = (sheet?.players ?? [])
             .filter((row) => row.goals > 0)
             .map((row) => members.find((person) => person.id === row.memberId)?.nick ?? "Jugador");
+          const premios = premiosDelPartido(event.id, ctx);
           return (
             <li key={event.id}>
               <Link
@@ -183,6 +191,19 @@ function Historial({ actualId, staff }: { actualId?: string; staff: boolean }) {
                 <p className="text-sm text-muted">{event.title}</p>
                 <p className="text-2xl font-semibold">{sheet ? `${sheet.goalsFor}–${sheet.goalsAgainst}` : "Sin cargar"}</p>
                 {goles.length > 0 ? <p className="mt-1 text-sm text-muted">{goles.join(", ")}</p> : null}
+                {premios.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {premios.map((premio) => {
+                      const person = members.find((item) => item.id === premio.memberId) ?? alumniMember(ctx.alumni, premio.memberId);
+                      return (
+                        <span key={premio.id} className="inline-flex items-center gap-1 rounded-full bg-bg py-1 pr-2 pl-1 text-xs font-semibold">
+                          <PlayerAvatar name={person.menor ? person.nick : person.name} photo={person.menor ? null : person.photo} />
+                          {etiquetaPremio(premio.tipo)} · {premio.nombre}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </Link>
             </li>
           );
