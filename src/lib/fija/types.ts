@@ -201,6 +201,10 @@ export type ClubEvent = {
   pasos?: JugadaPaso;
   /** Pelota parada de este partido. */
   pelotaParada?: JugadaPaso;
+  /** Si es false, el jugador no ve la jugada aunque esté guardada. */
+  jugadaVisible?: boolean;
+  /** Si es false, el jugador no ve la pelota parada. */
+  pelotaVisible?: boolean;
   /** Link de un video. No se sube el archivo. */
   videoUrl?: string;
   /** Quién abrió la pizarra. */

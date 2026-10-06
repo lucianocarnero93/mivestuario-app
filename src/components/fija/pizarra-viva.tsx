@@ -217,6 +217,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
 
       {vista === "puesto" && staff ? (
         <ul className="mt-3 grid gap-2">
+          <li className="text-sm text-muted">Cada jugador ve su puesto y su indicación. No ve la de los demás.</li>
           {Object.entries(event.lineup).map(([key, id]) => {
             const person = members.find((item) => item.id === id);
             const puesto = forma.slots.find((item) => item.key === key);
@@ -257,7 +258,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
         </div>
       ) : null}
 
-      {vista === "charla" && me ? <AudioPropio event={event} meId={me.id} code={code} staff={staff} onAviso={setAviso} /> : null}
+      {vista === "charla" ? <Audios event={event} meId={me?.id ?? ""} code={code} staff={staff} onAviso={setAviso} /> : null}
       {vista === "charla" ? <VideoLink event={event} staff={staff} onChange={(url) => aplicar(event.id, { videoUrl: url })} /> : null}
       {vista === "jugada" || vista === "pelota" ? (
         <Pasos
@@ -266,14 +267,25 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
           seccion={vista === "pelota" ? "pelota" : "jugada"}
           formacionId={plan.formacion}
           guardado={vista === "pelota" ? event.pelotaParada : event.pasos}
-          predeterminadas={biblioteca}
-          onMovimiento={(play) => {
+          visible={vista === "pelota" ? event.pelotaVisible !== false : event.jugadaVisible !== false}
+          onMostrar={(play) => {
             const next = guardarPasos(event, play);
             if (!next.pasos) return;
-            if (vista === "pelota") aplicar(event.id, { pelotaParada: next.pasos });
-            else aplicar(event.id, { pasos: next.pasos });
-            setAviso("Movimiento guardado.");
+            if (vista === "pelota") aplicar(event.id, { pelotaParada: next.pasos, pelotaVisible: true });
+            else aplicar(event.id, { pasos: next.pasos, jugadaVisible: true });
+            setAviso("El jugador ya lo ve.");
           }}
+          onOcultar={() => {
+            if (vista === "pelota") aplicar(event.id, { pelotaVisible: false });
+            else aplicar(event.id, { jugadaVisible: false });
+            setAviso("El jugador ya no lo ve.");
+          }}
+          onEliminar={() => {
+            if (vista === "pelota") aplicar(event.id, { pelotaParada: undefined, pelotaVisible: false });
+            else aplicar(event.id, { pasos: undefined, jugadaVisible: false });
+            setAviso("Eliminada. El jugador no ve nada.");
+          }}
+          predeterminadas={biblioteca}
           onPredeterminada={(item) => {
             guardarEnBiblioteca(item);
             setAviso("Predeterminada guardada.");
@@ -432,16 +444,22 @@ function Pasos({
   seccion,
   guardado,
   formacionId,
+  visible,
   predeterminadas,
-  onMovimiento,
+  onMostrar,
+  onOcultar,
+  onEliminar,
   onPredeterminada,
 }: {
   event: ClubEvent;
   seccion: "jugada" | "pelota";
   guardado?: ClubEvent["pasos"];
   formacionId?: string;
+  visible: boolean;
   predeterminadas: JugadaGuardada[];
-  onMovimiento: (pasos: NonNullable<ClubEvent["pasos"]>) => void;
+  onMostrar: (pasos: NonNullable<ClubEvent["pasos"]>) => void;
+  onOcultar: () => void;
+  onEliminar: () => void;
   onPredeterminada: (item: JugadaGuardada) => void;
 }) {
   const staff = useIsStaff();
@@ -499,22 +517,34 @@ function Pasos({
     return { x, y };
   }
 
-  if (!staff && !deAqui) {
-    return <p className="mt-4 rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">El DT todavía no guardó este movimiento.</p>;
+  if (!staff && (!deAqui || !visible)) {
+    return <p className="mt-4 rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">El DT todavía no te dejó esta jugada.</p>;
   }
 
+  const ve = Boolean(deAqui && visible && guardado);
   return (
     <div className="mt-3">
       {staff ? (
+        <div className={`rounded-xl border p-4 ${ve ? "border-accent/50 bg-surface" : "border-line/20 bg-surface"}`}>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted">El jugador ve</p>
+          <p className="mt-1 text-lg font-semibold">{ve ? guardado?.nombre : "Nada en esta pantalla."}</p>
+          {ve ? <p className="mt-1 text-sm text-muted">{guardado?.cuadros[0]?.texto}</p> : <p className="mt-1 text-sm text-muted">Lo que armes abajo no se ve hasta que lo muestres.</p>}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ve ? <button type="button" className="h-11 rounded-md bg-surface-2 px-3 text-sm font-semibold" onClick={onOcultar}>Ocultar</button> : null}
+            {deAqui ? <button type="button" className="h-11 rounded-md bg-surface-2 px-3 text-sm font-semibold" onClick={onEliminar}>Eliminar</button> : null}
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs font-semibold uppercase tracking-widest text-accent">{pasos.nombre}</p>
+      )}
+      {staff ? (
         <input
-          className="h-12 w-full rounded-md bg-surface px-3 text-base font-semibold"
+          className="mt-3 h-12 w-full rounded-md bg-surface px-3 text-base font-semibold"
           maxLength={40}
           value={pasos.nombre}
           onChange={(e) => setPasos(nombreDeJugada(pasos, e.target.value))}
         />
-      ) : (
-        <p className="text-xs font-semibold uppercase tracking-widest text-accent">{pasos.nombre}</p>
-      )}
+      ) : null}
       <div ref={caja} className="relative mx-auto mt-2 aspect-[5/7] w-full max-w-md overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep">
         <svg viewBox="0 0 100 140" className="absolute inset-0 h-full w-full text-line/70" aria-hidden>
           <rect x="5" y="5" width="90" height="130" fill="none" stroke="currentColor" strokeWidth="1.2" />
@@ -610,7 +640,8 @@ function Pasos({
       ) : null}
       {staff ? (
         <div className="mt-3 grid gap-2">
-          <Button className="h-12 w-full" onClick={() => onMovimiento(pasos)}>Guardar movimiento</Button>
+          <Button className="h-12 w-full" onClick={() => onMostrar(pasos)}>Mostrar al jugador</Button>
+          <p className="text-center text-xs text-muted">La predeterminada queda en Mis jugadas. El jugador no la ve ahí.</p>
           <Button variant="secondary" className="h-12 w-full" onClick={() => onPredeterminada({ id: pasos.id, nombre: pasos.nombre || "Jugada", tipo: pasos.tipo, cuadros: pasos.cuadros, visible: true })}>Guardar predeterminada</Button>
           <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" onClick={() => {
             const id = uid("jg").slice(0, 16);
@@ -625,11 +656,27 @@ function Pasos({
   );
 }
 
-function AudioPropio({ event, meId, code, staff, onAviso }: { event: ClubEvent; meId: string; code: string; staff: boolean; onAviso: (t: string) => void }) {
+function Audios({ event, meId, code, staff, onAviso }: { event: ClubEvent; meId: string; code: string; staff: boolean; onAviso: (t: string) => void }) {
+  const members = useFija((s) => s.members);
+  const enCancha = [...new Set(Object.values(event.lineup))];
+  const ids = enCancha.length > 0 ? enCancha : members.filter((item) => item.juega ?? item.role === "jugador").map((item) => item.id);
+  const lista = staff ? ids : ids.filter((id) => id === meId);
+  return (
+    <div className="mt-3">
+      <p className="text-sm text-muted">{staff ? "Cada jugador escucha solo el suyo. El del compañero no." : "Tu audio."}</p>
+      <ul className="mt-2 grid gap-2">
+        {lista.map((id) => (
+          <AudioFila key={id} event={event} memberId={id} code={code} staff={staff} onAviso={onAviso} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AudioFila({ event, memberId, code, staff, onAviso }: { event: ClubEvent; memberId: string; code: string; staff: boolean; onAviso: (t: string) => void }) {
   const members = useFija((s) => s.members);
   const aplicar = useFija((s) => s.aplicarPizarra);
-  const [quien, setQuien] = useState(meId);
-  const notaId = quien.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
+  const notaId = memberId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16);
   const [audio, setAudio] = useState<string | null>(null);
   const [grabando, setGrabando] = useState(false);
   const rec = useRef<MediaRecorder | null>(null);
@@ -661,7 +708,7 @@ function AudioPropio({ event, meId, code, staff, onAviso }: { event: ClubEvent; 
           if (!result.ok) onAviso("No se pudo guardar el audio.");
           else {
             setAudio(data);
-            aplicar(event.id, { audioDe: [...new Set([...(event.audioDe ?? []), quien])] });
+            aplicar(event.id, { audioDe: [...new Set([...(event.audioDe ?? []), memberId])] });
           }
         });
       };
@@ -674,18 +721,13 @@ function AudioPropio({ event, meId, code, staff, onAviso }: { event: ClubEvent; 
       if (media.state === "recording") media.stop();
     }, 60_000);
   }
-  const person = members.find((item) => item.id === quien);
+  const person = members.find((item) => item.id === memberId);
   return (
-    <div className="mt-3 rounded-xl bg-surface p-4">
-      <p className="text-xs font-semibold uppercase tracking-widest text-muted">Audio de {person?.nick ?? "jugador"}</p>
-      {staff ? (
-        <select className="mt-2 h-12 w-full rounded-md bg-bg px-3" value={quien} onChange={(e) => setQuien(e.target.value)}>
-          {members.map((item) => <option key={item.id} value={item.id}>{item.nick}</option>)}
-        </select>
-      ) : null}
-      {audio ? <audio className="mt-3 w-full" controls src={audio} /> : <p className="mt-2 text-sm text-muted">Todavía no hay un audio para esta persona.</p>}
-      {staff ? <Button className="mt-3 h-12 w-full" onClick={() => void grabar()}><Mic className="size-4" /> {grabando ? "Cortar" : "Grabar audio"}</Button> : null}
-    </div>
+    <li className="rounded-xl bg-surface p-4">
+      <p className="text-sm font-semibold">{person?.nick ?? "Jugador"}</p>
+      {audio ? <audio className="mt-2 w-full" controls src={audio} /> : <p className="mt-2 text-sm text-muted">Sin audio.</p>}
+      {staff ? <Button className="mt-3 h-12 w-full" onClick={() => void grabar()}><Mic className="size-4" /> {grabando ? "Cortar" : "Grabar"}</Button> : null}
+    </li>
   );
 }
 
@@ -744,7 +786,7 @@ function Biblioteca({
 }) {
   return (
     <div className="mt-3">
-      <p className="text-sm text-muted">Acá están las predeterminadas. El movimiento de un partido no entra solo. Mostrá las que querés usar al armar.</p>
+      <p className="text-sm text-muted">Estas no las ve el jugador. Son para volver a usarlas. Para que vea una, abrí Jugada o Pelota parada y tocá Mostrar al jugador.</p>
       <ul className="mt-3 grid gap-2">
         {items.length === 0 ? <li className="text-sm text-muted">Todavía no guardaste ninguna.</li> : null}
         {items.map((item) => (

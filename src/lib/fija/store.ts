@@ -2683,7 +2683,8 @@ if (typeof window !== "undefined") {
       state.rsvps === prev.rsvps &&
       state.charla === prev.charla &&
       state.inbox === prev.inbox &&
-      state.club === prev.club
+      state.club === prev.club &&
+      state.biblioteca === prev.biblioteca
     ) {
       return;
     }
