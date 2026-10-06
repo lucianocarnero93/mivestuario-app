@@ -17,12 +17,17 @@ import {
   guardarPasos,
   JUGADAS_ABIERTAS,
   limpiarDibujos,
+  moverEnCuadro,
+  nombreDeJugada,
   PELOTAS_PARADAS,
   planVisible,
   armarJugada,
   type ClaveJugada,
   ponerEnPlan,
+  sacarPaso,
   sumarDibujo,
+  sumarPaso,
+  textoDePaso,
   videoLimpio,
 } from "@/lib/fija/pizarra";
 import { useFija, useIsStaff } from "@/lib/fija/store";
@@ -445,6 +450,7 @@ function TrazoSvg({ dibujo }: { dibujo: Dibujo }) {
 }
 
 function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "jugada" | "pelota"; onGuardar: (pasos: NonNullable<ClubEvent["pasos"]>) => void }) {
+  const staff = useIsStaff();
   const forma = FORMATIONS[event.modality].find((item) => item.id === event.formacion) ?? FORMATIONS[event.modality][0];
   const puestos = forma.slots.map((slot) => ({ key: slot.key, x: slot.x, y: slot.y, memberId: event.lineup[slot.key] }));
   const catalogo = seccion === "pelota" ? PELOTAS_PARADAS : JUGADAS_ABIERTAS;
@@ -454,6 +460,8 @@ function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "juga
   const pasos = sirve && guardado ? guardado : armarJugada(elegida, puestos);
   const [cuadro, setCuadro] = useState(0);
   const [play, setPlay] = useState(false);
+  const [vivo, setVivo] = useState<{ quien: string; x: number; y: number } | null>(null);
+  const caja = useRef<HTMLDivElement>(null);
   const indice = Math.min(cuadro, Math.max(pasos.cuadros.length - 1, 0));
   const actual = pasos.cuadros[indice];
   const members = useFija((s) => s.members);
@@ -462,10 +470,41 @@ function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "juga
     const id = window.setInterval(() => setCuadro((n) => (n + 1) % pasos.cuadros.length), 1400);
     return () => window.clearInterval(id);
   }, [play, pasos.cuadros.length]);
+
+  function coords(pointer: ReactPointerEvent) {
+    const box = caja.current?.getBoundingClientRect();
+    if (!box) return { x: 0, y: 0 };
+    return {
+      x: Math.min(100, Math.max(0, ((pointer.clientX - box.left) / box.width) * 100)),
+      y: Math.min(100, Math.max(0, ((pointer.clientY - box.top) / box.height) * 100)),
+    };
+  }
+
+  function empezar(pointer: ReactPointerEvent, quien: string) {
+    if (!staff || play) return;
+    pointer.preventDefault();
+    pointer.currentTarget.setPointerCapture(pointer.pointerId);
+    setVivo({ quien, ...coords(pointer) });
+  }
+
+  function lugar(quien: string, x: number, y: number) {
+    if (vivo?.quien === quien) return { x: vivo.x, y: vivo.y };
+    return { x, y };
+  }
+
   return (
     <div className="mt-3">
-      <p className="text-xs font-semibold uppercase tracking-widest text-accent">{pasos.nombre}</p>
-      <div className="relative mx-auto mt-2 aspect-[5/7] w-full max-w-md overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep">
+      {staff ? (
+        <input
+          className="h-12 w-full rounded-md bg-surface px-3 text-base font-semibold"
+          maxLength={40}
+          value={pasos.nombre}
+          onChange={(e) => onGuardar(nombreDeJugada(pasos, e.target.value))}
+        />
+      ) : (
+        <p className="text-xs font-semibold uppercase tracking-widest text-accent">{pasos.nombre}</p>
+      )}
+      <div ref={caja} className="relative mx-auto mt-2 aspect-[5/7] w-full max-w-md overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep">
         <svg viewBox="0 0 100 140" className="absolute inset-0 h-full w-full text-line/70" aria-hidden>
           <rect x="5" y="5" width="90" height="130" fill="none" stroke="currentColor" strokeWidth="1.2" />
           <line x1="5" y1="70" x2="95" y2="70" stroke="currentColor" strokeWidth="0.8" />
@@ -476,23 +515,65 @@ function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "juga
         {actual?.fichas.map((ficha) => {
           const person = members.find((item) => item.id === ficha.memberId);
           const puesto = ficha.memberId.startsWith("puesto:") ? ficha.memberId.slice(7) : "";
+          const pos = lugar(ficha.memberId, ficha.x, ficha.y);
           return (
-            <span key={ficha.memberId} className="absolute z-10 -translate-x-1/2 -translate-y-1/2 text-center transition-all duration-700" style={{ left: `${ficha.x}%`, top: `${ficha.y}%` }}>
+            <span
+              key={ficha.memberId}
+              className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 text-center ${vivo ? "" : "transition-all duration-700"} ${staff && !play ? "cursor-grab touch-none" : ""}`}
+              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
+              onPointerDown={(pointer) => empezar(pointer, ficha.memberId)}
+              onPointerMove={(pointer) => vivo?.quien === ficha.memberId && setVivo({ quien: ficha.memberId, ...coords(pointer) })}
+              onPointerUp={() => {
+                if (vivo?.quien !== ficha.memberId) return;
+                onGuardar(moverEnCuadro(pasos, indice, ficha.memberId, vivo.x, vivo.y));
+                setVivo(null);
+              }}
+            >
               <span className="relative grid size-10 place-items-center rounded-full border-2 border-line bg-surface text-sm font-bold text-accent">{person?.number ?? puesto.slice(0, 3)}</span>
               <span className="block max-w-16 truncate text-xs font-semibold text-line">{person?.nick ?? puesto}</span>
             </span>
           );
         })}
-        {actual ? <span className="absolute z-20 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-fg bg-white transition-all duration-700" style={{ left: `${actual.pelota.x}%`, top: `${actual.pelota.y}%` }} /> : null}
+        {actual ? (
+          <span
+            className={`absolute z-20 grid size-10 -translate-x-1/2 -translate-y-1/2 place-items-center ${vivo ? "" : "transition-all duration-700"} ${staff && !play ? "cursor-grab touch-none" : ""}`}
+            style={{ left: `${lugar("pelota", actual.pelota.x, actual.pelota.y).x}%`, top: `${lugar("pelota", actual.pelota.x, actual.pelota.y).y}%` }}
+            onPointerDown={(pointer) => empezar(pointer, "pelota")}
+            onPointerMove={(pointer) => vivo?.quien === "pelota" && setVivo({ quien: "pelota", ...coords(pointer) })}
+            onPointerUp={() => {
+              if (vivo?.quien !== "pelota") return;
+              onGuardar(moverEnCuadro(pasos, indice, "pelota", vivo.x, vivo.y));
+              setVivo(null);
+            }}
+          >
+            <span className="size-4 rounded-full border border-fg bg-white" />
+          </span>
+        ) : null}
       </div>
-      <p className="mt-3 text-lg font-medium leading-snug">{actual?.texto}</p>
+      {staff ? <p className="mt-2 text-center text-xs text-muted">Arrastrá las fichas y la pelota de este paso.</p> : null}
+      {staff ? (
+        <textarea
+          className="mt-3 min-h-20 w-full rounded-md bg-surface px-3 py-2 text-base"
+          maxLength={80}
+          value={actual?.texto ?? ""}
+          onChange={(e) => onGuardar(textoDePaso(pasos, indice, e.target.value))}
+        />
+      ) : (
+        <p className="mt-3 text-lg font-medium leading-snug">{actual?.texto}</p>
+      )}
       <div className="mt-3 flex gap-2">
         {pasos.cuadros.map((item, i) => (
-          <button key={item.texto} type="button" className={`h-11 flex-1 rounded-md text-sm font-semibold ${i === indice ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => { setPlay(false); setCuadro(i); }}>
+          <button key={`${pasos.id}-${i}`} type="button" className={`h-11 flex-1 rounded-md text-sm font-semibold ${i === indice ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => { setPlay(false); setCuadro(i); }}>
             {i + 1}
           </button>
         ))}
       </div>
+      {staff ? (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" disabled={pasos.cuadros.length >= 4} onClick={() => { onGuardar(sumarPaso(pasos)); setCuadro(pasos.cuadros.length); }}>Otro paso</button>
+          <button type="button" className="h-11 rounded-md bg-surface text-sm font-semibold" disabled={pasos.cuadros.length <= 2} onClick={() => { onGuardar(sacarPaso(pasos, indice)); setCuadro(Math.max(0, indice - 1)); }}>Sacar este paso</button>
+        </div>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
         {catalogo.map((item) => (
           <button key={item.id} type="button" className={`h-11 rounded-md px-3 text-sm font-semibold ${pasos.id === item.id ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => { setElegida(item.id); setCuadro(0); setPlay(false); onGuardar(armarJugada(item.id, puestos)); }}>

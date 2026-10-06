@@ -152,6 +152,43 @@ export function guardarPasos(event: ClubEvent, pasos: JugadaPaso): ClubEvent {
   };
 }
 
+export function moverEnCuadro(pasos: JugadaPaso, indice: number, quien: string, x: number, y: number): JugadaPaso {
+  if (!pasos.cuadros[indice]) return pasos;
+  const px = numero(x);
+  const py = numero(y);
+  return {
+    ...pasos,
+    cuadros: pasos.cuadros.map((item, i) => {
+      if (i !== indice) return item;
+      if (quien === "pelota") return { ...item, pelota: { x: px, y: py } };
+      return { ...item, fichas: item.fichas.map((ficha) => (ficha.memberId === quien ? { ...ficha, x: px, y: py } : ficha)) };
+    }),
+  };
+}
+
+export function textoDePaso(pasos: JugadaPaso, indice: number, texto: string): JugadaPaso {
+  return { ...pasos, cuadros: pasos.cuadros.map((item, i) => (i === indice ? { ...item, texto: texto.slice(0, 80) } : item)) };
+}
+
+export function nombreDeJugada(pasos: JugadaPaso, nombre: string): JugadaPaso {
+  return { ...pasos, nombre: nombre.slice(0, 40) };
+}
+
+export function sumarPaso(pasos: JugadaPaso): JugadaPaso {
+  if (pasos.cuadros.length >= 4) return pasos;
+  const ultimo = pasos.cuadros[pasos.cuadros.length - 1];
+  if (!ultimo) return pasos;
+  return {
+    ...pasos,
+    cuadros: [...pasos.cuadros, { texto: "El siguiente movimiento.", pelota: { ...ultimo.pelota }, fichas: ultimo.fichas.map((ficha) => ({ ...ficha })) }],
+  };
+}
+
+export function sacarPaso(pasos: JugadaPaso, indice: number): JugadaPaso {
+  if (pasos.cuadros.length <= 2) return pasos;
+  return { ...pasos, cuadros: pasos.cuadros.filter((_, i) => i !== indice) };
+}
+
 export type PuestoJugada = { key: string; x: number; y: number; memberId?: string };
 
 export type ClaveJugada =

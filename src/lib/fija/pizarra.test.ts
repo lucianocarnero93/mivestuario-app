@@ -8,10 +8,13 @@ import {
   faltanVer,
   guardarPasos,
   marcarVisto,
+  moverEnCuadro,
   planVisible,
   plantillaPelota,
   ponerEnPlan,
+  sacarPaso,
   sumarDibujo,
+  sumarPaso,
   videoLimpio,
 } from "./pizarra.ts";
 import type { ClubEvent } from "./types.ts";
@@ -65,6 +68,15 @@ test("la jugada pide dos cuadros y el video tiene que ser un link", () => {
   assert.equal(guardarPasos(partido(), { id: "x", nombre: "x", tipo: "jugada", cuadros: [] }).pasos, undefined);
   assert.equal(videoLimpio("https://youtube.com/watch?v=1"), "https://youtube.com/watch?v=1");
   assert.equal(videoLimpio("nota.mp4"), "");
+});
+
+test("el dt mueve una ficha y puede sumar un paso", () => {
+  const base = plantillaPelota("jugada", [{ memberId: "mati", x: 40, y: 50 }]);
+  const movida = moverEnCuadro(base, 0, "mati", 70, 30);
+  assert.equal(movida.cuadros[0]?.fichas[0]?.x, 70);
+  assert.equal(sumarPaso(movida).cuadros.length, base.cuadros.length + 1);
+  assert.equal(sacarPaso(sumarPaso(movida), 0).cuadros.length, base.cuadros.length);
+  assert.equal(sacarPaso(base, 0).cuadros.length, base.cuadros.length);
 });
 
 test("duplicar deja la original", () => {
