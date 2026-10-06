@@ -15,15 +15,18 @@ import {
   editarPlan,
   faltanVer,
   guardarPasos,
+  JUGADAS_ABIERTAS,
   limpiarDibujos,
+  PELOTAS_PARADAS,
   planVisible,
-  plantillaPelota,
+  armarJugada,
+  type ClaveJugada,
   ponerEnPlan,
   sumarDibujo,
   videoLimpio,
 } from "@/lib/fija/pizarra";
 import { useFija, useIsStaff } from "@/lib/fija/store";
-import type { ClubEvent, Dibujo, FichaPaso, PlanId, TipoPelota, Trazo } from "@/lib/fija/types";
+import type { ClubEvent, Dibujo, PlanId, Trazo } from "@/lib/fija/types";
 
 type Vista =
   | "puesto"
@@ -185,9 +188,11 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
           ) : null}
           {vista === "planes" && staff ? (
             <div className="mt-3 grid gap-2">
+              <p className="text-sm text-muted">{SENTIDO[planId]}</p>
               <input
                 className="h-12 w-full rounded-md bg-surface px-3"
                 maxLength={40}
+                placeholder="Un nombre, si querés"
                 value={plan.idea}
                 onChange={(e) => aplicarEvento(editarPlan(event, planId, { idea: e.target.value }))}
               />
@@ -200,7 +205,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
               />
             </div>
           ) : vista === "planes" ? (
-            <p className="mt-3 text-sm text-muted">{plan.idea}{plan.cambio ? ` · ${plan.cambio}` : ""}</p>
+            <p className="mt-3 text-sm text-muted">{plan.idea || SENTIDO[planId]}{plan.cambio ? ` · ${plan.cambio}` : ""}</p>
           ) : null}
           {vista === "partido" && staff ? (
             <Button className="mt-3 h-14 w-full" onClick={() => { pasarAlPlan(event.id, planId); setAviso(`Pasamos al plan ${planId.toUpperCase()}.`); }}>
@@ -259,7 +264,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
       {vista === "charla" && me ? <AudioPropio event={event} meId={me.id} code={code} staff={staff} onAviso={setAviso} /> : null}
       {vista === "charla" ? <VideoLink event={event} staff={staff} onChange={(url) => aplicar(event.id, { videoUrl: url })} /> : null}
       {vista === "jugada" || vista === "pelota" ? (
-        <Pasos event={event} tipoInicial={vista === "pelota" ? "corned" : "jugada"} onGuardar={(next) => aplicarEvento(guardarPasos(event, next))} />
+        <Pasos event={event} seccion={vista === "pelota" ? "pelota" : "jugada"} onGuardar={(next) => aplicarEvento(guardarPasos(event, next))} />
       ) : null}
       {vista === "vistos" ? <Vistos event={event} ids={players.map((p) => p.id)} nombres={members} onRecordar={setAviso} /> : null}
       {vista === "biblioteca" ? (
@@ -319,6 +324,12 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
     </section>
   );
 }
+
+const SENTIDO: Record<PlanId, string> = {
+  a: "Con este salís.",
+  b: "Si van abajo.",
+  c: "Para cerrar el partido.",
+};
 
 function Planes({ planId, onPlan }: { planId: PlanId; onPlan: (id: PlanId) => void }) {
   return (
@@ -433,46 +444,63 @@ function TrazoSvg({ dibujo }: { dibujo: Dibujo }) {
   return <line x1={dibujo.x1} y1={dibujo.y1} x2={dibujo.x2} y2={dibujo.y2} stroke="#e8f3ea" strokeWidth="0.8" strokeDasharray={dibujo.trazo === "pase" ? "2 1.4" : undefined} />;
 }
 
-function Pasos({ event, tipoInicial, onGuardar }: { event: ClubEvent; tipoInicial: TipoPelota; onGuardar: (pasos: NonNullable<ClubEvent["pasos"]>) => void }) {
-  const forma = FORMATIONS[event.modality][0];
-  const fichas: FichaPaso[] = Object.entries(event.lineup).map(([key, memberId]) => {
-    const slot = forma.slots.find((item) => item.key === key);
-    return { memberId, x: slot?.x ?? 50, y: slot?.y ?? 50 };
-  });
-  const pasos = event.pasos ?? plantillaPelota(tipoInicial, fichas);
+function Pasos({ event, seccion, onGuardar }: { event: ClubEvent; seccion: "jugada" | "pelota"; onGuardar: (pasos: NonNullable<ClubEvent["pasos"]>) => void }) {
+  const forma = FORMATIONS[event.modality].find((item) => item.id === event.formacion) ?? FORMATIONS[event.modality][0];
+  const puestos = forma.slots.map((slot) => ({ key: slot.key, x: slot.x, y: slot.y, memberId: event.lineup[slot.key] }));
+  const catalogo = seccion === "pelota" ? PELOTAS_PARADAS : JUGADAS_ABIERTAS;
+  const guardado = event.pasos;
+  const sirve = Boolean(guardado && guardado.cuadros.some((cuadro) => cuadro.fichas.length > 0) && (seccion === "jugada" ? guardado?.tipo === "jugada" : guardado?.tipo !== "jugada"));
+  const [elegida, setElegida] = useState<ClaveJugada>(catalogo[0].id);
+  const pasos = sirve && guardado ? guardado : armarJugada(elegida, puestos);
   const [cuadro, setCuadro] = useState(0);
   const [play, setPlay] = useState(false);
-  const actual = pasos.cuadros[Math.min(cuadro, pasos.cuadros.length - 1)];
+  const indice = Math.min(cuadro, Math.max(pasos.cuadros.length - 1, 0));
+  const actual = pasos.cuadros[indice];
   const members = useFija((s) => s.members);
   useEffect(() => {
     if (!play) return;
-    const id = window.setInterval(() => setCuadro((n) => (n + 1) % pasos.cuadros.length), 900);
+    const id = window.setInterval(() => setCuadro((n) => (n + 1) % pasos.cuadros.length), 1400);
     return () => window.clearInterval(id);
   }, [play, pasos.cuadros.length]);
   return (
     <div className="mt-3">
       <p className="text-xs font-semibold uppercase tracking-widest text-accent">{pasos.nombre}</p>
-      <div className="relative mt-2 aspect-[3/4] rounded-lg bg-pitch">
+      <div className="relative mx-auto mt-2 aspect-[5/7] w-full max-w-md overflow-hidden rounded-xl bg-linear-to-b from-pitch-top to-pitch-deep">
+        <svg viewBox="0 0 100 140" className="absolute inset-0 h-full w-full text-line/70" aria-hidden>
+          <rect x="5" y="5" width="90" height="130" fill="none" stroke="currentColor" strokeWidth="1.2" />
+          <line x1="5" y1="70" x2="95" y2="70" stroke="currentColor" strokeWidth="0.8" />
+          <circle cx="50" cy="70" r="12" fill="none" stroke="currentColor" strokeWidth="0.8" />
+          <rect x="22" y="5" width="56" height="18" fill="none" stroke="currentColor" strokeWidth="0.8" />
+          <rect x="22" y="117" width="56" height="18" fill="none" stroke="currentColor" strokeWidth="0.8" />
+        </svg>
         {actual?.fichas.map((ficha) => {
           const person = members.find((item) => item.id === ficha.memberId);
+          const puesto = ficha.memberId.startsWith("puesto:") ? ficha.memberId.slice(7) : "";
           return (
-            <span key={ficha.memberId} className="absolute -translate-x-1/2 -translate-y-1/2 text-center transition-all duration-700" style={{ left: `${ficha.x}%`, top: `${ficha.y}%` }}>
-              <span className="grid size-10 place-items-center rounded-full bg-accent text-sm font-bold text-accent-fg">{person?.number ?? ""}</span>
-              <span className="block text-xs">{person?.nick}</span>
+            <span key={ficha.memberId} className="absolute z-10 -translate-x-1/2 -translate-y-1/2 text-center transition-all duration-700" style={{ left: `${ficha.x}%`, top: `${ficha.y}%` }}>
+              <span className="relative grid size-10 place-items-center rounded-full border-2 border-line bg-surface text-sm font-bold text-accent">{person?.number ?? puesto.slice(0, 3)}</span>
+              <span className="block max-w-16 truncate text-xs font-semibold text-line">{person?.nick ?? puesto}</span>
             </span>
           );
         })}
-        {actual ? <span className="absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fg transition-all duration-700" style={{ left: `${actual.pelota.x}%`, top: `${actual.pelota.y}%` }} /> : null}
+        {actual ? <span className="absolute z-20 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-fg bg-white transition-all duration-700" style={{ left: `${actual.pelota.x}%`, top: `${actual.pelota.y}%` }} /> : null}
       </div>
-      <p className="mt-2 text-sm">{actual?.texto}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {(["corned", "tiro", "lateral", "salida"] as TipoPelota[]).map((tipo) => (
-          <button key={tipo} type="button" className="h-11 rounded-md bg-surface px-3 text-sm font-semibold" onClick={() => onGuardar(plantillaPelota(tipo, fichas))}>
-            {tipo === "corned" ? "Córner" : tipo === "tiro" ? "Tiro libre" : tipo === "lateral" ? "Lateral" : "Salida"}
+      <p className="mt-3 text-lg font-medium leading-snug">{actual?.texto}</p>
+      <div className="mt-3 flex gap-2">
+        {pasos.cuadros.map((item, i) => (
+          <button key={item.texto} type="button" className={`h-11 flex-1 rounded-md text-sm font-semibold ${i === indice ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => { setPlay(false); setCuadro(i); }}>
+            {i + 1}
           </button>
         ))}
       </div>
-      <Button className="mt-3 h-12 w-full" onClick={() => setPlay((v) => !v)}>{play ? <Pause className="size-4" /> : <Play className="size-4" />} {play ? "Pausa" : "Ver"}</Button>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {catalogo.map((item) => (
+          <button key={item.id} type="button" className={`h-11 rounded-md px-3 text-sm font-semibold ${pasos.id === item.id ? "bg-accent text-accent-fg" : "bg-surface"}`} onClick={() => { setElegida(item.id); setCuadro(0); setPlay(false); onGuardar(armarJugada(item.id, puestos)); }}>
+            {item.nombre}
+          </button>
+        ))}
+      </div>
+      <Button className="mt-3 h-12 w-full" onClick={() => setPlay((v) => !v)}>{play ? <Pause className="size-4" /> : <Play className="size-4" />} {play ? "Pausa" : "Ver el movimiento"}</Button>
     </div>
   );
 }

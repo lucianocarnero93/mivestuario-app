@@ -40,7 +40,8 @@ test("el plan A es la formación y el B no la pisa", () => {
   const conB = ponerEnPlan(base, "b", "mc", "fran");
   assert.equal(conB.lineup.mc, "mati");
   assert.equal(planVisible(conB, "b").lineup.mc, "fran");
-  assert.equal(planVisible(conB, "b").idea, "Si vamos perdiendo");
+  assert.equal(planVisible(conB, "b").idea, "");
+  assert.equal(planVisible(base, "a").cambio, "");
 });
 
 test("un dibujo se puede deshacer", () => {
@@ -59,7 +60,8 @@ test("el visto no se repite y el jugador no marca a otro", () => {
 
 test("la jugada pide dos cuadros y el video tiene que ser un link", () => {
   const corta = guardarPasos(partido(), plantillaPelota("corned", []));
-  assert.equal(corta.pasos?.cuadros.length, 2);
+  assert.ok((corta.pasos?.cuadros.length ?? 0) >= 2);
+  assert.match(corta.pasos?.cuadros[0]?.texto ?? "", /primer palo/i);
   assert.equal(guardarPasos(partido(), { id: "x", nombre: "x", tipo: "jugada", cuadros: [] }).pasos, undefined);
   assert.equal(videoLimpio("https://youtube.com/watch?v=1"), "https://youtube.com/watch?v=1");
   assert.equal(videoLimpio("nota.mp4"), "");
