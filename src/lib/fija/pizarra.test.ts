@@ -21,6 +21,7 @@ import {
   videoLimpio,
 } from "./pizarra.ts";
 import type { ClubEvent } from "./types.ts";
+import { NOTA_JUGADOR_MAX, notaDeJugador } from "./sanitize.ts";
 
 function partido(): ClubEvent {
   return {
@@ -129,4 +130,12 @@ test("duplicar deja la original", () => {
   assert.equal(lista[1]?.nombre, "Córner (copia)");
   const igual = editarPlan(partido(), "c", { cambio: "Entra Ale." });
   assert.equal(planVisible(igual, "c").cambio, "Entra Ale.");
+});
+
+test("la indicación de un puesto deja el espacio y no pasa a mayúsculas", () => {
+  assert.equal(notaDeJugador("Marcá al 9 "), "Marcá al 9 ");
+  assert.equal(notaDeJugador("No te tires atrás"), "No te tires atrás");
+  assert.equal(notaDeJugador("Marcá  al  9 "), "Marcá al 9 ");
+  assert.equal(notaDeJugador("<b>no</b> te tires"), "no te tires");
+  assert.equal(notaDeJugador("a".repeat(400)).length, NOTA_JUGADOR_MAX);
 });

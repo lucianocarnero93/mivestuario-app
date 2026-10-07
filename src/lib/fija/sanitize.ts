@@ -1,5 +1,19 @@
 const TAGS = /<\/?[^>]+>/g;
 
+/** Indicación del DT a un puesto. No recorta el espacio del final: si no, no se puede seguir escribiendo. */
+export const NOTA_JUGADOR_MAX = 160;
+
+export function notaDeJugador(raw: string, max = NOTA_JUGADOR_MAX): string {
+  return raw
+    .replace(TAGS, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replace(/\r\n?/g, "\n")
+    .replace(/[^\S\n]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^\n+/, "")
+    .slice(0, max);
+}
+
 export function sanitizeText(raw: string, max = 280): string {
   return raw
     .replace(TAGS, "")

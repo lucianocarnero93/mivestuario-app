@@ -4,7 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { formatWhen, uid } from "./format";
 import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
-import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
+import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
 import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
@@ -664,15 +664,15 @@ export const useFija = create<State>()(
       setNota: (eventId, memberId, nota) => {
         if (!isStaffId(get())) return;
         if (tournamentClosedFor(get(), eventId)) return;
-        const clean = sanitizeText(nota, 80);
+        const clean = notaDeJugador(nota);
         const now = new Date().toISOString();
         set({
           events: get().events.map((event) => {
             if (event.id !== eventId) return event;
             const notas = { ...(event.notas ?? {}) };
-            if (!clean) delete notas[memberId];
+            if (!clean.trim()) delete notas[memberId];
             else notas[memberId] = clean;
-            return { ...event, notas, lineupUpdatedAt: now };
+            return { ...event, notas, lineupUpdatedAt: now, pizarraUpdatedAt: now };
           }),
         });
       },

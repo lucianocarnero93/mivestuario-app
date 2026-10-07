@@ -8,6 +8,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FORMATIONS, MODALITY_SHORT, MODALITIES, puestoDe } from "@/lib/fija/formations";
 import { personLabel, uid } from "@/lib/fija/format";
+import { NOTA_JUGADOR_MAX } from "@/lib/fija/sanitize";
 import { loadAudioJugada, saveAudioJugada } from "@/lib/fija/cloud";
 import {
   ALINEACION_FOTOS_DEFAULT,
@@ -140,7 +141,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
                     {me.nick}
                     {me.number != null ? ` · ${me.number}` : ""} · {miPuesto.label}
                   </p>
-                  <p className="mt-2 text-xl font-medium leading-snug text-line">
+                  <p className="mt-2 whitespace-pre-wrap text-xl font-medium leading-snug text-line">
                     {event.notas?.[me.id] || "El DT todavía no te dejó una indicación."}
                   </p>
                 </>
@@ -229,16 +230,25 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
             if (!person) return null;
             return (
               <li key={key}>
-                <label className="block text-xs text-muted">
+                <label className="block text-xs normal-case text-muted" htmlFor={`nota-${key}`}>
                   {person.nick} · {puesto?.label ?? "Puesto"}
-                  <input
-                    className="mt-1 h-12 w-full rounded-md bg-surface px-3 text-base text-fg"
-                    maxLength={80}
-                    placeholder="Su indicación"
-                    value={event.notas?.[id] ?? ""}
-                    onChange={(e) => setNotaJugador(event.id, id, e.target.value)}
-                  />
                 </label>
+                <Textarea
+                  id={`nota-${key}`}
+                  className="mt-1 min-h-20 border-line/30 bg-surface text-base normal-case text-fg"
+                  rows={3}
+                  maxLength={NOTA_JUGADOR_MAX}
+                  placeholder="Marcá al 9. No te tires atrás."
+                  autoCapitalize="sentences"
+                  autoCorrect="on"
+                  spellCheck
+                  value={event.notas?.[id] ?? ""}
+                  onChange={(e) => setNotaJugador(event.id, id, e.target.value)}
+                  onBlur={(e) => setNotaJugador(event.id, id, e.target.value.trim())}
+                />
+                <p className="mt-1 text-right text-[11px] text-muted">
+                  {(event.notas?.[id] ?? "").length}/{NOTA_JUGADOR_MAX}
+                </p>
               </li>
             );
           })}
