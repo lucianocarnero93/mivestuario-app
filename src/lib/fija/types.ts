@@ -129,6 +129,8 @@ export type MatchSheet = {
   opponent: string;
   goalsFor: number;
   goalsAgainst: number;
+  /** Goles a favor sin jugador: en contra o sin autor. */
+  sinAutor?: number;
   notes: string;
   recordedAt: string;
   players: PlayerMatchStat[];

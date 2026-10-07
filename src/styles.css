@@ -241,6 +241,19 @@
   }
 }
 
+@keyframes mv-sobre {
+  0% {
+    transform: rotateY(0deg) scale(1);
+  }
+  45% {
+    transform: rotateY(88deg) scale(1.04);
+  }
+  100% {
+    transform: rotateY(0deg) scale(1);
+    box-shadow: 0 0 24px rgba(184, 242, 90, 0.55);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

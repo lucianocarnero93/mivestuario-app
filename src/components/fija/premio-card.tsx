@@ -7,13 +7,21 @@ import { datosCard, puedeCompartirPremio, type ContextoPremios, type Premio } fr
 
 const AVISO_FOTO = "mv-aviso-foto-card";
 
-export function PremioMini({ premio, ctx }: { premio: Premio; ctx: ContextoPremios }) {
+export function PremioMini({
+  premio,
+  ctx,
+  abrir,
+}: {
+  premio: Premio;
+  ctx: ContextoPremios;
+  abrir?: boolean;
+}) {
   const datos = datosCard(premio, ctx);
   const clave = `${premio.id}:${JSON.stringify(datos.imagen)}:${datos.nombre}:${datos.stat}:${datos.titulo}:${datos.contexto}:${datos.dorsal ?? ""}`;
   const [paquete, setPaquete] = useState({ clave: "", datos });
   if (paquete.clave !== clave) setPaquete({ clave, datos });
   const [src, setSrc] = useState("");
-  const [abierta, setAbierta] = useState(false);
+  const [abierta, setAbierta] = useState(Boolean(abrir));
   const [aviso, setAviso] = useState("");
   const member = ctx.members.find((item) => item.id === premio.memberId) ?? alumniMember(ctx.alumni, premio.memberId);
 

@@ -154,7 +154,7 @@ export function FiguraPartido({ event }: { event: ClubEvent }) {
   const cerrada = estadoFigura(event, votes ?? [], Date.now()) !== "abierta";
 
   return (
-    <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+    <section id="votar" className="mt-4 rounded-xl bg-surface p-4 shadow-card">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted">Figura del partido</p>
       {figura ? (
         <p className="mt-1 text-sm">

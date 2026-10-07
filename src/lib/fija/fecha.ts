@@ -1,7 +1,7 @@
 import type { ClubEvent, Encuesta, MatchSheet, ReaccionFecha, Rsvp } from "./types.ts";
 
 const HORA = 3_600_000;
-const EN_JUEGO_HORAS = 8;
+const EN_JUEGO_HORAS = 3;
 
 export function estaJugado(event: ClubEvent, _sheet?: MatchSheet): boolean {
   return event.kind === "partido" && Boolean(event.resultClosedAt);
@@ -52,8 +52,8 @@ export function clasificarAgenda(events: ClubEvent[], sheets: MatchSheet[], now 
     }
     const sheet = sheets.find((item) => item.eventId === event.id);
     if (estaJugado(event, sheet)) jugados.push(event);
-    else if (Date.parse(event.startsAt) < now - HORA) falta.push(event);
-    else proximos.push(event);
+    else if (enJuego(event, now) || Date.parse(event.startsAt) >= now) proximos.push(event);
+    else falta.push(event);
   }
   const porInicio = (a: ClubEvent, b: ClubEvent) => Date.parse(a.startsAt) - Date.parse(b.startsAt);
   proximos.sort(porInicio);
@@ -152,6 +152,25 @@ export function rachaGoles(sheets: MatchSheet[], events: ClubEvent[], memberId: 
     n += 1;
   }
   return n;
+}
+
+export type MomentoFecha = "antes" | "en_juego" | "despues" | "sin_partido";
+
+const DESPUES_HORAS = 96;
+
+export function momentoFecha(events: ClubEvent[], now = Date.now()): MomentoFecha {
+  const partidos = events.filter((event) => event.kind === "partido");
+  if (partidos.length === 0) return "sin_partido";
+  if (partidos.some((event) => enJuego(event, now))) return "en_juego";
+  const cerrado = partidos
+    .filter((event) => event.resultClosedAt)
+    .sort((a, b) => Date.parse(b.resultClosedAt ?? "") - Date.parse(a.resultClosedAt ?? ""))[0];
+  if (cerrado?.resultClosedAt) {
+    const cierre = Date.parse(cerrado.resultClosedAt);
+    if (Number.isFinite(cierre) && now < cierre + DESPUES_HORAS * HORA) return "despues";
+  }
+  if (partidos.some((event) => !event.resultClosedAt && Date.parse(event.startsAt) > now)) return "antes";
+  return "sin_partido";
 }
 
 export function recapSemana(events: ClubEvent[], sheets: MatchSheet[], now = Date.now()) {

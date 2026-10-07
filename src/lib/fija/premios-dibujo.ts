@@ -47,6 +47,11 @@ export async function dibujarPremio(datos: DatosCard): Promise<Blob> {
   equipo(ctx, datos.equipo, tier);
   stats(ctx, datos, tier);
   marca(ctx, 720, 906, 30, "MI VESTUARIO", 17, 0.16, tier.inkSoft);
+  ctx.fillStyle = tier.inkSoft;
+  ctx.font = "600 15px Figtree, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("¿Tu equipo no tiene cards? mivestuario.com.ar", 360, 968);
   ctx.save();
   ctx.clip(cuerpo);
   brillos(ctx);
@@ -96,8 +101,8 @@ export async function dibujarStoryPremio(
   ctx.textBaseline = "top";
   centrar(ctx, recorte(ctx, frase.sub, 920), 540, 1628, 0, 36);
   ctx.fillStyle = "#b8f25a";
-  ctx.font = '700 30px "Barlow Condensed", sans-serif';
-  centrar(ctx, "MIVESTUARIO.COM.AR", 540, 1712, 0.18, 30);
+  ctx.font = '700 28px "Barlow Condensed", sans-serif';
+  centrar(ctx, "¿Tu equipo no tiene cards? mivestuario.com.ar", 540, 1760, 0.04, 28);
   return png(ctx);
 }
 

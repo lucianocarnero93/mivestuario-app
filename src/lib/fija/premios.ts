@@ -431,14 +431,16 @@ export function datosCard(premio: Premio, ctx: ContextoPremios): DatosCard {
 
 export function textoCompartir(premio: Premio): string {
   const { nombre, rival, resultado, equipo, tituloCorto, n, cuando } = premio;
-  if (premio.tipo === "figura") return `${nombre} fue la figura vs. ${rival} (${resultado}). Mi Vestuario`;
-  if (premio.tipo === "goleador") return `${nombre}, ${tituloCorto}: ${n} goles en ${cuando}.`;
-  if (premio.tipo === "hat-trick") return `${nombre} hizo ${n} goles vs. ${rival} (${resultado}).`;
-  if (premio.tipo === "valla") return `${nombre} dejó la valla invicta vs. ${rival} (${resultado}).`;
-  if (premio.tipo === "debut") return `${nombre} debutó en ${equipo} vs. ${rival}.`;
-  if (premio.tipo === "asistidor") return `${nombre}, ${tituloCorto}: ${n} asistencias en ${cuando}.`;
-  if (premio.tipo === "presente") return `${nombre}, presente siempre: ${n} de ${n} en ${cuando}.`;
-  return `${nombre}, DT del mes: ${n} ganados en ${cuando}.`;
+  let texto = `${nombre}, DT del mes: ${n} ganados en ${cuando}.`;
+  if (premio.tipo === "figura") texto = `${nombre} fue la figura vs. ${rival} (${resultado}). Mi Vestuario`;
+  else if (premio.tipo === "goleador") texto = `${nombre}, ${tituloCorto}: ${n} goles en ${cuando}.`;
+  else if (premio.tipo === "hat-trick") texto = `${nombre} hizo ${n} goles vs. ${rival} (${resultado}).`;
+  else if (premio.tipo === "valla") texto = `${nombre} dejó la valla invicta vs. ${rival} (${resultado}).`;
+  else if (premio.tipo === "debut") texto = `${nombre} debutó en ${equipo} vs. ${rival}.`;
+  else if (premio.tipo === "asistidor") texto = `${nombre}, ${tituloCorto}: ${n} asistencias en ${cuando}.`;
+  else if (premio.tipo === "presente") texto = `${nombre}, presente siempre: ${n} de ${n} en ${cuando}.`;
+  const pie = "¿Tu equipo no tiene cards? mivestuario.com.ar";
+  return texto.includes(pie) ? texto : `${texto}\n${pie}`;
 }
 
 export function fraseStory(premio: Premio): { kicker: string; frase: string; sub: string; nombreResaltado: string } {

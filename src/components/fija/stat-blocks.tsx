@@ -89,21 +89,32 @@ export function RankRow({
   member,
   value,
   unit,
+  onOpen,
 }: {
   rank: number;
   member: Member | undefined;
   value: number;
   unit: string;
+  onOpen?: () => void;
 }) {
   if (!member) return null;
+  const nombre = (
+    <span className="min-w-0 flex-1 text-left">
+      <span className="block truncate font-medium">{member.nick}</span>
+      <span className="text-xs text-muted">{member.name}</span>
+    </span>
+  );
   return (
     <li className="flex items-center gap-3 px-4 py-3">
       <span className="w-6 text-sm font-semibold tabular-nums text-subtle">{rank}</span>
       <PlayerAvatar name={member.name} photo={member.menor ? null : member.photo} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{member.nick}</span>
-        <span className="text-xs text-muted">{member.name}</span>
-      </span>
+      {onOpen ? (
+        <button type="button" className="min-w-0 flex-1" onClick={onOpen}>
+          {nombre}
+        </button>
+      ) : (
+        nombre
+      )}
       <span className="text-right">
         <span className="block text-lg font-semibold tabular-nums text-accent">{value}</span>
         <span className="text-xs text-subtle">{unit}</span>
@@ -119,18 +130,8 @@ export function CardRow({ member, row }: { member: Member | undefined; row: Play
       <PlayerAvatar name={member.name} photo={member.menor ? null : member.photo} />
       <span className="min-w-0 flex-1 truncate font-medium">{member.nick}</span>
       <span className="flex items-center gap-2 text-sm font-semibold tabular-nums">
-        {row.yellow > 0 ? (
-          <span className="flex items-center gap-1 text-warning">
-            <span className="inline-block h-4 w-3 rounded-sm bg-warning" />
-            {row.yellow}
-          </span>
-        ) : null}
-        {row.red > 0 ? (
-          <span className="flex items-center gap-1 text-danger">
-            <span className="inline-block h-4 w-3 rounded-sm bg-danger" />
-            {row.red}
-          </span>
-        ) : null}
+        {row.yellow > 0 ? <span>🟨 {row.yellow}</span> : null}
+        {row.red > 0 ? <span>🟥 {row.red}</span> : null}
       </span>
     </li>
   );
@@ -189,11 +190,15 @@ export function PlayerMarks({ row }: { row: PlayerRow | undefined }) {
 export function MyNumbers({
   member,
   row,
+  figuras,
+  racha,
 }: {
   member: Member;
   row: PlayerRow | undefined;
+  figuras?: number;
+  racha?: number;
 }) {
-  if (member.role !== "jugador") return null;
+  if (!(member.juega ?? member.role === "jugador")) return null;
   const stats = row ?? {
     memberId: member.id,
     goals: 0,
@@ -206,9 +211,11 @@ export function MyNumbers({
     <section className="rounded-xl bg-surface p-4 shadow-card">
       <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">Tus números</h2>
       <p className="mt-1 font-medium">{member.nick}</p>
-      <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+      <div className={cn("mt-3 grid gap-2 text-center", figuras == null && racha == null ? "grid-cols-4" : "grid-cols-3")}>
         <MiniTile value={stats.goals} label="Goles" />
         <MiniTile value={stats.assists} label="Asist." />
+        {figuras != null ? <MiniTile value={figuras} label="Figura" /> : null}
+        {racha != null ? <MiniTile value={racha} label="Presente" /> : null}
         <MiniTile value={stats.yellow} label="Amarillas" warn={stats.yellow > 0} />
         <MiniTile value={stats.red} label="Rojas" danger={stats.red > 0} />
       </div>

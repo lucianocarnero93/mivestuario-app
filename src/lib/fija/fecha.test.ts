@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clasificarAgenda, contarConfirmaciones, enJuego, estaJugado, fechaVisible, ponerReaccion, recapSemana, votarEncuesta } from "./fecha.ts";
+import { clasificarAgenda, contarConfirmaciones, enJuego, estaJugado, fechaVisible, momentoFecha, ponerReaccion, recapSemana, votarEncuesta } from "./fecha.ts";
 import type { ClubEvent, MatchSheet } from "./types.ts";
 
 function partido(id: string, startsAt: string, extra: Partial<ClubEvent> = {}): ClubEvent {
@@ -60,6 +60,18 @@ test("un partido de hace días no sigue en juego y la fecha muestra el de hoy", 
   assert.equal(enJuego(partido("vivo", "2026-10-06T14:00:00-03:00"), ahora), true);
   assert.equal(enJuego(hoy, ahora), false);
   assert.equal(fechaVisible([viejo, hoy], undefined, true, ahora)?.id, "hoy");
+});
+
+test("a las 2 horas sigue en juego y a las 4 ya falta el resultado", () => {
+  const corto = partido("corto", "2026-10-06T20:00:00-03:00");
+  const largo = partido("largo", "2026-10-06T18:00:00-03:00");
+  const ahora = Date.parse("2026-10-06T22:00:00-03:00");
+  assert.equal(enJuego(corto, ahora), true);
+  assert.equal(clasificarAgenda([corto], [], ahora).falta.length, 0);
+  assert.equal(enJuego(largo, ahora), false);
+  assert.equal(clasificarAgenda([largo], [], ahora).falta.length, 1);
+  assert.equal(momentoFecha([corto], ahora), "en_juego");
+  assert.equal(momentoFecha([largo], ahora), "sin_partido");
 });
 
 test("una planilla sin terminar no cuenta como jugado", () => {

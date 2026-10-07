@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { formatWhen } from "@/lib/fija/format";
 import { alumniMember, clampStat, outcome, resultLabel } from "@/lib/fija/stats";
+import { validarPlanilla } from "@/lib/fija/vista";
 import { defaultSheetPlayers, sheetFor, useFija } from "@/lib/fija/store";
 import type { ClubEvent, PlayerMatchStat } from "@/lib/fija/types";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ export function MatchSheetForm({
   const [gf, setGf] = useState(existing?.goalsFor ?? 0);
   const [ga, setGa] = useState(existing?.goalsAgainst ?? 0);
   const [notes, setNotes] = useState(existing?.notes ?? "");
+  const [sinAutor, setSinAutor] = useState(existing?.sinAutor ?? 0);
   const [rows, setRows] = useState<PlayerMatchStat[]>(() =>
     defaultSheetPlayers(event, members, existing),
   );
@@ -38,7 +40,7 @@ export function MatchSheetForm({
   const [confirmClosed, setConfirmClosed] = useState(false);
   const [askDone, setAskDone] = useState(false);
   const byId = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
-  const sumGoals = rows.reduce((n, row) => n + row.goals, 0);
+  const planilla = validarPlanilla({ goalsFor: gf, sinAutor, players: rows });
   const result = outcome(gf, ga);
 
   function patch(memberId: string, key: keyof Omit<PlayerMatchStat, "memberId">, delta: number) {
@@ -62,7 +64,8 @@ export function MatchSheetForm({
           setConfirmClosed(true);
           return;
         }
-        if (sumGoals > gf) {
+        const cargados = rows.reduce((n, row) => n + row.goals, 0) + sinAutor;
+        if (cargados > gf) {
           setSheetError("Los goles de los jugadores no pueden superar los goles del equipo.");
           return;
         }
@@ -73,6 +76,7 @@ export function MatchSheetForm({
             opponent,
             goalsFor: gf,
             goalsAgainst: ga,
+            sinAutor,
             notes,
             players: rows.filter((row) => {
               const used = Object.values(event.lineup).includes(row.memberId);
@@ -107,6 +111,7 @@ export function MatchSheetForm({
         <ScoreBox label="Goles a favor" value={gf} onChange={setGf} accent />
         <ScoreBox label="Goles en contra" value={ga} onChange={setGa} />
       </div>
+      <ScoreBox label="Gol en contra / sin autor" value={sinAutor} onChange={setSinAutor} />
 
       <p
         className={cn(
@@ -119,12 +124,8 @@ export function MatchSheetForm({
         {gf}–{ga} · {resultLabel(gf, ga)}
       </p>
 
-      {sumGoals !== gf ? (
-        <p className="text-xs text-warning">
-          {sumGoals > gf
-            ? "Los goles de los jugadores superan el resultado. Corregilo antes de guardar."
-            : `La suma de goles individuales (${sumGoals}) no coincide con el resultado.`}
-        </p>
+      {planilla.faltan > 0 ? (
+        <p className="text-sm text-warning">Faltan {planilla.faltan} goleadores · Completar</p>
       ) : null}
       {sheetError ? <p className="text-sm text-danger">{sheetError}</p> : null}
 

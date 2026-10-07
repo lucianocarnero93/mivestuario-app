@@ -1133,7 +1133,8 @@ export const useFija = create<State>()(
           red: clampStat(row.red),
         }));
         const goalsFor = clampStat(input.goalsFor);
-        const scored = playerStats.reduce((sum, row) => sum + row.goals, 0);
+        const sinAutor = clampStat(input.sinAutor ?? 0);
+        const scored = playerStats.reduce((sum, row) => sum + row.goals, 0) + sinAutor;
         if (scored > goalsFor) return;
         if (!event || !resultIsOpen(event.startsAt)) return;
         const sheet: MatchSheet = {
@@ -1141,6 +1142,7 @@ export const useFija = create<State>()(
           opponent: sanitizeName(input.opponent),
           goalsFor,
           goalsAgainst: clampStat(input.goalsAgainst),
+          sinAutor,
           notes: sanitizeText(input.notes, 400),
           recordedAt: new Date().toISOString(),
           players: playerStats,
@@ -3327,6 +3329,12 @@ export function inboxVisible(
   const kickoff = event ? Date.parse(event.startsAt) : Number.NaN;
   const finished = !Number.isNaN(kickoff) && kickoff < Date.now() - 3_600_000;
   if ((item.kind === "recordatorio" || item.kind === "equipamiento") && (finished || !event)) return false;
+  if (item.kind === "formacion") {
+    const proximo = events
+      .filter((entry) => entry.kind === "partido" && !entry.resultClosedAt && Date.parse(entry.startsAt) > Date.now() - 3 * 3_600_000)
+      .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt))[0];
+    if (!proximo || item.eventId !== proximo.id || !proximo.lineupPublishedAt) return false;
+  }
   if (item.audience === "staff") return me.role === "dt" || me.role === "ayudante";
   if (item.audience === "pending") {
     if (finished) return false;

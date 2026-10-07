@@ -49,11 +49,13 @@ export function teamRecord(sheets: MatchSheet[]): TeamRecord {
 export function playerRows(sheets: MatchSheet[], members: Member[]): PlayerRow[] {
   const map = new Map<string, PlayerRow>();
   for (const member of members) {
-    if (member.role !== "jugador") continue;
+    if (!(member.juega ?? member.role === "jugador")) continue;
     map.set(member.id, { ...emptyStat(member.id), matches: 0 });
   }
+  const juega = new Set(map.keys());
   for (const sheet of sheets) {
     for (const row of sheet.players) {
+      if (members.some((person) => person.id === row.memberId) && !juega.has(row.memberId)) continue;
       const current = map.get(row.memberId) ?? { ...emptyStat(row.memberId), matches: 0 };
       current.goals += row.goals;
       current.assists += row.assists;

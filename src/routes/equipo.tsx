@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ROLE_LABEL, personLabel } from "@/lib/fija/format";
+import { ROLE_LABEL, ROLE_TAB, personLabel } from "@/lib/fija/format";
 import { MAX_BYTES } from "@/lib/fija/club-rules";
 import { leerFotoJugador } from "@/lib/fija/foto-jugador";
 import { alumniMember, playerRows, rankedBy, teamRecord } from "@/lib/fija/stats";
@@ -151,11 +151,11 @@ function EquipoPage() {
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{m.name}</p>
                 <p className="text-xs text-muted">
-                  {ROLE_LABEL[m.role]}
+                  {ROLE_TAB[m.role]}
                   {staff && m.menor ? " · Menor" : ""}
                 </p>
               </div>
-              {staff || creator ? (
+              {me.role === "dt" || creator ? (
                 <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted">
                   <input
                     type="checkbox"
@@ -190,11 +190,11 @@ function EquipoPage() {
                     {staff && p.menor ? <span className="ml-2 text-xs font-semibold text-muted">Menor</span> : null}
                   </p>
                   <p className="text-xs text-muted">{p.name}</p>
-                  {staff ? <MemberEdit memberId={p.id} nick={p.nick} number={p.number} /> : null}
+                  {me.role === "dt" ? <MemberEdit memberId={p.id} nick={p.nick} number={p.number} /> : null}
                   {p.id === me.id && !staff ? <OwnNick memberId={p.id} nick={p.nick} /> : null}
                 </div>
                 <PlayerMarks row={byMember.get(p.id)} />
-                {(creator || (staff && p.menor)) && p.id !== me.id && pendingRemoveId !== p.id ? (
+                {creator && p.id !== me.id && pendingRemoveId !== p.id ? (
                   <button
                     type="button"
                     className="h-11 shrink-0 px-2 text-xs font-semibold text-danger"

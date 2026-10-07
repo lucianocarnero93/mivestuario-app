@@ -230,7 +230,7 @@ function HomePage() {
       </div>
 
       <p className="mt-6 text-xs text-subtle">
-        Rol actual: {ROLE_LABEL[me.role]}. DT y ayudante editan por igual.
+        Rol actual: {ROLE_LABEL[me.role]}. El DT y el ayudante cargan la planilla, la pizarra y el partido en vivo.
       </p>
     </main>
   );
