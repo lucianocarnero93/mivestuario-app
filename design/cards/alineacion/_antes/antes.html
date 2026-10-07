@@ -1,0 +1,68 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- Reconstrucción de la imagen que genera HOY Compartir (src/components/fija/pizarra-viva.tsx, función Compartir → armar()).
+     El código de dibujo está copiado tal cual; solo cambia de dónde salen los datos (ejemplo ficticio). -->
+<style>html,body{margin:0;background:#000}canvas{display:block}</style></head><body>
+<script>
+const q = new URLSearchParams(location.search);
+const story = q.get("story") === "1";
+const caso = q.get("caso") || "f7";
+// FORMATIONS[modality][0] de formations.ts (lo que usa hoy el código, sin mirar la formación elegida)
+const DEFAULT = {
+  f7: [ {key:"ARQ",x:50,y:86},{key:"LI",x:30,y:68},{key:"LD",x:70,y:68},{key:"MI",x:22,y:46},{key:"MC",x:50,y:48},{key:"MD",x:78,y:46},{key:"DC",x:50,y:22} ],
+  f11:[ {key:"ARQ",x:50,y:88},{key:"LI",x:14,y:68},{key:"DFI",x:34,y:74},{key:"DFD",x:66,y:74},{key:"LD",x:86,y:68},{key:"MI",x:14,y:46},{key:"MC1",x:38,y:50},{key:"MC2",x:62,y:50},{key:"MD",x:86,y:46},{key:"DC1",x:38,y:20},{key:"DC2",x:62,y:20} ],
+};
+const DATA = {
+  // El DT eligió 1-3-2-1 (keys ARQ LI DF LD MI MD DC). Hoy se dibuja con 1-2-3-1 → DF no existe y no aparece.
+  f7: { modality:"f7", title:"vs Racing del Bajo", crest:"data:image/png;base64,xx",
+        lineup:{ARQ:"m1",LI:"m2",DF:"m3",LD:"m4",MI:"m5",MD:"m6",DC:"m7"} },
+  // El DT eligió 4-3-3 (MC3, EI, DC, ED no existen en 4-4-2) → faltan 4 jugadores.
+  f11:{ modality:"f11", title:"vs Racing del Bajo", crest:null,
+        lineup:{ARQ:"m1",LI:"m2",DFI:"m3",DFD:"m4",LD:"m5",MC1:"m6",MC2:"m7",MC3:"m8",EI:"m9",DC:"m10",ED:"m11"} },
+};
+const members = [
+  {id:"m1",nick:"Fede",number:1},{id:"m2",nick:"Tincho",number:3},{id:"m3",nick:"Mati",number:2},{id:"m4",nick:"Lucho",number:4},
+  {id:"m5",nick:"Juanchi",number:8},{id:"m6",nick:"Nacho",number:5},{id:"m7",nick:"Pipa",number:9},{id:"m8",nick:"Cristian",number:10},
+  {id:"m9",nick:"Rodri",number:7},{id:"m10",nick:"Gonza",number:9},{id:"m11",nick:"Seba",number:11},
+];
+if (caso === "f11") { members[6].number = 6; }
+const event = DATA[caso], crest = event.crest, lineup = event.lineup;
+const FORMATIONS = { [event.modality]: [ { slots: DEFAULT[event.modality] } ] };
+// ---------------- copiado de armar(story) ----------------
+const canvas = document.createElement("canvas");
+canvas.width = story ? 1080 : 1200;
+canvas.height = story ? 1920 : 630;
+const ctx = canvas.getContext("2d");
+ctx.fillStyle = "#0c5a2a";
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+ctx.fillStyle = "#eef6ef";
+ctx.font = story ? "700 92px sans-serif" : "700 54px sans-serif";
+ctx.fillText(story ? "Así salimos hoy" : event.title, 64, story ? 180 : 120);
+ctx.fillStyle = "#b8f25a";
+ctx.font = story ? "700 64px sans-serif" : "600 36px sans-serif";
+ctx.fillText(event.title, 64, story ? 270 : 180);
+const forma = FORMATIONS[event.modality][0];
+for (const [key, id] of Object.entries(lineup)) {
+  const slot = forma.slots.find((item) => item.key === key);
+  const person = members.find((item) => item.id === id);
+  if (!slot || !person) continue;
+  const x = 80 + (slot.x / 100) * (canvas.width - 160);
+  const y = (story ? 420 : 240) + (slot.y / 100) * (story ? 1100 : 280);
+  ctx.beginPath();
+  ctx.fillStyle = "#b8f25a";
+  ctx.arc(x, y, story ? 36 : 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#0c1a10";
+  ctx.font = story ? "700 28px sans-serif" : "700 16px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(String(person.number ?? person.nick.slice(0, 2)), x, y + 8);
+  ctx.fillStyle = "#eef6ef";
+  ctx.font = story ? "600 28px sans-serif" : "600 16px sans-serif";
+  ctx.fillText(person.nick, x, y + (story ? 64 : 40));
+}
+ctx.textAlign = "left";
+ctx.fillStyle = "#eef6ef";
+ctx.font = "500 28px sans-serif";
+ctx.fillText(crest ? "Con el escudo del equipo" : "Armado en Mi Vestuario", 64, canvas.height - 80);
+// ---------------------------------------------------------
+document.body.appendChild(canvas);
+</script></body></html>

@@ -1,0 +1,185 @@
+/* Mi Vestuario · Alineación para compartir (estilo FUT)
+   Formatos: WhatsApp 1080×1350 · Story 1080×1920 · Link (OG) 1200×630.
+   Tokens de marca iguales a ../html/cards.css. Fuentes: Barlow Condensed 700/800 + Figtree 600/700/800. */
+:root {
+  --mv-void: #061109; --mv-bg: #0b1c12; --mv-surface: #132a1c; --mv-fg: #eef6ef; --mv-muted: #9bb5a4;
+  --mv-accent: #b8f25a; --mv-accent-fg: #0c1a10; --mv-border: #234833;
+  --font-display: "Barlow Condensed", "Figtree", system-ui, sans-serif;
+  --font-sans: "Figtree", system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--mv-void); }
+body.fmt-whatsapp { width: 1080px; height: 1350px; overflow: hidden; }
+body.fmt-story { width: 1080px; height: 1920px; overflow: hidden; }
+body.fmt-og { width: 1200px; height: 630px; overflow: hidden; }
+
+.stage { position: relative; width: 100%; height: 100%; overflow: hidden; color: var(--mv-fg); font-family: var(--font-sans);
+  background: var(--mv-void); }
+
+/* ---------- fondo: brillo del tema arriba, rayas a 118°, viñeta ---------- */
+.bg { position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 900px 560px at 50% 0%, color-mix(in srgb, var(--fondo) 70%, transparent), transparent 72%),
+    radial-gradient(ellipse 700px 420px at 50% 62%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%),
+    repeating-linear-gradient(118deg, rgba(255,255,255,.022) 0 18px, transparent 18px 40px),
+    linear-gradient(180deg, #0a1a10 0%, var(--mv-void) 55%, #030805 100%); }
+.bg::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse 120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.55) 100%); }
+
+/* ---------- cancha ---------- */
+.pitch-holder { position: absolute; inset: 0; }
+.pitch { position: absolute; inset: 0; }
+.pitch .banda.b0 { fill: var(--grass-0); }
+.pitch .banda.b1 { fill: var(--grass-1); }
+.pitch .sombra { fill: #000; opacity: .55; filter: blur(22px); transform: translateY(18px); }
+.pitch .lineas path { fill: none; stroke: var(--lines); stroke-width: 3.2; stroke-linejoin: round; }
+.tema-neon .pitch .lineas path { filter: drop-shadow(0 0 6px rgba(184,242,90,.35)); }
+.fmt-og .pitch .lineas path { stroke-width: 2.4; }
+
+/* ---------- chip (mini card FUT) ---------- 1em = ancho/10 */
+.players { position: absolute; inset: 0; }
+.chip { position: absolute; width: var(--w); height: calc(var(--w) * 1.28); font-size: calc(var(--w) / 10);
+  transform: translate(-50%, -50%); }
+.chip .shape { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;
+  filter: drop-shadow(0 0 .9em var(--glow)) drop-shadow(0 .5em .7em rgba(0,0,0,.55)); }
+.chip .trim { position: absolute; inset: 0; width: 100%; height: 100%; }
+.chip .trim path { fill: none; stroke: var(--trim); stroke-width: 6; vector-effect: non-scaling-stroke; }
+.chip .trim path { stroke-width: 1.4px; }
+.chip .sombra-piso { position: absolute; left: 6%; right: 6%; bottom: -9%; height: 16%; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0,0,0,.6), transparent); }
+.chip .clip { position: absolute; inset: 0;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 1000' preserveAspectRatio='none'><path d='M 46 12 H 257 L 285 34 H 435 L 463 12 H 674 Q 708 12 708 46 V 796 Q 708 850 656 876 L 394 980 Q 360 993 326 980 L 64 876 Q 12 850 12 796 V 46 Q 12 12 46 12 Z'/></svg>") 0 0 / 100% 100% no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 1000' preserveAspectRatio='none'><path d='M 46 12 H 257 L 285 34 H 435 L 463 12 H 674 Q 708 12 708 46 V 796 Q 708 850 656 876 L 394 980 Q 360 993 326 980 L 64 876 Q 12 850 12 796 V 46 Q 12 12 46 12 Z'/></svg>") 0 0 / 100% 100% no-repeat; }
+.chip .clip::before { content: ""; position: absolute; left: 50%; top: 30%; width: 120%; height: 70%; transform: translate(-42%, -50%);
+  background: radial-gradient(closest-side, var(--glow), transparent); }
+.chip .shine { position: absolute; inset: 0; background: linear-gradient(118deg, rgba(255,255,255,.26) 0%, rgba(255,255,255,0) 34%, rgba(255,255,255,0) 70%, rgba(255,255,255,.08) 100%); mix-blend-mode: screen; }
+/* foto / avatar / iniciales */
+.chip .pic { position: absolute; left: 16%; right: 2%; top: 4%; height: 62%; }
+.chip .pic img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.chip .pic.st-foto { left: 3%; right: 3%; top: 2%; height: 64%; }
+.chip .pic.st-foto img { object-fit: cover; object-position: 50% 26%;
+  -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent 100%); mask-image: linear-gradient(180deg, #000 62%, transparent 100%); }
+.chip .pic.st-avatar img { object-fit: contain; object-position: 50% 100%;
+  -webkit-mask-image: linear-gradient(180deg, #000 80%, transparent 100%); mask-image: linear-gradient(180deg, #000 80%, transparent 100%);
+  filter: drop-shadow(0 .4em .8em rgba(0,0,0,.3)); }
+.chip .pic.st-ini svg { position: absolute; left: 6%; right: 6%; bottom: 0; width: 88%; height: 92%; fill: var(--silueta); }
+.chip .pic.st-ini b { position: absolute; left: 0; right: 0; bottom: 8%; text-align: center; font: 800 3.1em/1 var(--font-display); color: var(--ink); letter-spacing: .02em; text-shadow: 0 .06em .2em rgba(0,0,0,.35); }
+.chip .tag { position: absolute; right: 4%; bottom: 4%; font: 700 .64em/1 var(--font-sans); font-style: normal; letter-spacing: .06em; text-transform: uppercase;
+  color: #eef6ef; background: rgba(6,17,9,.78); border-radius: 99px; padding: .3em .55em; }
+.chip .num { position: absolute; left: 8%; top: 5%; font: 800 3.3em/1 var(--font-display); color: var(--num); letter-spacing: -.01em;
+  text-shadow: 0 .04em .14em rgba(0,0,0,.65), 0 0 .3em rgba(0,0,0,.25); }
+.chip .ribbon { position: absolute; left: 3%; right: 3%; top: 63.5%; height: 15.5%; background: var(--ribbon);
+  clip-path: polygon(0 0, 100% 0, 96% 100%, 4% 100%); display: flex; align-items: center; justify-content: center; padding: 0 .55em;
+  box-shadow: 0 .2em .4em rgba(0,0,0,.3); }
+.chip .ribbon span { font: 800 2.05em/1 var(--font-display); color: var(--ribbon-ink); text-transform: uppercase; letter-spacing: .03em; text-align: center; width: 100%; }
+.chip .pos { position: absolute; left: 0; right: 0; top: 80.5%; text-align: center; font: 700 1.45em/1 var(--font-display); letter-spacing: .14em; color: var(--ink-soft); padding-left: .14em; }
+
+/* ---------- disco (OG: sin fotos ni nombres) ---------- */
+.disc { position: absolute; width: var(--w); transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; font-size: calc(var(--w) / 10); }
+.disc .d-ring { width: var(--w); height: var(--w); border-radius: 50%; padding: .5em; background: linear-gradient(135deg, var(--frame-1), var(--frame-2) 45%, var(--frame-3));
+  box-shadow: 0 0 1.2em var(--glow), 0 .4em .8em rgba(0,0,0,.5); }
+.disc .d-ring b { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--fondo) 85%, #fff 15%), color-mix(in srgb, var(--fondo) 40%, #000)); font: 800 4.6em/1 var(--font-display); color: var(--ink); }
+.disc span { margin-top: 6px; font: 700 17px/1 var(--font-display); letter-spacing: .12em; color: var(--mv-fg); text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+.disc.vacio .d-ring { background: rgba(238,246,239,.35); box-shadow: none; }
+.disc.vacio .d-ring b { background: rgba(6,17,9,.75); }
+
+/* ---------- header ---------- */
+.head { position: absolute; display: flex; align-items: center; gap: 30px; }
+.crest { position: relative; flex: none; width: 150px; height: 160px; display: grid; place-items: center; }
+.crest::before { content: ""; position: absolute; inset: -30%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 30%, transparent), transparent); }
+.crest img { position: relative; width: 150px; height: 150px; object-fit: contain; filter: drop-shadow(0 8px 18px rgba(0,0,0,.5)); }
+.crest .crest-shape { display: none; }
+.crest[data-escudo="no"] img { display: none; }
+.crest[data-escudo="no"] .crest-shape { position: relative; display: grid; place-items: center; width: 132px; height: 152px; padding-bottom: 14px;
+  font: 800 52px/1 var(--font-display); color: var(--ribbon-ink); letter-spacing: .02em;
+  background: linear-gradient(135deg, var(--frame-1), var(--frame-2) 45%, var(--frame-3));
+  clip-path: path("M 0 12 Q 0 0 12 0 H 120 Q 132 0 132 12 V 84 Q 132 128 66 152 Q 0 128 0 84 Z"); }
+.titles { flex: 1; min-width: 0; }
+.kicker { font: 800 24px/1 var(--font-sans); letter-spacing: .22em; text-transform: uppercase; color: var(--accent); }
+.team { margin-top: 10px; overflow: hidden; }
+.team span { font: 800 78px/.95 var(--font-display); text-transform: uppercase; letter-spacing: .01em; }
+.rival { margin-top: 4px; overflow: hidden; }
+.rival span { font: 700 48px/1.05 var(--font-display); text-transform: uppercase; letter-spacing: .02em; color: var(--mv-fg); }
+.rival em { font-style: normal; color: var(--accent); margin-right: .12em; }
+.meta { margin-top: 10px; overflow: hidden; }
+.meta span { font: 600 26px/1.2 var(--font-sans); color: var(--mv-muted); }
+.meta b { color: var(--mv-fg); font-weight: 700; }
+.badge { flex: none; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.badge b { display: block; min-width: 132px; text-align: center; padding: 10px 18px 6px; border-radius: 16px; background: var(--ribbon); color: var(--ribbon-ink);
+  font: 800 64px/1 var(--font-display); letter-spacing: .02em; box-shadow: 0 0 30px var(--glow); }
+.badge span { font: 700 40px/1 var(--font-display); letter-spacing: .04em; color: var(--mv-fg); }
+.badge i { font: 700 15px/1 var(--font-sans); font-style: normal; letter-spacing: .2em; text-transform: uppercase; color: var(--mv-muted); }
+
+/* ---------- banco + DT ---------- */
+.banco { position: absolute; display: flex; gap: 22px; align-items: stretch; }
+.banco h3 { font: 800 19px/1 var(--font-sans); letter-spacing: .24em; text-transform: uppercase; color: var(--mv-muted); margin-bottom: 12px; }
+.col-banco { flex: 1; min-width: 0; }
+.col-dt { flex: none; padding-left: 22px; border-left: 2px solid rgba(155,181,164,.25); }
+.banco-lista, .dt-lista { display: flex; gap: 10px; }
+.banco.sin-banco .col-banco { visibility: hidden; }
+.sub { width: 104px; display: flex; flex-direction: column; align-items: center; }
+.sub .ring { position: relative; width: 84px; height: 84px; border-radius: 50%; padding: 4px;
+  background: linear-gradient(135deg, var(--frame-1), var(--frame-2) 45%, var(--frame-3)); box-shadow: 0 0 16px var(--glow); }
+.sub.dt .ring { background: linear-gradient(135deg, #b8f25a, #3a5c46 55%, #0b1c12); box-shadow: 0 0 16px rgba(184,242,90,.35); }
+.sub .pic { position: relative; width: 100%; height: 100%; border-radius: 50%; overflow: hidden;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--fondo) 80%, #fff 10%), color-mix(in srgb, var(--fondo) 35%, #000)); }
+.sub.dt .pic { background: radial-gradient(circle at 50% 30%, #1f3a2a, #050a07); }
+.sub .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
+.sub .pic.st-avatar img { object-fit: contain; object-position: 50% 100%; top: 8%; }
+.sub .pic.st-ini b { position: absolute; inset: 0; display: grid; place-items: center; font: 800 34px/1 var(--font-display); color: var(--mv-fg); }
+.sub .pic .tag { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); font: 700 9px/1 var(--font-sans); font-style: normal; letter-spacing: .05em;
+  text-transform: uppercase; background: rgba(6,17,9,.8); color: #eef6ef; padding: 3px 5px; border-radius: 99px; white-space: nowrap; }
+.sub .badge { position: absolute; right: -6px; bottom: -4px; min-width: 34px; height: 34px; padding: 0 6px; border-radius: 99px; display: grid; place-items: center;
+  background: var(--ribbon); color: var(--ribbon-ink); font: 800 21px/1 var(--font-display); font-style: normal; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+.sub.dt .badge { background: #b8f25a; color: #0c1a10; }
+.sub > span { margin-top: 9px; max-width: 104px; font: 700 25px/1 var(--font-display); text-transform: uppercase; letter-spacing: .03em; text-align: center; color: var(--mv-fg); }
+
+/* ---------- marca ---------- */
+.marca { position: absolute; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 12px;
+  font: 600 22px/1 var(--font-sans); color: var(--mv-muted); letter-spacing: .02em; }
+.marca svg { width: 34px; height: 34px; border-radius: 8px; flex: none; }
+.marca b { color: var(--mv-fg); font-weight: 800; }
+.marca em { font-style: normal; color: var(--mv-accent); font-weight: 700; }
+
+/* ================= WhatsApp 1080×1350 ================= */
+.fmt-whatsapp .head { left: 48px; right: 48px; top: 40px; height: 196px; }
+.fmt-whatsapp .banco { left: 40px; right: 40px; top: 1150px; height: 150px; }
+.fmt-whatsapp .marca { top: 1306px; }
+
+/* ================= Story 1080×1920 (sin info clave arriba de 250 ni abajo de 1620) ================= */
+.fmt-story .head { left: 48px; right: 48px; top: 262px; height: 190px; }
+.fmt-story .pills { position: absolute; left: 48px; right: 48px; top: 466px; display: flex; gap: 12px; justify-content: center; }
+.fmt-story .pills span { padding: 11px 20px; border-radius: 99px; background: rgba(19,42,28,.85); border: 1px solid rgba(155,181,164,.25);
+  font: 700 25px/1 var(--font-sans); color: var(--mv-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 440px; }
+.fmt-story .pills span:first-child { color: var(--accent); }
+.fmt-story .banco { left: 48px; right: 48px; top: 1392px; height: 170px; }
+.fmt-story .marca { top: 1578px; }
+.fmt-story .safe { position: absolute; left: 0; right: 0; pointer-events: none; }
+
+/* ================= Link / Open Graph 1200×630 ================= */
+.fmt-og .left { position: absolute; left: 60px; top: 50px; width: 540px; bottom: 44px; display: flex; flex-direction: column; }
+.fmt-og .brand { display: flex; align-items: center; gap: 12px; font: 800 20px/1 var(--font-sans); letter-spacing: .2em; text-transform: uppercase; color: var(--mv-fg); }
+.fmt-og .brand svg { width: 38px; height: 38px; border-radius: 9px; }
+.fmt-og .og-head { margin-top: 34px; display: flex; align-items: center; gap: 24px; }
+.fmt-og .crest { width: 120px; height: 130px; }
+.fmt-og .crest img { width: 120px; height: 120px; }
+.fmt-og .crest[data-escudo="no"] .crest-shape { transform: scale(.85); }
+.fmt-og .kicker { font-size: 20px; }
+.fmt-og .team { margin-top: 8px; }
+.fmt-og .team span { font-size: 64px; }
+.fmt-og .rival { margin-top: 18px; }
+.fmt-og .rival span { font-size: 50px; }
+.fmt-og .meta span { font-size: 25px; }
+.fmt-og .og-pill { margin-top: 22px; align-self: flex-start; display: flex; gap: 12px; align-items: center; }
+.fmt-og .og-pill b { padding: 8px 16px 5px; border-radius: 12px; background: var(--ribbon); color: var(--ribbon-ink); font: 800 40px/1 var(--font-display); }
+.fmt-og .og-pill span { font: 700 36px/1 var(--font-display); letter-spacing: .04em; }
+.fmt-og .og-foot { margin-top: auto; font: 600 20px/1.3 var(--font-sans); color: var(--mv-muted); }
+.fmt-og .og-foot em { font-style: normal; color: var(--mv-accent); font-weight: 700; }
+
+/* Story: luces de estadio en la zona libre de arriba (solo decoración, sin info) */
+.fmt-story .bg::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 640px;
+  background:
+    radial-gradient(ellipse 260px 120px at 12% 4%, rgba(255,255,255,.22), transparent 70%),
+    radial-gradient(ellipse 260px 120px at 88% 4%, rgba(255,255,255,.22), transparent 70%),
+    conic-gradient(from 160deg at 12% 0%, transparent 0deg, rgba(255,255,255,.06) 14deg, transparent 30deg),
+    conic-gradient(from 170deg at 88% 0%, transparent 0deg, rgba(255,255,255,.06) 16deg, transparent 32deg); }
+.fmt-story .banco, .fmt-whatsapp .banco { padding: 14px 20px 0; border-radius: 22px; background: linear-gradient(180deg, rgba(19,42,28,.82), rgba(6,17,9,.6)); border: 1px solid rgba(155,181,164,.16); }
