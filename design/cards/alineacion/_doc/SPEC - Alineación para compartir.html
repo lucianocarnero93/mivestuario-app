@@ -1,0 +1,786 @@
+<!doctype html><html><head><meta charset="utf-8"><title>SPEC - Alineación para compartir</title></head><body><h1>SPEC · Alineación para compartir</h1>
+<p><strong>Piezas en esta carpeta:</strong> hoja de contacto <code>00-alineacion-todas.png</code> · antes/después <code>00-antes-despues.png</code> · WhatsApp <code>whatsapp-f5-neon</code>, <code>whatsapp-f7-neon</code>, <code>whatsapp-f7-equipo-rojo-negro</code>, <code>whatsapp-f8-neon</code>, <code>whatsapp-f9-equipo-bordo-celeste</code>, <code>whatsapp-f11-neon</code>, <code>whatsapp-f11-equipo-azul-amarillo</code> · Story <code>story-f5-neon</code>, <code>story-f7-neon</code>, <code>story-f7-equipo-rojo-negro</code>, <code>story-f8-neon</code>, <code>story-f9-equipo-bordo-celeste</code>, <code>story-f11-equipo-azul-amarillo</code> · Link <code>og-f7-neon</code>, <code>og-f8-neon</code>, <code>og-f9-equipo-bordo-celeste</code>, <code>og-f11-equipo-azul-amarillo</code> · Imagen de hoy reconstruida <code>hoy-whatsapp-f7</code>, <code>hoy-story-f11</code>.</p>
+<p>Fuentes (templates, <code>alineacion.js</code>, build): <code>/workspace/mivestuario/cards/alineacion/</code>. Esta es la sección 10 de <code>cards/SPEC.md</code>.</p>
+<blockquote>
+<p>Entregable de diseño: imágenes, templates y reglas. <strong>No se tocó el código de la app.</strong> Campos reales de <code>src/lib/fija/types.ts</code>; lo que no existe está marcado <strong>⚠️ FALTA DATO</strong>. En Drive: carpeta <strong>Alineación para compartir</strong> (https://drive.google.com/drive/folders/14cV67-Egdmzdyc30tMFhq6D4cpABspac).</p>
+</blockquote>
+<h2>10.1 Qué genera hoy Compartir (leído del código)</h2>
+<ul>
+<li><strong>Dónde:</strong> Pizarra (<code>/cancha</code>) → pestaña <strong>Compartir</strong> → <code>Compartir()</code> en <code>components/fija/pizarra-viva.tsx</code> (función <code>armar(story)</code>). Dibuja en un canvas propio; <strong>no usa</strong> <code>tarjeta.ts</code>, <code>stories.ts</code>, <code>lienzo.ts</code> ni <code>premios-dibujo.ts</code>.</li>
+<li><strong>Botones:</strong> "Compartir en WhatsApp" → PNG <strong>1200×630</strong> apaisado. "Historia de Instagram" → PNG <strong>1080×1920</strong>. Comparte con <code>navigator.share({ files, title })</code> sin texto; si no puede, descarga <code>formacion.png</code> / <code>historia.png</code>.</li>
+<li><strong>Qué dibuja:</strong> fondo verde plano <code>#0c5a2a</code>; título en <code>sans-serif</code> (fuente del sistema): en WhatsApp <code>event.title</code> dos veces (blanco 54px y lima 36px), en la story "Así salimos hoy" (siempre "hoy") + <code>event.title</code>. Cada jugador es un círculo lima (radio 22px / 36px) con el dorsal (o 2 letras del apodo) y el apodo abajo. Sin dibujo de cancha. Abajo: <code>crest ? "Con el escudo del equipo" : "Armado en Mi Vestuario"</code>.</li>
+<li><strong>Por qué se ve mal:</strong><ol>
+<li><strong>Faltan jugadores (bug):</strong> usa <code>FORMATIONS[event.modality][0]</code> (la primera formación) en vez de la del plan (<code>plan.formacion || event.formacion</code>). Los slots que no existen en la primera se saltean: en F7 1-3-2-1 desaparece <code>DF</code>; en F11 4-3-3 faltan <code>MC3</code>, <code>EI</code>, <code>DC</code>, <code>ED</code> (4 de 11); en 3-5-2 faltan <code>DFC</code> y <code>MCO</code>. Los que quedan salen en la posición de otra formación.</li>
+<li>WhatsApp en 1200×630: la cancha queda en una franja de 280px (y 240→520) y los chips son de 44px; en el chat no se lee nada.</li>
+<li>Escribe "Con el escudo del equipo" en vez de dibujar el escudo, y entonces no lleva marca.</li>
+<li>No figuran el nombre del equipo, día, hora, cancha, modalidad, esquema, banco ni DT. Título repetido.</li>
+<li>Nada de la marca: sin Barlow/Figtree, sin fotos ni avatares, sin el lenguaje de las cards.</li>
+</ol>
+</li>
+<li>Reconstrucción con el mismo código: <code>png/alineacion/_hoy-*.png</code> y comparación en <code>png/alineacion/00-antes-despues.png</code>.</li>
+</ul>
+<h2>10.2 Archivos</h2>
+<table>
+<thead>
+<tr>
+<th>Ruta</th>
+<th>Qué es</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>alineacion/whatsapp.html</code> · <code>story.html</code> · <code>og.html</code></td>
+<td>Templates con <code>{{PLACEHOLDERS}}</code> (cabecera) + <code>{{DATOS_JSON}}</code> (titulares, banco, DT)</td>
+</tr>
+<tr>
+<td><code>alineacion/alineacion.js</code></td>
+<td><strong>Fuente de verdad del layout</strong>: formaciones (copia de <code>formations.ts</code>), líneas, perspectiva, tamaño de chips, temas, regla de imagen. Sin dependencias (Node y navegador)</td>
+</tr>
+<tr>
+<td><code>alineacion/alineacion.css</code></td>
+<td>Tokens, chip, cabecera, banco y medidas de los 3 formatos</td>
+</tr>
+<tr>
+<td><code>alineacion/posiciones.json</code> · <code>posiciones.js</code></td>
+<td>x/y/ancho/alto/k de cada slot: las 15 formaciones de la app + 4 propuestas de F6/F10, en los 3 formatos (salida de <code>layout()</code>; se rearma con <code>node alineacion/posiciones.js</code>). Mismas cifras que las tablas de 10.4</td>
+</tr>
+<tr>
+<td><code>alineacion/ejemplos/*.html</code></td>
+<td>Templates llenos con datos ficticios (generan los PNG)</td>
+</tr>
+<tr>
+<td><code>alineacion/build.py</code> · <code>hoja.py</code></td>
+<td>Arma templates, ejemplos, PNG (Chrome headless), QA (chips que se pisan, textos cortados, zonas seguras), hoja de contacto y antes/después</td>
+</tr>
+<tr>
+<td><code>alineacion/_antes/antes.html</code></td>
+<td>Reconstrucción de la imagen de hoy (código de <code>armar()</code> copiado tal cual)</td>
+</tr>
+<tr>
+<td><code>png/alineacion/whatsapp-*.png</code> · <code>story-*.png</code> · <code>og-*.png</code></td>
+<td>17 piezas: F5, F7, F8, F9 y F11 (todas las modalidades de la app); tema marca (neón) y tema equipo (rojo/negro, bordó/celeste, azul/amarillo). F8 y F9 en los tres formatos</td>
+</tr>
+<tr>
+<td><code>png/alineacion/00-alineacion-todas.png</code> · <code>00-antes-despues.png</code></td>
+<td>Hoja de contacto y antes/después (incluye cómo llega al chat)</td>
+</tr>
+</tbody>
+</table>
+<p><code>python3 alineacion/build.py</code> rearma todo (~30 s). Los PNG pasan el QA sin avisos (<code>png/alineacion/_qa.json</code>).</p>
+<h2>10.3 Formatos y layout (px del lienzo; exportar a 1× — ya son tamaño final)</h2>
+<p><strong>WhatsApp / feed 4:5 · 1080×1350</strong> (también sirve como post de Instagram; ocupa más alto en el chat que el 1200×630 de hoy)</p>
+<table>
+<thead>
+<tr>
+<th>Bloque</th>
+<th>Posición</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cabecera</td>
+<td>x 48–1032, y 40–236. Escudo 150×150 (con brillo del acento). Columna de textos desde x≈228: kicker "ASÍ SALIMOS" (Figtree 800 24px, espaciado .22em, color acento) · EQUIPO (Barlow 800 78px, achica hasta 46) · "vs RIVAL" (Barlow 700 48px, "vs" en acento, achica hasta 32) · <code>día dd/mm · hh:mm</code> (Figtree 700 26px fg) + <code>· cancha</code> (Figtree 600 muted), achica hasta 20 y después "…". A la derecha: pastilla <code>F7</code> (Barlow 800 64px sobre acento, radio 16) y abajo el esquema (Barlow 700 40px)</td>
+</tr>
+<tr>
+<td>Cancha</td>
+<td>trapecio: arriba y 292, ancho 700 · abajo y 1124, ancho 1010 · centro x 540</td>
+</tr>
+<tr>
+<td>Banco + DT</td>
+<td>panel x 40–1040, y 1150–1300, radio 22. "BANCO" (Figtree 800 19px, .24em, muted) y círculos de 84px (aro de 4px con el degradé del marco), dorsal en burbuja de 34px, apodo Barlow 700 25px. Separador y columna "DT" a la derecha</td>
+</tr>
+<tr>
+<td>Marca</td>
+<td>y 1306, centrada: logo 34px + "Armado en <strong>Mi Vestuario</strong> · mivestuario.com.ar" (Figtree 600 22px; URL en lima)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Story de Instagram · 1080×1920</strong> — nada importante arriba de y 250 ni debajo de y 1620 (stickers e interfaz de IG). Arriba solo decoración (luces de estadio).</p>
+<table>
+<thead>
+<tr>
+<th>Bloque</th>
+<th>Posición</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cabecera</td>
+<td>x 48–1032, y 262–452 (igual que WhatsApp, sin la línea de fecha)</td>
+</tr>
+<tr>
+<td>Pastillas</td>
+<td>y 466: <code>Sáb 10/10 · 15:00</code> (en acento) y <code>cancha</code> (Figtree 700 25px, máx. 440px c/u)</td>
+</tr>
+<tr>
+<td>Cancha</td>
+<td>arriba y 562, ancho 720 · abajo y 1352, ancho 1010</td>
+</tr>
+<tr>
+<td>Banco + DT</td>
+<td>y 1392–1562</td>
+</tr>
+<tr>
+<td>Marca</td>
+<td>y 1578 (termina en ~1612)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Link / Open Graph · 1200×630</strong> (ver 10.12)</p>
+<table>
+<thead>
+<tr>
+<th>Bloque</th>
+<th>Posición</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Columna izquierda</td>
+<td>x 60–600: logo + "MI VESTUARIO" (y 50) · escudo 120 + kicker + EQUIPO 64px · "vs RIVAL" 50px · fecha/hora/cancha 25px · pastilla <code>F7</code> + esquema · al pie "Resultado y formación en el link · mivestuario.com.ar"</td>
+</tr>
+<tr>
+<td>Cancha</td>
+<td>centro x 892, arriba y 60 ancho 430, abajo y 596 ancho 540. Jugadores como discos con <strong>número y puesto</strong>; sin fotos, nombres, banco ni DT</td>
+</tr>
+</tbody>
+</table>
+<h2>10.4 Cancha y posiciones (algoritmo, <code>alineacion.js</code>)</h2>
+<p>Se parte de los slots de <code>FORMATIONS[modality]</code> que ya usa la app (<code>x</code>, <code>y</code> en % de la cancha 5:7, <code>y</code> grande = arco propio). Nunca usar la primera formación: <code>forma = FORMATIONS[event.modality].find(f =&gt; f.id === (plan.formacion || event.formacion)) ?? FORMATIONS[event.modality][0]</code>.</p>
+<ol>
+<li><strong>Líneas:</strong> ordenar los slots por <code>y</code> de mayor a menor y cortar una línea nueva cuando la distancia con el anterior es <strong>&gt; 9</strong>. Excepción (laterales sueltos): una línea formada solo por jugadores abiertos (<code>|x − 50| ≥ 30</code>) que queda a ≤ 12 de la línea de atrás (y esa no es la del arquero) se suma a la de atrás; el escalón del paso 2 los deja apenas adelantados y no se agrega una fila. (4-4-2 → ARQ / 4 / 4 / 2; 4-2-3-1 → ARQ / 4 / 2 / 3 / 1; F9 1-3-3-2 → ARQ / 4 con laterales adelantados / 3 / 1.)</li>
+<li><strong>Filas parejas:</strong> la línea <em>i</em> de <em>n</em> va a <code>t = tArq − i·(tArq − tAtk)/(n−1)</code> con <code>tArq = 0,90</code> y <code>tAtk = 0,085</code> (t = 0 fondo lejano, 1 fondo cercano). Dentro de la línea, escalón suave: <code>t += (slot.y − promedio)/100 · 0,55</code> (los laterales quedan apenas más arriba).</li>
+<li><strong>Ancho:</strong> <code>u = 0,5 + (slot.x − 50)/100 · 0,94</code>.</li>
+<li><strong>Proyección</strong> (trapecio de 10.3): <code>w(t) = wFar + (wNear − wFar)·t</code> · <code>x = cx + (u − 0,5)·w(t)</code> · <code>y = top + t·(bottom − top)</code>.</li>
+<li><strong>Tamaño del chip:</strong> ancho base por modalidad — WhatsApp F5 180 · F7 170 · F8 156 · F9 146 · F11 136 (story: 176 · 166 · 152 · 142 · 132; OG discos: 64 · 60 · 56 · 54 · 52). Propuesta F6 / F10: WhatsApp 175 / 140 · story 171 / 136 · OG 62 / 53. Alto = ancho × 1,28. Escala por profundidad <code>s = 0,88 + 0,12·t</code>.</li>
+<li><strong>Sin pisarse:</strong> para cada par de chips a y b: <code>fx = |xa − xb| / ((wa + wb)/2 + 8)</code> y <code>fy = |ya − yb| / ((ha + hb)/2 + 8)</code>. Si <code>fx &lt; 1</code> y <code>fy &lt; 1</code> se pisan: <code>k = min(k, max(fx, fy))</code>. Todos los chips se multiplican por el mismo <code>k</code> (nunca se mueven). Peor caso: F11 3-5-2, <code>k = 0,90</code> en WhatsApp (chips de 109–121px) y <code>k = 0,88</code> en story. El resto de las formaciones queda entre 0,95 y 1 (columna k de las tablas).</li>
+<li><strong>Orden de dibujo:</strong> de arriba hacia abajo (el más cercano tapa al de atrás).</li>
+</ol>
+<p>Líneas de la cancha con <strong>perspectiva real</strong> (para que el círculo central y las áreas no se vean planas): un punto de cancha <code>(u, v)</code> va a <code>t = (1/z − r)/(1 − r)</code> con <code>r = wFar/wNear</code> y <code>z = 1/r + (1 − 1/r)·v</code>. Medidas en unidades de cancha (las de <code>pitch.tsx</code>): área 0,622 × 0,138 · área chica 0,40 × 0,0615 · círculo central radio 0,133 (u) × 0,092 (v) · semicírculo del área 62% del central (no va en el OG). Césped: 14 franjas alternadas <code>#1d5c36</code> / <code>#195231</code>, 3,5% de margen fuera de las líneas, el fondo lejano se funde (opacidad .35 → 1 en el primer 22%), luz radial arriba y sombra difusa abajo. Líneas <code>rgba(232,243,234,.62)</code> 3,2px (con brillo lima suave en el tema marca).</p>
+<p><strong>Modalidades y formaciones que ofrece la app</strong> (<code>types.ts</code>: <code>Modality = "f5" | "f7" | "f8" | "f9" | "f11"</code>; <code>formations.ts</code>). La primera de cada lista es la que se usa por defecto cuando el partido no tiene formación (<code>?? FORMATIONS[modality][0]</code>). <strong>F6 y F10 no existen en la app</strong>: abajo van como propuesta, por si se suman, con las mismas reglas.</p>
+<table>
+<thead>
+<tr>
+<th>Modalidad</th>
+<th>Formaciones (<code>id</code>)</th>
+<th>Por defecto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F5</td>
+<td>1-2-2 (<code>diamante</code>) · Rombo (<code>rombo</code>) · 1-1-1-2 (<code>1-1-1-2</code>)</td>
+<td>1-2-2</td>
+</tr>
+<tr>
+<td>F6</td>
+<td>❌ no existe en la app. Propuesta: 1-2-2-1 (<code>1-2-2-1</code>) · 1-2-1-2 (<code>1-2-1-2</code>)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>F7</td>
+<td>1-2-3-1 (<code>1-2-3-1</code>) · 1-3-2-1 (<code>1-3-2-1</code>)</td>
+<td>1-2-3-1</td>
+</tr>
+<tr>
+<td>F8</td>
+<td>1-3-3-1 clásica (<code>clasica</code>) · 1-2-3-2 ofensiva (<code>ofensiva</code>) · 1-3-2-2 equilibrada (<code>equilibrada</code>)</td>
+<td>1-3-3-1 clásica</td>
+</tr>
+<tr>
+<td>F9</td>
+<td>1-3-3-2 clásica (<code>clasica</code>) · 1-4-3-1 defensiva (<code>defensiva</code>) · 1-3-4-1 ofensiva (<code>ofensiva</code>)</td>
+<td>1-3-3-2 clásica</td>
+</tr>
+<tr>
+<td>F10</td>
+<td>❌ no existe en la app. Propuesta: 1-4-3-2 (<code>1-4-3-2</code>) · 1-3-4-2 (<code>1-3-4-2</code>)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>F11</td>
+<td>4-4-2 clásica (<code>4-4-2</code>) · 4-3-3 ofensiva (<code>4-3-3</code>) · 4-2-3-1 moderna (<code>4-2-3-1</code>) · 3-5-2 con carrileros (<code>3-5-2</code>)</td>
+<td>4-4-2 clásica</td>
+</tr>
+</tbody>
+</table>
+<p>Posiciones resultantes para <strong>todas</strong> las formaciones en los tres formatos: <code>x,y</code> = centro del chip en px del lienzo, entre paréntesis el ancho (alto = ancho × 1,28; en el OG es el diámetro del disco). Slots de adelante hacia atrás. Mismos datos en <code>posiciones.json</code>.</p>
+<p><strong>WhatsApp / feed 1080×1350</strong></p>
+<table>
+<thead>
+<tr>
+<th>Formación</th>
+<th>k</th>
+<th>Slots</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F5 · 1-2-2 (<code>diamante</code>)</td>
+<td>1</td>
+<td>EI 403,363 (160) · ED 677,363 (160) · LI 364,702 (169) · LD 716,702 (169) · ARQ 540,1041 (178)</td>
+</tr>
+<tr>
+<td>F5 · Rombo (<code>rombo</code>)</td>
+<td>0.97</td>
+<td>PIV 540,363 (156) · AI 327,589 (162) · AD 753,589 (162) · DEF 540,815 (168) · ARQ 540,1041 (173)</td>
+</tr>
+<tr>
+<td>F5 · 1-1-1-2 (<code>1-1-1-2</code>)</td>
+<td>0.97</td>
+<td>EI 417,363 (156) · ED 663,363 (156) · VOL 540,589 (162) · DEF 540,815 (168) · ARQ 540,1041 (173)</td>
+</tr>
+<tr>
+<td>F6 · 1-2-2-1 (<code>1-2-2-1</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>DC 540,363 (156) · MI 357,589 (161) · MD 723,589 (161) · LI 372,815 (167) · LD 708,815 (167) · ARQ 540,1041 (173)</td>
+</tr>
+<tr>
+<td>F6 · 1-2-1-2 (<code>1-2-1-2</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>EI 417,363 (156) · ED 663,363 (156) · VOL 540,589 (161) · LI 372,815 (167) · LD 708,815 (167) · ARQ 540,1041 (173)</td>
+</tr>
+<tr>
+<td>F7 · 1-2-3-1 (<code>1-2-3-1</code>)</td>
+<td>1</td>
+<td>DC 540,363 (151) · MI 327,586 (157) · MD 753,586 (157) · MC 540,595 (157) · LI 372,815 (162) · LD 708,815 (162) · ARQ 540,1041 (168)</td>
+</tr>
+<tr>
+<td>F7 · 1-3-2-1 (<code>1-3-2-1</code>)</td>
+<td>1</td>
+<td>DC 540,363 (151) · MI 403,589 (157) · MD 677,589 (157) · LI 271,812 (162) · LD 809,812 (162) · DF 540,821 (163) · ARQ 540,1041 (168)</td>
+</tr>
+<tr>
+<td>F8 · 1-3-3-1 (<code>clasica</code>)</td>
+<td>1</td>
+<td>DC 540,363 (139) · MI 342,583 (144) · MD 738,583 (144) · MC 540,601 (144) · LI 271,812 (149) · LD 809,812 (149) · DF 540,821 (149) · ARQ 540,1041 (154)</td>
+</tr>
+<tr>
+<td>F8 · 1-2-3-2 (<code>ofensiva</code>)</td>
+<td>1</td>
+<td>DC1 438,363 (139) · DC2 642,363 (139) · MI 297,586 (144) · MD 783,586 (144) · MC 540,595 (144) · LI 372,815 (149) · LD 708,815 (149) · ARQ 540,1041 (154)</td>
+</tr>
+<tr>
+<td>F8 · 1-3-2-2 (<code>equilibrada</code>)</td>
+<td>1</td>
+<td>DC1 438,363 (139) · DC2 642,363 (139) · MI 388,589 (144) · MD 692,589 (144) · LI 271,812 (149) · LD 809,812 (149) · DF 540,821 (149) · ARQ 540,1041 (154)</td>
+</tr>
+<tr>
+<td>F9 · 1-3-3-2 (<code>clasica</code>)</td>
+<td>1</td>
+<td>DC 540,363 (130) · MI 342,586 (135) · MD 738,586 (135) · MC 540,595 (135) · LI 257,787 (139) · LD 823,787 (139) · DFI 438,842 (140) · DFD 642,842 (140) · ARQ 540,1041 (144)</td>
+</tr>
+<tr>
+<td>F9 · 1-4-3-1 (<code>defensiva</code>)</td>
+<td>1</td>
+<td>DC 540,363 (130) · MI 342,583 (135) · MD 738,583 (135) · MC 540,601 (135) · LI 238,806 (139) · LD 842,806 (139) · DFI 405,824 (140) · DFD 675,824 (140) · ARQ 540,1041 (144)</td>
+</tr>
+<tr>
+<td>F9 · 1-3-4-1 (<code>ofensiva</code>)</td>
+<td>1</td>
+<td>DC 540,363 (130) · MI 266,584 (135) · MD 814,584 (135) · MC1 448,593 (135) · MC2 632,593 (135) · LI 330,812 (139) · LD 750,812 (139) · DF 540,821 (140) · ARQ 540,1041 (144)</td>
+</tr>
+<tr>
+<td>F10 · 1-4-3-2 (<code>1-4-3-2</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>DC1 458,363 (125) · DC2 622,363 (125) · MI 342,583 (129) · MD 738,583 (129) · MC 540,601 (129) · LI 239,801 (133) · LD 841,801 (133) · DFI 422,829 (134) · DFD 658,829 (134) · ARQ 540,1041 (138)</td>
+</tr>
+<tr>
+<td>F10 · 1-3-4-2 (<code>1-3-4-2</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>DC1 458,363 (125) · DC2 622,363 (125) · MI 267,580 (129) · MD 813,580 (129) · MC1 448,598 (129) · MC2 632,598 (129) · DFI 355,812 (134) · DFD 725,812 (134) · DFC 540,821 (134) · ARQ 540,1041 (138)</td>
+</tr>
+<tr>
+<td>F11 · 4-4-2 (<code>4-4-2</code>)</td>
+<td>1</td>
+<td>DC1 458,363 (121) · DC2 622,363 (121) · MI 267,580 (125) · MD 813,580 (125) · MC1 448,598 (126) · MC2 632,598 (126) · LI 239,801 (130) · LD 841,801 (130) · DFI 405,829 (130) · DFD 675,829 (130) · ARQ 540,1041 (134)</td>
+</tr>
+<tr>
+<td>F11 · 4-3-3 (<code>4-3-3</code>)</td>
+<td>1</td>
+<td>DC 540,351 (121) · EI 348,369 (121) · ED 732,369 (121) · MC1 373,583 (125) · MC3 707,583 (125) · MC2 540,601 (126) · LI 239,801 (130) · LD 841,801 (130) · DFI 405,829 (130) · DFD 675,829 (130) · ARQ 540,1041 (134)</td>
+</tr>
+<tr>
+<td>F11 · 4-2-3-1 (<code>4-2-3-1</code>)</td>
+<td>0.99</td>
+<td>DC 540,363 (119) · MI 332,532 (123) · MCO 540,532 (123) · MD 748,532 (123) · MC1 444,702 (126) · MC2 636,702 (126) · LI 232,858 (129) · LD 848,858 (129) · DFI 401,885 (130) · DFD 679,885 (130) · ARQ 540,1041 (133)</td>
+</tr>
+<tr>
+<td>F11 · 3-5-2 (<code>3-5-2</code>)</td>
+<td>0.90</td>
+<td>DC1 458,363 (109) · DC2 622,363 (109) · MCO 540,532 (112) · MI 237,693 (115) · MD 843,693 (115) · MC1 443,711 (116) · MC2 637,711 (116) · DFI 351,868 (118) · DFD 729,868 (118) · DFC 540,877 (119) · ARQ 540,1041 (121)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Story 1080×1920</strong></p>
+<table>
+<thead>
+<tr>
+<th>Formación</th>
+<th>k</th>
+<th>Slots</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F5 · 1-2-2 (<code>diamante</code>)</td>
+<td>1</td>
+<td>EI 400,629 (157) · ED 680,629 (157) · LI 362,951 (165) · LD 718,951 (165) · ARQ 540,1273 (174)</td>
+</tr>
+<tr>
+<td>F5 · Rombo (<code>rombo</code>)</td>
+<td>0.95</td>
+<td>PIV 540,629 (148) · AI 323,844 (154) · AD 757,844 (154) · DEF 540,1058 (159) · ARQ 540,1273 (165)</td>
+</tr>
+<tr>
+<td>F5 · 1-1-1-2 (<code>1-1-1-2</code>)</td>
+<td>0.95</td>
+<td>EI 414,629 (148) · ED 666,629 (148) · VOL 540,844 (154) · DEF 540,1058 (159) · ARQ 540,1273 (165)</td>
+</tr>
+<tr>
+<td>F6 · 1-2-2-1 (<code>1-2-2-1</code>) — <em>propuesta</em></td>
+<td>0.98</td>
+<td>DC 540,629 (149) · MI 354,844 (154) · MD 726,844 (154) · LI 370,1058 (159) · LD 710,1058 (159) · ARQ 540,1273 (165)</td>
+</tr>
+<tr>
+<td>F6 · 1-2-1-2 (<code>1-2-1-2</code>) — <em>propuesta</em></td>
+<td>0.98</td>
+<td>EI 414,629 (149) · ED 666,629 (149) · VOL 540,844 (154) · LI 370,1058 (159) · LD 710,1058 (159) · ARQ 540,1273 (165)</td>
+</tr>
+<tr>
+<td>F7 · 1-2-3-1 (<code>1-2-3-1</code>)</td>
+<td>1</td>
+<td>DC 540,629 (148) · MI 324,841 (153) · MD 756,841 (153) · MC 540,850 (153) · LI 370,1058 (159) · LD 710,1058 (159) · ARQ 540,1273 (164)</td>
+</tr>
+<tr>
+<td>F7 · 1-3-2-1 (<code>1-3-2-1</code>)</td>
+<td>0.97</td>
+<td>DC 540,629 (144) · MI 401,844 (149) · MD 679,844 (149) · LI 269,1055 (154) · LD 811,1055 (154) · DF 540,1064 (155) · ARQ 540,1273 (160)</td>
+</tr>
+<tr>
+<td>F8 · 1-3-3-1 (<code>clasica</code>)</td>
+<td>1</td>
+<td>DC 540,629 (135) · MI 339,838 (140) · MD 741,838 (140) · MC 540,855 (141) · LI 269,1055 (145) · LD 811,1055 (145) · DF 540,1064 (145) · ARQ 540,1273 (150)</td>
+</tr>
+<tr>
+<td>F8 · 1-2-3-2 (<code>ofensiva</code>)</td>
+<td>1</td>
+<td>DC1 435,629 (135) · DC2 645,629 (135) · MI 293,841 (140) · MD 787,841 (140) · MC 540,850 (140) · LI 370,1058 (145) · LD 710,1058 (145) · ARQ 540,1273 (150)</td>
+</tr>
+<tr>
+<td>F8 · 1-3-2-2 (<code>equilibrada</code>)</td>
+<td>1</td>
+<td>DC1 435,629 (135) · DC2 645,629 (135) · MI 385,844 (140) · MD 695,844 (140) · LI 269,1055 (145) · LD 811,1055 (145) · DF 540,1064 (145) · ARQ 540,1273 (150)</td>
+</tr>
+<tr>
+<td>F9 · 1-3-3-2 (<code>clasica</code>)</td>
+<td>1</td>
+<td>DC 540,629 (126) · MI 339,841 (131) · MD 741,841 (131) · MC 540,850 (131) · LI 255,1032 (135) · LD 825,1032 (135) · DFI 437,1084 (136) · DFD 643,1084 (136) · ARQ 540,1273 (140)</td>
+</tr>
+<tr>
+<td>F9 · 1-4-3-1 (<code>defensiva</code>)</td>
+<td>1</td>
+<td>DC 540,629 (126) · MI 339,838 (131) · MD 741,838 (131) · MC 540,855 (131) · LI 236,1050 (135) · LD 844,1050 (135) · DFI 404,1067 (136) · DFD 676,1067 (136) · ARQ 540,1273 (140)</td>
+</tr>
+<tr>
+<td>F9 · 1-3-4-1 (<code>ofensiva</code>)</td>
+<td>1</td>
+<td>DC 540,629 (126) · MI 262,839 (131) · MD 818,839 (131) · MC1 447,848 (131) · MC2 633,848 (131) · LI 328,1055 (136) · LD 752,1055 (136) · DF 540,1064 (136) · ARQ 540,1273 (140)</td>
+</tr>
+<tr>
+<td>F10 · 1-4-3-2 (<code>1-4-3-2</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>DC1 456,629 (121) · DC2 624,629 (121) · MI 339,838 (125) · MD 741,838 (125) · MC 540,855 (126) · LI 236,1045 (130) · LD 844,1045 (130) · DFI 421,1071 (130) · DFD 659,1071 (130) · ARQ 540,1273 (134)</td>
+</tr>
+<tr>
+<td>F10 · 1-3-4-2 (<code>1-3-4-2</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>DC1 456,629 (121) · DC2 624,629 (121) · MI 262,835 (125) · MD 818,835 (125) · MC1 447,852 (126) · MC2 633,852 (126) · DFI 354,1055 (130) · DFD 726,1055 (130) · DFC 540,1064 (130) · ARQ 540,1273 (134)</td>
+</tr>
+<tr>
+<td>F11 · 4-4-2 (<code>4-4-2</code>)</td>
+<td>1</td>
+<td>DC1 456,629 (118) · DC2 624,629 (118) · MI 262,835 (122) · MD 818,835 (122) · MC1 447,852 (122) · MC2 633,852 (122) · LI 236,1045 (126) · LD 844,1045 (126) · DFI 404,1071 (126) · DFD 676,1071 (126) · ARQ 540,1273 (130)</td>
+</tr>
+<tr>
+<td>F11 · 4-3-3 (<code>4-3-3</code>)</td>
+<td>1</td>
+<td>DC 540,618 (117) · EI 343,635 (118) · ED 737,635 (118) · MC1 370,838 (122) · MC3 710,838 (122) · MC2 540,855 (122) · LI 236,1045 (126) · LD 844,1045 (126) · DFI 404,1071 (126) · DFD 676,1071 (126) · ARQ 540,1273 (130)</td>
+</tr>
+<tr>
+<td>F11 · 4-2-3-1 (<code>4-2-3-1</code>)</td>
+<td>0.98</td>
+<td>DC 540,629 (115) · MI 328,790 (118) · MCO 540,790 (118) · MD 752,790 (118) · MC1 443,951 (121) · MC2 637,951 (121) · LI 230,1099 (124) · LD 850,1099 (124) · DFI 401,1125 (125) · DFD 679,1125 (125) · ARQ 540,1273 (128)</td>
+</tr>
+<tr>
+<td>F11 · 3-5-2 (<code>3-5-2</code>)</td>
+<td>0.88</td>
+<td>DC1 456,629 (104) · DC2 624,629 (104) · MCO 540,790 (107) · MI 233,942 (109) · MD 847,942 (109) · MC1 442,960 (110) · MC2 638,960 (110) · DFI 350,1109 (112) · DFD 730,1109 (112) · DFC 540,1118 (112) · ARQ 540,1273 (115)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Link / OG 1200×630 (discos)</strong></p>
+<table>
+<thead>
+<tr>
+<th>Formación</th>
+<th>k</th>
+<th>Slots</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>F5 · 1-2-2 (<code>diamante</code>)</td>
+<td>1</td>
+<td>EI 811,114 (58) · ED 973,114 (58) · LI 794,317 (61) · LD 990,317 (61) · ARQ 892,521 (63)</td>
+</tr>
+<tr>
+<td>F5 · Rombo (<code>rombo</code>)</td>
+<td>1</td>
+<td>PIV 892,114 (58) · AI 771,249 (60) · AD 1013,249 (60) · DEF 892,385 (61) · ARQ 892,521 (63)</td>
+</tr>
+<tr>
+<td>F5 · 1-1-1-2 (<code>1-1-1-2</code>)</td>
+<td>1</td>
+<td>EI 819,114 (58) · ED 965,114 (58) · VOL 892,249 (60) · DEF 892,385 (61) · ARQ 892,521 (63)</td>
+</tr>
+<tr>
+<td>F6 · 1-2-2-1 (<code>1-2-2-1</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>DC 892,114 (56) · MI 788,249 (58) · MD 996,249 (58) · LI 801,385 (60) · LD 983,385 (60) · ARQ 892,521 (61)</td>
+</tr>
+<tr>
+<td>F6 · 1-2-1-2 (<code>1-2-1-2</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>EI 819,114 (56) · ED 965,114 (56) · VOL 892,249 (58) · LI 801,385 (60) · LD 983,385 (60) · ARQ 892,521 (61)</td>
+</tr>
+<tr>
+<td>F7 · 1-2-3-1 (<code>1-2-3-1</code>)</td>
+<td>1</td>
+<td>DC 892,114 (55) · MI 771,247 (56) · MD 1013,247 (56) · MC 892,253 (56) · LI 801,385 (58) · LD 983,385 (58) · ARQ 892,521 (59)</td>
+</tr>
+<tr>
+<td>F7 · 1-3-2-1 (<code>1-3-2-1</code>)</td>
+<td>1</td>
+<td>DC 892,114 (55) · MI 814,249 (56) · MD 970,249 (56) · LI 746,383 (58) · LD 1038,383 (58) · DF 892,389 (58) · ARQ 892,521 (59)</td>
+</tr>
+<tr>
+<td>F8 · 1-3-3-1 (<code>clasica</code>)</td>
+<td>1</td>
+<td>DC 892,114 (51) · MI 780,245 (52) · MD 1004,245 (52) · MC 892,257 (52) · LI 746,383 (54) · LD 1038,383 (54) · DF 892,389 (54) · ARQ 892,521 (55)</td>
+</tr>
+<tr>
+<td>F8 · 1-2-3-2 (<code>ofensiva</code>)</td>
+<td>1</td>
+<td>DC1 831,114 (51) · DC2 953,114 (51) · MI 754,247 (52) · MD 1030,247 (52) · MC 892,253 (52) · LI 801,385 (54) · LD 983,385 (54) · ARQ 892,521 (55)</td>
+</tr>
+<tr>
+<td>F8 · 1-3-2-2 (<code>equilibrada</code>)</td>
+<td>1</td>
+<td>DC1 831,114 (51) · DC2 953,114 (51) · MI 806,249 (52) · MD 978,249 (52) · LI 746,383 (54) · LD 1038,383 (54) · DF 892,389 (54) · ARQ 892,521 (55)</td>
+</tr>
+<tr>
+<td>F9 · 1-3-3-2 (<code>clasica</code>)</td>
+<td>1</td>
+<td>DC 892,114 (49) · MI 780,247 (50) · MD 1004,247 (50) · MC 892,253 (51) · LI 738,367 (52) · LD 1046,367 (52) · DFI 837,403 (52) · DFD 947,403 (52) · ARQ 892,521 (53)</td>
+</tr>
+<tr>
+<td>F9 · 1-4-3-1 (<code>defensiva</code>)</td>
+<td>1</td>
+<td>DC 892,114 (49) · MI 780,245 (50) · MD 1004,245 (50) · MC 892,257 (51) · LI 728,379 (52) · LD 1056,379 (52) · DFI 819,391 (52) · DFD 965,391 (52) · ARQ 892,521 (53)</td>
+</tr>
+<tr>
+<td>F9 · 1-3-4-1 (<code>ofensiva</code>)</td>
+<td>1</td>
+<td>DC 892,114 (49) · MI 737,246 (50) · MD 1047,246 (50) · MC1 840,252 (51) · MC2 944,252 (51) · LI 778,383 (52) · LD 1006,383 (52) · DF 892,389 (52) · ARQ 892,521 (53)</td>
+</tr>
+<tr>
+<td>F10 · 1-4-3-2 (<code>1-4-3-2</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>DC1 843,114 (48) · DC2 941,114 (48) · MI 780,245 (50) · MD 1004,245 (50) · MC 892,257 (50) · LI 728,376 (51) · LD 1056,376 (51) · DFI 828,394 (51) · DFD 956,394 (51) · ARQ 892,521 (52)</td>
+</tr>
+<tr>
+<td>F10 · 1-3-4-2 (<code>1-3-4-2</code>) — <em>propuesta</em></td>
+<td>1</td>
+<td>DC1 843,114 (48) · DC2 941,114 (48) · MI 737,243 (50) · MD 1047,243 (50) · MC1 840,255 (50) · MC2 944,255 (50) · DFI 792,383 (51) · DFD 992,383 (51) · DFC 892,389 (51) · ARQ 892,521 (52)</td>
+</tr>
+<tr>
+<td>F11 · 4-4-2 (<code>4-4-2</code>)</td>
+<td>1</td>
+<td>DC1 843,114 (47) · DC2 941,114 (47) · MI 737,243 (49) · MD 1047,243 (49) · MC1 840,255 (49) · MC2 944,255 (49) · LI 728,376 (50) · LD 1056,376 (50) · DFI 819,394 (50) · DFD 965,394 (50) · ARQ 892,521 (51)</td>
+</tr>
+<tr>
+<td>F11 · 4-3-3 (<code>4-3-3</code>)</td>
+<td>1</td>
+<td>DC 892,106 (47) · EI 778,118 (47) · ED 1006,118 (47) · MC1 797,245 (49) · MC3 987,245 (49) · MC2 892,257 (49) · LI 728,376 (50) · LD 1056,376 (50) · DFI 819,394 (50) · DFD 965,394 (50) · ARQ 892,521 (51)</td>
+</tr>
+<tr>
+<td>F11 · 4-2-3-1 (<code>4-2-3-1</code>)</td>
+<td>1</td>
+<td>DC 892,114 (47) · MI 773,215 (48) · MCO 892,215 (48) · MD 1011,215 (48) · MC1 839,317 (49) · MC2 945,317 (49) · LI 726,410 (50) · LD 1058,410 (50) · DFI 818,428 (50) · DFD 966,428 (50) · ARQ 892,521 (51)</td>
+</tr>
+<tr>
+<td>F11 · 3-5-2 (<code>3-5-2</code>)</td>
+<td>1</td>
+<td>DC1 843,114 (47) · DC2 941,114 (47) · MCO 892,215 (48) · MI 724,311 (49) · MD 1060,311 (49) · MC1 839,323 (49) · MC2 945,323 (49) · DFI 790,417 (50) · DFD 994,417 (50) · DFC 892,423 (50) · ARQ 892,521 (51)</td>
+</tr>
+</tbody>
+</table>
+<h2>10.5 El chip (mini card FUT) — medidas en unidades del ancho W (1em = W/10)</h2>
+<ul>
+<li><strong>Forma:</strong> la misma silueta de la card de premios (muesca arriba, punta abajo) estirada a W × 1,28W. Marco con el degradé metálico del tema, cuerpo con el degradé del tema, rayas diagonales sutiles, brillo diagonal (screen 26% blanco), línea interior 1,4px y halo (<code>drop-shadow 0 0 .9em glow</code>) + sombra en el piso (elipse negra 60%).</li>
+<li><strong>Imagen:</strong> foto → <code>cover</code> en (3%, 2%) 94% × 64%, foco 50% 26%, se funde abajo (62%→100%). Avatar → caja (16%, 4%) 82% × 62%, <code>contain</code> apoyado abajo, fundido 80%→100% (así el dorsal no tapa la cara). Iniciales → silueta (cabeza + hombros) color <code>silueta</code> del tema + iniciales Barlow 800 3,1em sobre el pecho.</li>
+<li><strong>Dorsal:</strong> arriba a la izquierda (8%, 5%), Barlow 800 <strong>3,3em</strong>, color <code>num</code> con sombra. Sin dorsal: no se dibuja.</li>
+<li><strong>Nombre:</strong> cinta trapecio a 63,5% (alto 15,5%, x 3%–97%) en color acento, Barlow 800 <strong>2,05em</strong> MAYÚSCULAS en <code>ribbonInk</code>. Achica hasta 0,95em; después "…".</li>
+<li><strong>Puesto:</strong> a 80,5%, Barlow 700 1,45em, espaciado .14em, <code>inkSoft</code>. Es el <code>label</code> del slot (ARQ, DEF, VOL, DEL, ALA, PIV, LI, DF, MC, EI, MCO, CAR…).</li>
+<li>En F11 (W 136 en WhatsApp) el nombre sale a ~25px y el dorsal a ~40px: se leen con la imagen abierta en el celular. En la miniatura del chat se leen la cabecera (equipo, rival, F7) y la forma de la formación.</li>
+<li><strong>Banco:</strong> círculo de 84px (aro del marco), dorsal en burbuja acento, apodo debajo. Entran 7; si hay más, 6 + burbuja "+N más". Sin banco: se oculta esa columna. <strong>DT:</strong> mismo círculo con acabado <strong>Pizarra</strong> (<code>#b8f25a → #3a5c46 → #0b1c12</code>, el de la card DT del mes) y burbuja "DT".</li>
+</ul>
+<h2>10.6 Temas</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Neón (marca, default)</th>
+<th>Equipo (<code>Club.colores</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Marco</td>
+<td><code>#f6ffd9 → #b8f25a → #6aa824 → #d9ff9a</code></td>
+<td><code>acento</code> aclarado 72% → <code>acento</code> → oscurecido 42% → aclarado 40%</td>
+</tr>
+<tr>
+<td>Cuerpo</td>
+<td><code>#24603a → #0f2c1b → #061109</code></td>
+<td><code>cuerpo</code> aclarado 12% → oscurecido 38% → 78%</td>
+</tr>
+<tr>
+<td>Cinta / texto cinta</td>
+<td><code>#b8f25a</code> / <code>#0c1a10</code></td>
+<td><code>acento</code> / <code>#0c1a10</code> si contraste ≥ 4,5, si no blanco</td>
+</tr>
+<tr>
+<td>Dorsal</td>
+<td><code>#b8f25a</code></td>
+<td><code>acento</code> si contraste ≥ 3 con el cuerpo, si no <code>acento</code> aclarado 82%</td>
+</tr>
+<tr>
+<td>Fondo (brillo arriba)</td>
+<td><code>#24603a</code></td>
+<td><code>cuerpo</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>acento</code> = <code>secondary</code> si tiene contraste ≥ 3 con <code>#0b1c12</code>, si no <code>secondary</code> aclarado 45%. <code>cuerpo</code> = <code>primary</code>, salvo que sea casi negro (luminancia &lt; 0,02): entonces <code>mix(primary, secondary, .28)</code> (negro con un toque del secundario, como en el ejemplo rojo y negro). El césped queda verde en los dos temas. Fórmulas exactas en <code>tema()</code> de <code>alineacion.js</code> (<code>mix</code>, <code>contraste</code> WCAG). Sin <code>Club.colores</code> → siempre neón.</p>
+<h2>10.7 Datos: de dónde sale cada cosa</h2>
+<table>
+<thead>
+<tr>
+<th>Placeholder / campo</th>
+<th>De dónde sale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EQUIPO</code>, <code>EQUIPO_INICIALES</code></td>
+<td><code>club.name</code>, <code>initials(club.name)</code></td>
+</tr>
+<tr>
+<td><code>ESCUDO_SRC</code>, <code>TIENE_ESCUDO</code></td>
+<td><code>club.crest</code> (data URL). <code>"si"</code> si empieza con <code>data:image/</code></td>
+</tr>
+<tr>
+<td><code>RIVAL</code></td>
+<td>⚠️ <strong>FALTA DATO</strong>: antes del partido no hay rival estructurado. Hoy: <code>event.title</code> sin el "vs " inicial (el placeholder del editor es "vs Los del Bajo": <code>title.replace(/^\s*vs\.?\s+/i, "")</code>). Si ya hay planilla, <code>sheet.opponent</code>. <code>event.rival</code> <strong>no</strong> sirve: es "cómo juega el rival" (texto de la charla)</td>
+</tr>
+<tr>
+<td><code>FECHA</code>, <code>HORA</code></td>
+<td><code>event.startsAt</code> en <code>America/Argentina/Buenos_Aires</code>: "Sáb 10/10" y "15:00"</td>
+</tr>
+<tr>
+<td><code>CANCHA</code></td>
+<td><code>event.place</code> (si está vacío, se oculta con su " · ")</td>
+</tr>
+<tr>
+<td><code>FORMATO</code></td>
+<td><code>MODALITY_SHORT[event.modality]</code> (F5…F11)</td>
+</tr>
+<tr>
+<td><code>ESQUEMA</code></td>
+<td><code>forma.name</code> sin lo que va entre paréntesis ("4-4-2 (clásica)" → "4-4-2"; F5 "Rombo" queda "Rombo")</td>
+</tr>
+<tr>
+<td><code>KICKER</code></td>
+<td>"ASÍ SALIMOS". Si se comparte el plan B o C: "PLAN B" / "PLAN C" (<code>planId</code>)</td>
+</tr>
+<tr>
+<td>Titulares</td>
+<td><code>planVisible(event, planId).lineup</code> → <code>{ slotKey: memberId }</code>. Slot vacío: no se dibuja chip</td>
+</tr>
+<tr>
+<td><code>numero</code></td>
+<td><code>member.number</code> (null → sin dorsal)</td>
+</tr>
+<tr>
+<td><code>nombre</code></td>
+<td><code>nombreEnTarjeta(member)</code> (apodo → nombre → "Jugador"; menores: apodo o "Jugador")</td>
+</tr>
+<tr>
+<td>Imagen</td>
+<td><code>imagenDe(member, fotosCard[member.id])</code> de <code>imagen.ts</code>: foto nítida 512 → foto 128 → avatar → iniciales</td>
+</tr>
+<tr>
+<td>Puesto</td>
+<td><code>slot.label</code> de la formación elegida</td>
+</tr>
+<tr>
+<td>Banco</td>
+<td><code>event.suplentes</code> filtrado igual que <code>armarFormacionPublica</code> (<code>vivo.ts</code>): sin titulares y, si hay <code>convocados</code>, solo convocados</td>
+</tr>
+<tr>
+<td>DT</td>
+<td><code>members.filter(m =&gt; m.role === "dt")</code>. Si el DT también juega (<code>juega</code>), igual va en DT. El ayudante no va (decisión abierta)</td>
+</tr>
+<tr>
+<td>Colores</td>
+<td>⚠️ <strong>FALTA DATO</strong> <code>Club.colores</code> (ya propuesto en las secciones 8 y 9.3)</td>
+</tr>
+<tr>
+<td>No va</td>
+<td><code>event.tactics</code>, <code>event.notas</code>, audios, jugadas, video: son internos del plantel (como dice hoy la pantalla)</td>
+</tr>
+</tbody>
+</table>
+<h2>10.8 Reglas de respaldo</h2>
+<ul>
+<li>Imagen: foto → avatar → iniciales (9.2). En el chip la foto no usa la del equipo como reemplazo.</li>
+<li>Sin escudo: escudo con <code>EQUIPO_INICIALES</code> (silueta de escudo con el degradé del marco, Barlow 800 52px).</li>
+<li>Textos de cabecera: una línea, se achican hasta el mínimo de 10.3 y después "…". Nombre del chip: hasta 0,95em y "…" (prueba: "WWWWWWWWWW" entra achicado; "Juan Cruz" entra en F11).</li>
+<li>Sin dorsal o sin cancha: se oculta (nunca "–"). Sin banco: se oculta la columna.</li>
+<li>En canvas, medir con <code>measureText</code> en un loop (como <code>[data-fit]</code>) y cortar con <code>recortar()</code> de <code>lienzo.ts</code>.</li>
+</ul>
+<h2>10.9 Menores de 18 (<code>member.menor</code>)</h2>
+<ul>
+<li><strong>Nunca foto</strong> en ninguna de las tres piezas, aunque llegue una en los datos (el template la baja a avatar o iniciales). Ya lo garantiza <code>imagenDe()</code>; repetir la regla al dibujar.</li>
+<li>Nombre: apodo (o "Jugador"), nunca el nombre real. Iniciales del apodo (<code>inicialesDe</code>). Propuesta: si el apodo es una sola palabra, 2 letras ("Thiago" → "TH") en vez de 1.</li>
+<li>No se marcan como menores en la imagen.</li>
+<li><strong>Link (OG):</strong> igual que <code>/vivo</code> hoy, no aparecen: su lugar queda como disco vacío con el puesto, sin número.</li>
+</ul>
+<h2>10.10 Cómo implementarlo (recomendación)</h2>
+<ul>
+<li><strong>Canvas 2D, sin dependencias nuevas</strong>, en un archivo nuevo <code>src/lib/fija/alineacion-dibujo.ts</code>, con el mismo enfoque que <code>premios-dibujo.ts</code>:<ul>
+<li>De <code>lienzo.ts</code>: <code>cargar</code>, <code>cubrir</code>, <code>caja</code>, <code>recortar</code>, <code>logo</code>, <code>png</code>, <code>enviar</code>.</li>
+<li>De <code>premios-dibujo.ts</code> (exportarlas): <code>prepararFuentes</code>, <code>lienzo</code>, <code>gradiente</code>, <code>rayas</code>, <code>brillos</code>, <code>foto</code>, <code>avatar</code>, <code>silueta</code>, <code>marca</code>, y los paths <code>MARCO</code> / <code>CUERPO</code> / <code>INTERIOR</code> (el chip es la card escalada con <code>ctx.scale(W/720, 1.28W/1000)</code>).</li>
+<li>De <code>premios-tokens.ts</code>: <code>TIERS.pizarra</code> para el DT.</li>
+<li>Portar de <code>alineacion.js</code> (~150 líneas útiles): <code>lineas</code>, <code>layout</code>, <code>proyectar</code>, <code>tDeV</code>, <code>pitchSvg</code> → mismas cuentas con <code>moveTo/lineTo</code>, y <code>tema()</code>.</li>
+<li>Avatar: <code>avatarSvg()</code> de <code>src/lib/fija/avatar.ts</code> (o el port completo de <code>avatar/avatar.js</code>, 9.5) → <code>cargar(dataUrl)</code> → <code>drawImage</code>.</li>
+</ul>
+</li>
+<li>Cada chip se dibuja en un canvas aparte (W × 1,28W a 2×) con la máscara del cuerpo (<code>clip()</code> con el path) y se pega en su <code>(x − W/2, y − 0,64W)</code>. Sombra del piso y halo con <code>shadowBlur</code>.</li>
+<li><strong>Fuentes:</strong> <code>__root.tsx</code> hoy carga Barlow Condensed 500–800 y Figtree 400–700, así que <strong>800 sí está</strong> (el aviso de que faltaba quedó viejo). Igual, antes de dibujar hay que pedir cada peso: <code>document.fonts.load('800 80px "Barlow Condensed"')</code>, <code>('700 40px "Barlow Condensed"')</code>, <code>('600 26px Figtree')</code>, <code>('700 26px Figtree')</code> (Google Fonts baja un peso recién cuando se usa). El kicker usa Figtree 800: no está cargado → usar 700 o sumar 800 a la URL.</li>
+<li><strong>Arreglo mínimo inmediato</strong> (aunque no se haga el diseño nuevo): en <code>armar()</code>, cambiar <code>FORMATIONS[event.modality][0]</code> por la formación del plan; hoy faltan jugadores.</li>
+<li>Rendimiento: 11 chips + banco ≈ 20 <code>drawImage</code>; las fotos 512 ya vienen en <code>fotosCard</code>. Mostrar "Armando la imagen…" mientras carga.</li>
+</ul>
+<h2>10.11 Compartir: pantalla, archivo y texto</h2>
+<ul>
+<li><strong>Pantalla Compartir</strong> (misma pestaña): vista previa de la imagen de WhatsApp + botones <strong>"Mandar por WhatsApp"</strong> (1080×1350) · <strong>"Story de Instagram"</strong> (1080×1920) · <strong>"Copiar link"</strong> (solo si el partido tiene link público). Si el equipo tiene colores: selector "Colores: Mi Vestuario / Del equipo". Usa el plan que se está mirando.</li>
+<li>Aviso arriba de los botones (reemplaza el de hoy): "La imagen lleva la formación, el banco y el DT. No lleva indicaciones, audios ni jugadas."</li>
+<li>Envío: <code>enviar(blob, archivo, texto, { copiarTexto: true })</code> de <code>lienzo.ts</code>.</li>
+<li><strong>Archivo:</strong> <code>mi-vestuario-formacion-{equipo}-vs-{rival}-{aaaa-mm-dd}-{whatsapp|story}.png</code> (minúsculas, sin tildes, espacios → "-"). Ej.: <code>mi-vestuario-formacion-los-pibes-fc-vs-racing-del-bajo-2026-10-10-whatsapp.png</code>.</li>
+<li><strong>Texto para WhatsApp:</strong> <code>Así salimos {cuándo} vs {RIVAL} ⚽ Mirá la formación: {link}</code><ul>
+<li><code>{cuándo}</code>: "hoy" / "mañana" / "el sábado" (si es dentro de los próximos 6 días) / "el 24/10".</li>
+<li><code>{link}</code>: <code>vivoUrl(event.liveToken)</code> si el DT abrió el link público. Si no hay link: <code>Así salimos el sábado vs Racing del Bajo ⚽ Armado en Mi Vestuario</code>.</li>
+<li>Ej.: "Así salimos el sábado vs Racing del Bajo ⚽ Mirá la formación: https://www.mivestuario.com.ar/vivo?t=…"</li>
+</ul>
+</li>
+<li><strong>Story:</strong> Instagram ignora el texto; se copia igual al portapapeles por si lo pegan.</li>
+</ul>
+<h2>10.12 Imagen del link público (Open Graph)</h2>
+<ul>
+<li><strong>Hoy no existe ninguna</strong> <code>og:image</code>: <code>__root.tsx</code> solo pone <code>title</code> y <code>description</code> (el <code>public/og.jpg</code> no está referenciado) y <code>/vivo</code> se arma en el cliente. Al pegar el link en WhatsApp no sale imagen.</li>
+<li><strong>Qué muestra:</strong> cabecera (escudo, equipo, vs rival, fecha · hora · cancha, F7 · esquema) y la cancha con <strong>número + puesto</strong>. <strong>Sin fotos, sin avatares, sin apodos ni nombres, sin menores, sin banco ni DT</strong> (más estricto que <code>/vivo</code>, porque la ve cualquiera que reciba el link aunque no lo abra). Template <code>og.html</code>.</li>
+<li><strong>Meta en <code>/vivo</code></strong> (con <code>head()</code> + loader del lado del servidor que lea el marcador por token): <code>og:title</code> "Los Pibes FC vs Racing del Bajo" · <code>og:description</code> "Sáb 10/10 · 15:00 · Complejo El Potrero. Formación y resultado en Mi Vestuario." · <code>og:image</code> 1200×630 · <code>og:image:width/height</code> · <code>twitter:card = summary_large_image</code>. Si el link no está activo: imagen genérica de la marca.</li>
+<li><strong>Archivo:</strong> JPEG calidad ~85 (≈75–90 KB; el PNG pesa ~500 KB y WhatsApp puede no mostrar imágenes pesadas). Recomendado &lt; 300 KB.</li>
+<li><strong>Cómo generarla (decisión técnica):</strong> (a) endpoint <code>/api/og/vivo?t=</code> que dibuja del lado del servidor (Node + <code>@napi-rs/canvas</code> portando el mismo código, o <code>satori</code> + <code>resvg</code>; dependencia nueva) con caché por <code>token + lineupUpdatedAt</code>; o (b) el celular del DT la dibuja al publicar la formación/abrir el link y la sube (hoy no hay storage de archivos; en <code>vestuario_docs</code> no conviene). Recomendado (a).</li>
+</ul>
+<h2>10.13 Faltantes de datos encontrados</h2>
+<table>
+<thead>
+<tr>
+<th>Tema</th>
+<th>Estado</th>
+<th>Propuesta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rival antes del partido</td>
+<td>⚠️ solo dentro de <code>event.title</code> ("vs …"); <code>sheet.opponent</code> recién con planilla</td>
+<td><code>ClubEvent.opponent?: string</code> (campo "Rival" en el editor del partido)</td>
+</tr>
+<tr>
+<td>Escudo del rival</td>
+<td>❌ no existe</td>
+<td>No hace falta: se muestra solo el nombre</td>
+</tr>
+<tr>
+<td>Colores del equipo</td>
+<td>❌ (<code>Club</code> solo tiene <code>crest</code>)</td>
+<td><code>Club.colores</code> (9.3)</td>
+</tr>
+<tr>
+<td>Avatar en <code>Member</code></td>
+<td>⚠️ <code>imagenDe()</code> lo acepta, pero <code>types.ts</code> no tiene <code>Member.avatar</code> y <code>avatar.ts</code> es una versión simple (piel y pelo)</td>
+<td><code>Member.avatar</code> + port de <code>avatar.js</code> (sección 9)</td>
+</tr>
+<tr>
+<td>Formación usada al compartir</td>
+<td>❌ bug: siempre la primera</td>
+<td><code>plan.formacion</code> o, si falta, <code>event.formacion</code></td>
+</tr>
+<tr>
+<td>Banco</td>
+<td>✅ <code>event.suplentes</code>, pero Compartir no lo usa</td>
+<td>filtrar como <code>armarFormacionPublica</code></td>
+</tr>
+<tr>
+<td>Capitán</td>
+<td>❌ no existe</td>
+<td>si se suma (<code>Club.capitanId</code>), brazalete "C" en el chip</td>
+</tr>
+<tr>
+<td><code>og:image</code> del link</td>
+<td>❌ no existe</td>
+<td>10.12</td>
+</tr>
+<tr>
+<td>Kicker en Figtree 800</td>
+<td>⚠️ no se carga</td>
+<td>usar 700 o sumar 800 a la URL de fuentes</td>
+</tr>
+<tr>
+<td>F6 y F10</td>
+<td>❌ no existen (<code>Modality</code> = f5, f7, f8, f9, f11)</td>
+<td>si se suman: formaciones y posiciones propuestas en 10.4</td>
+</tr>
+<tr>
+<td>Nombre de F9 "1-3-3-2 (clásica)"</td>
+<td>⚠️ sus slots son ARQ + 4 atrás (LI, DFI, DFD, LD) + 3 + 1 DC: no coincide con el nombre</td>
+<td>revisar nombre o slots en <code>formations.ts</code>; la imagen muestra el nombre tal cual</td>
+</tr>
+</tbody>
+</table>
+<h2>10.14 Decisiones abiertas</h2>
+<ol>
+<li><strong>Fotos fuera del equipo:</strong> la story es pública y la imagen de WhatsApp puede reenviarse. ¿Fotos sí por defecto? Propuesta: switch "Con fotos" en Compartir, prendido en WhatsApp y apagado en la story (ahí avatar o iniciales). Primera vez: "La imagen sale con las fotos del plantel."</li>
+<li><strong>Menores en la story</strong> (pública): propuesta, igual que en WhatsApp (apodo + avatar/iniciales, sin foto). Alternativa más estricta: solo dorsal y puesto.</li>
+<li><strong>¿Quién comparte?</strong> Hoy la pestaña Compartir la ve todo el plantel (los jugadores, solo con la formación publicada). Propuesta: seguir así.</li>
+<li><strong>Ayudante y DT que juega:</strong> ¿el ayudante aparece junto al DT? ¿El DT que juega aparece en los dos lados? Propuesta: solo DT; si juega, aparece en cancha y en DT.</li>
+<li><strong>Plan B/C:</strong> ¿se pueden compartir? Propuesta: sí, con kicker "PLAN B".</li>
+<li><strong>OG:</strong> endpoint del servidor (recomendado) o imagen subida desde el celular (10.12).</li>
+<li><strong>Rival estructurado</strong> (<code>ClubEvent.opponent</code>) o seguir sacándolo del título.</li>
+<li><strong>Iniciales de una palabra:</strong> 1 letra (como hoy) o 2 ("TH").</li>
+<li><strong>F6 y F10:</strong> ¿se suman como modalidades? Si sí, ya hay formaciones y posiciones propuestas (10.4).</li>
+</ol></body></html>
