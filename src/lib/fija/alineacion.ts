@@ -7,8 +7,8 @@ import type { Modality, PlanId } from "./types.ts";
 
 // PENDIENTE: decide el dueño en cada una.
 
-/** Fotos reales en la imagen. Si es false: avatar o iniciales. El usuario puede prender "Con fotos" en Compartir. */
-export const ALINEACION_FOTOS_DEFAULT: Record<"whatsapp" | "story", boolean> = { whatsapp: false, story: false };
+/** Fotos reales en la imagen. Prende "Con fotos". El usuario puede apagarlo. Un menor nunca lleva foto. */
+export const ALINEACION_FOTOS_DEFAULT: Record<"whatsapp" | "story", boolean> = { whatsapp: true, story: true };
 
 /** Cómo sale un menor. "apodo" = apodo + avatar/iniciales, sin foto. "anonimo" = chip con el puesto, sin nombre, dorsal ni imagen. "oculto" = no se dibuja (como hoy). */
 export type ModoMenor = "apodo" | "anonimo" | "oculto";
