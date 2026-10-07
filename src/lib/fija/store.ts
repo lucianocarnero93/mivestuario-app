@@ -2699,7 +2699,8 @@ if (typeof window !== "undefined") {
       state.charla === prev.charla &&
       state.inbox === prev.inbox &&
       state.club === prev.club &&
-      state.biblioteca === prev.biblioteca
+      state.biblioteca === prev.biblioteca &&
+      state.caja === prev.caja
     ) {
       return;
     }

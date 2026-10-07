@@ -705,12 +705,19 @@ function AudioEquipo({ event, code, staff, onAviso }: { event: ClubEvent; code: 
       if (media.state === "recording") media.stop();
     }, 60_000);
   }
+  function borrar() {
+    void saveAudioJugada({ data: { code, eventId: event.id, notaId, audio: null } }).then((result) => {
+      if (!result.ok) onAviso("No se pudo borrar el audio.");
+      else setAudio(null);
+    });
+  }
   return (
     <div className="mt-3 rounded-xl bg-surface p-4">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted">Audio para todos</p>
       <p className="mt-1 text-sm text-muted">Lo escucha todo el plantel. La indicación de cada uno está en Tu puesto.</p>
       {audio ? <audio className="mt-3 w-full" controls src={audio} /> : <p className="mt-2 text-sm text-muted">Todavía no hay audio.</p>}
       {staff ? <Button className="mt-3 h-12 w-full" onClick={() => void grabar()}><Mic className="size-4" /> {grabando ? "Cortar" : "Grabar"}</Button> : null}
+      {staff && audio ? <Button variant="outline" className="mt-2 h-12 w-full" onClick={borrar}>Borrar audio</Button> : null}
     </div>
   );
 }
