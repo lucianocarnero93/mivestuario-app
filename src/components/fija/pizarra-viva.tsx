@@ -40,7 +40,7 @@ import {
   videoLimpio,
 } from "@/lib/fija/pizarra";
 import { vivoUrl } from "@/lib/fija/share";
-import { useFija, useIsStaff } from "@/lib/fija/store";
+import { useFija, useRespuestas, useIsStaff } from "@/lib/fija/store";
 import type { ClubEvent, Dibujo, JugadaGuardada, PlanId, PlanPizarra, Trazo } from "@/lib/fija/types";
 
 type Vista =
@@ -81,7 +81,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
   const setNotaJugador = useFija((s) => s.setNota);
   const setJuega = useFija((s) => s.setJuega);
   const publishLineup = useFija((s) => s.publishLineup);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const [vista, setVista] = useState<Vista>("puesto");
   const [planId, setPlanId] = useState<PlanId>(event.planActivo ?? "a");
   const [slot, setSlot] = useState<string | null>(null);

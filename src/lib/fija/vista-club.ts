@@ -1,6 +1,7 @@
+import { respuestasDe } from "./compactar.ts";
 import { clasificarAgenda, contarConfirmaciones, rachaInvicto, rachaVoy } from "./fecha.ts";
 import { figuraDe, mesDe, vecesFigura } from "./figura.ts";
-import { golesEnAnio, partidosValidos, premiosDelMes, premiosDelPartido, type Premio } from "./premios.ts";
+import { golesEnAnio, partidosValidos, premiosDelMes, premiosDelPartido, FIGURA_MIN_VOTOS, type Premio } from "./premios.ts";
 import { playerRows, teamRecord } from "./stats.ts";
 import type { ClubBundle, ClubEvent } from "./types.ts";
 import { avisosDe } from "./vista.ts";
@@ -26,7 +27,7 @@ export function vistaDelClub(bundle: ClubBundle, ahora: number) {
   const events = [...bundle.events].sort((a, b) => a.id.localeCompare(b.id));
   const sheets = bundle.matchSheets;
   const votes = bundle.figuraVotes ?? [];
-  const rsvps = bundle.rsvps;
+  const rsvps = respuestasDe(bundle);
   const players = bundle.members.filter((person) => person.juega ?? person.role === "jugador");
   const ctx = {
     members: bundle.members,
@@ -74,7 +75,10 @@ export function vistaDelClub(bundle: ClubBundle, ahora: number) {
       .sort((a, b) => a.id.localeCompare(b.id)),
     figuras: events
       .filter((event) => event.kind === "partido")
-      .map((event) => ({ id: event.id, figura: figuraDe(votes, event.id) })),
+      .map((event) => {
+        const figura = figuraDe(votes, event.id);
+        return { id: event.id, figura: figura && figura.votos >= FIGURA_MIN_VOTOS ? figura : null };
+      }),
     general: { record: teamRecord(sheets), rows },
     porTorneo: [...bundle.tournaments]
       .sort((a, b) => a.id.localeCompare(b.id))

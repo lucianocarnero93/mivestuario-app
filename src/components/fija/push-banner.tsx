@@ -2,13 +2,13 @@ import { Bell } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { inboxVisible, useFija, useMe } from "@/lib/fija/store";
+import { inboxVisible, useFija, useRespuestas, useMe } from "@/lib/fija/store";
 
 export function PushBanner() {
   const me = useMe();
   const reminder = useFija((s) => s.reminder);
   const events = useFija((s) => s.events);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const inbox = useFija((s) => s.inbox);
   const setRsvp = useFija((s) => s.setRsvp);
   const dismiss = useFija((s) => s.dismissReminder);

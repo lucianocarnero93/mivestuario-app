@@ -21,7 +21,7 @@ import {
   matchSettled,
   sheetFor,
   sheetsForScope,
-  useFija,
+  useFija, useRespuestas,
   useIsStaff,
   useMe,
 } from "@/lib/fija/store";
@@ -47,7 +47,7 @@ function StatsPage() {
   const alumni = useFija((s) => s.alumni);
   const sheets = useFija((s) => s.matchSheets);
   const votes = useFija((s) => s.figuraVotes);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const tournaments = useFija((s) => s.tournaments);
   const createTournament = useFija((s) => s.createTournament);
   const renameTournament = useFija((s) => s.renameTournament);

@@ -8,6 +8,7 @@ import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText } from "./sanit
 import { coloresDelEquipo } from "./alineacion";
 import { FORMATIONS } from "./formations";
 import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, marcaMasNueva, valorConMarca } from "./club-rules";
+import { asistenciasDelServer, respuestasDe } from "./compactar";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
@@ -3061,7 +3062,12 @@ function mergeClubBundles(
       rolesLocales || trustLocal,
     ),
     events: mergeEvents(remote.events, local.events, who.staff, Boolean(who.dirty), remote.members),
-    rsvps: mergeRsvps(remote.rsvps, local.rsvps),
+    rsvps: mergeRsvps(
+      remote.rsvps,
+      local.rsvps.filter((row) => !(remote.asistencias ?? []).some((item) => item.eventId === row.eventId)),
+    ),
+    asistencias: asistenciasDelServer(remote.asistencias, local.asistencias),
+    compactacion: remote.compactacion,
     messages: unionById(remote.messages, local.messages),
     charla: unionById(remote.charla, local.charla),
     matchSheets: mergeSheets(remote.matchSheets, local.matchSheets, who.staff || Boolean(who.dirty)),
@@ -3538,6 +3544,12 @@ export const GUEST: Member = {
 };
 
 // La persona que está usando la app en este momento.
+export function useRespuestas(): Rsvp[] {
+  const rsvps = useFija((s) => s.rsvps);
+  const asistencias = useFija((s) => s.asistencias);
+  return useMemo(() => respuestasDe({ rsvps, asistencias }), [rsvps, asistencias]);
+}
+
 export function useMe(): Member {
   const found = useFija((s) => s.members.find((m) => m.id === s.activeId));
   const name = useFija((s) => s.profile.name);

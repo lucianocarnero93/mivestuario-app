@@ -1,4 +1,5 @@
 import type { AlertLog, Alumni, ClubBundle, ClubEvent, InboxItem, MatchSheet, Member, Rsvp, Tournament } from "./types.ts";
+import { sacarDeAsistencias } from "./compactar.ts";
 import { clampStat } from "./stats.ts";
 
 export const MAX_BYTES = 350_000;
@@ -692,6 +693,7 @@ export function removeMemberEverywhere(
     alumni,
     droppedIds: [...new Set([...(bundle.droppedIds ?? []), memberId])],
     rsvps: bundle.rsvps.filter((row) => row.memberId !== memberId),
+    asistencias: sacarDeAsistencias(bundle.asistencias, memberId),
     invites: bundle.invites.filter((invite) => invite.memberId !== memberId),
     events: bundle.events.map((event) => stripFromEvent(event, memberId)),
   };

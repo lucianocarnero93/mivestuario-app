@@ -8,7 +8,7 @@ import { clasificarAgenda } from "@/lib/fija/fecha";
 import {
   matchSettled,
   sheetFor,
-  useFija,
+  useFija, useRespuestas,
   useIsStaff,
   useMe,
 } from "@/lib/fija/store";
@@ -95,7 +95,7 @@ function AgendaItem({
   staff: boolean;
   needsResult?: boolean;
 }) {
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const me = useMe();
   const setRsvp = useFija((s) => s.setRsvp);
   const sheet = sheetFor(event.id, useFija((s) => s.matchSheets));

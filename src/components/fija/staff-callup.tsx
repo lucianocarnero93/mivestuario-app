@@ -9,14 +9,14 @@ import { formatWhen } from "@/lib/fija/format";
 import { CopiarSinConfirmar } from "@/components/fija/partido";
 import {
   convocatoriaFor,
-  useFija,
+  useFija, useRespuestas,
   whatsappReady,
 } from "@/lib/fija/store";
 import type { ClubEvent, Member, RsvpStatus } from "@/lib/fija/types";
 
 export function StaffCallup({ event }: { event: ClubEvent }) {
   const members = useFija((s) => s.members);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const club = useFija((s) => s.club);
   const convocatorias = useFija((s) => s.convocatorias);
   const policy = useFija((s) => s.reminderPolicy);

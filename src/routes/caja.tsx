@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CATEGORIA_LABEL, CATEGORIAS, armarCupones, cajaCsv, cuponesDe, deudaDe, liquidar, saldosDe, textoCupones, textoLiquidacion } from "@/lib/fija/caja";
 import { uid } from "@/lib/fija/format";
 import { estadoMp } from "@/lib/fija/mercadopago";
-import { useFija, useMe } from "@/lib/fija/store";
+import { useFija, useRespuestas, useMe } from "@/lib/fija/store";
 import type { Caja, CategoriaGasto, Cupon, Gasto } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/caja")({
@@ -23,7 +23,7 @@ function CajaPage() {
   const members = useFija((s) => s.members);
   const caja = useFija((s) => s.caja);
   const events = useFija((s) => s.events);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const definirTesorero = useFija((s) => s.definirTesorero);
   const definirAlias = useFija((s) => s.definirAlias);
   const crearGasto = useFija((s) => s.crearGasto);

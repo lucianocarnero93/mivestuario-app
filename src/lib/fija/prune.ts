@@ -1,4 +1,5 @@
 import type { AlertLog, ClubBundle, InboxItem } from "./types.ts";
+import { compactarHistorial } from "./compactar.ts";
 
 export const MAX_MESSAGES = 300;
 export const MAX_CHARLA = 100;
@@ -83,7 +84,7 @@ export function pruneBundle(bundle: ClubBundle, now = Date.now()): ClubBundle {
     seenKind.add(kindKey);
     alertLog.push(item);
   }
-  return aligerarPizarraVieja(
+  const podado = aligerarPizarraVieja(
     {
       ...bundle,
       messages: newest(bundle.messages ?? [], MAX_MESSAGES),
@@ -94,4 +95,6 @@ export function pruneBundle(bundle: ClubBundle, now = Date.now()): ClubBundle {
     },
     now,
   );
+  if (!podado.compactacion?.version) return podado;
+  return compactarHistorial(podado, now).bundle;
 }

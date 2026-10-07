@@ -7,7 +7,7 @@ import { formatWhen } from "@/lib/fija/format";
 import { rachaVoy } from "@/lib/fija/fecha";
 import { playerRows } from "@/lib/fija/stats";
 import { avisosDe, posicionRanking } from "@/lib/fija/vista";
-import { inboxVisible, useFija, useMe } from "@/lib/fija/store";
+import { inboxVisible, useFija, useRespuestas, useMe } from "@/lib/fija/store";
 import type { InboxItem, InboxKind } from "@/lib/fija/types";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,7 @@ const KIND_LABEL: Record<InboxKind, string> = {
 export function InboxBell() {
   const me = useMe();
   const inbox = useFija((s) => s.inbox);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const events = useFija((s) => s.events);
   const sheets = useFija((s) => s.matchSheets);
   const members = useFija((s) => s.members);

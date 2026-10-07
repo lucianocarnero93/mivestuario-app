@@ -3,7 +3,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
+import { vestuarioLog } from "@/lib/vestuario-log";
 import { cobrosConfiables, cajaSegura } from "./caja";
+import { asistenciasDelServer, compactarHistorial } from "./compactar";
 import { figuraPermitida, mergeFiguraVotes, votosAceptables } from "./figura";
 import { FORMATIONS } from "./formations";
 import {
@@ -73,7 +75,6 @@ import {
   withoutBanned,
 } from "./club-rules";
 import { clubSinImagenes, pruneBundle } from "./prune";
-import { vestuarioLog } from "@/lib/vestuario-log";
 import type { ClubBundle, ClubEvent, MarcaVivo, MatchSheet, Member, Rsvp, Tournament } from "./types";
 
 const COLLECTION = "clubs";
@@ -1531,7 +1532,14 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       : existing.club,
     members: listed,
     events: mergedEvents.map((event) => sellarEvento(event)),
-    rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => listed.some((person) => person.id === row.memberId)),
+    rsvps: mergeRsvps(
+      existing.rsvps,
+      (staff ? incoming.rsvps : ownRsvps).filter(
+        (row) => !(existing.asistencias ?? []).some((item) => item.eventId === row.eventId),
+      ),
+    ).filter((row) => listed.some((person) => person.id === row.memberId)),
+    asistencias: asistenciasDelServer(existing.asistencias, incoming.asistencias),
+    compactacion: existing.compactacion,
     messages: clipTextList(
       unionById(
         existing.messages,
@@ -1580,6 +1588,39 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   ),
     droppedCharla,
   );
+}
+
+function modoCompactar(): "off" | "dry" | "on" {
+  const value = process.env.COMPACTAR_HISTORIAL;
+  if (value === "off" || value === "on" || value === "dry") return value;
+  return "dry";
+}
+
+async function conHistorialCompacto(
+  query: (sql: string, params?: unknown[]) => Promise<unknown>,
+  code: string,
+  bundle: ClubBundle,
+): Promise<ClubBundle> {
+  const modo = modoCompactar();
+  if (modo === "off") return bundle;
+  const ahora = Date.now();
+  const informe = compactarHistorial(bundle, ahora).informe;
+  if (modo === "dry") {
+    vestuarioLog(
+      "compactar",
+      `kb ${informe.antes.total} ${informe.despues.total} filas ${informe.filasRsvp} votos ${informe.votos} eventos ${informe.eventos}`,
+    );
+    return bundle;
+  }
+  if (!bundle.compactacion?.version) {
+    await query(
+      `insert into vestuario_docs (collection, id, data, updated_at)
+       values ('respaldos', $1, $2::jsonb, now())
+       on conflict (collection, id) do nothing`,
+      [`${code}:compactar-v1`, JSON.stringify(bundle)],
+    );
+  }
+  return compactarHistorial({ ...bundle, compactacion: { version: 1 } }, ahora).bundle;
 }
 
 export const saveClubDoc = createServerFn({ method: "POST" })
@@ -1649,7 +1690,8 @@ export const saveClubDoc = createServerFn({ method: "POST" })
             [person.accountId, JSON.stringify({ photo: foto })],
           );
         }
-        const payload = JSON.stringify(next);
+        const guardado = await conHistorialCompacto(query, data.code, next);
+        const payload = JSON.stringify(guardado);
         const after = Buffer.byteLength(payload, "utf8");
         if (sizeVerdict(before, after) !== "ok") throw new Error("El equipo pesa demasiado para subirlo.");
         if (!rows[0]) {
@@ -1664,7 +1706,7 @@ export const saveClubDoc = createServerFn({ method: "POST" })
             [COLLECTION, data.code, payload],
           );
         }
-        return { next, weight: after };
+        return { next: guardado, weight: after };
       });
       if (merged.next.club.teamLiveToken) invalidarMarcador(merged.next.club.teamLiveToken);
       for (const event of merged.next.events) {
@@ -1790,6 +1832,8 @@ export const leaveClubDoc = createServerFn({ method: "POST" })
         if (removed.empty) {
           await query("delete from vestuario_docs where collection = $1 and id = $2", [COLLECTION, data.code]);
           await query("delete from vestuario_docs where collection = $1 and id = $2", ["pushes", data.code]);
+          await query("delete from vestuario_docs where collection = $1 and split_part(id, ':', 1) = $2", ["respaldos", data.code]);
+          await query("delete from vestuario_docs where collection = $1 and split_part(id, ':', 1) = $2", ["archivo", data.code]);
           return;
         }
         await query(

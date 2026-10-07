@@ -8,7 +8,7 @@ import { CopiarResultado, FiguraPartido } from "@/components/fija/partido";
 import { ConfirmGroups, StaffCallup } from "@/components/fija/staff-callup";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABEL, formatWhen } from "@/lib/fija/format";
-import { nextEvent, sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
+import { nextEvent, sheetFor, useFija, useRespuestas, useIsStaff, useMe } from "@/lib/fija/store";
 
 export const Route = createFileRoute("/")({
   component: HomePage,
@@ -22,7 +22,7 @@ function HomePage() {
   const me = useMe();
   const staff = useIsStaff();
   const events = useFija((s) => s.events);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const members = useFija((s) => s.members);
   const setRsvp = useFija((s) => s.setRsvp);
   const savedMine = useFija((s) => s.savedMine);

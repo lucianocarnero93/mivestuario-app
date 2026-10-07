@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { personLabel } from "@/lib/fija/format";
-import { useFija } from "@/lib/fija/store";
+import { useFija, useRespuestas } from "@/lib/fija/store";
 import type { ClubEvent, Member } from "@/lib/fija/types";
 
 export function SquadPanel({
@@ -13,7 +13,7 @@ export function SquadPanel({
   onNotice: (message: string | null) => void;
 }) {
   const members = useFija((s) => s.members);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const setConvocado = useFija((s) => s.setConvocado);
   const setSuplente = useFija((s) => s.setSuplente);
   const setMemberRsvp = useFija((s) => s.setMemberRsvp);

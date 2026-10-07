@@ -366,6 +366,7 @@ export function emptyClubState() {
     members: [] as Member[],
     events: [] as ClubEvent[],
     rsvps: [] as Rsvp[],
+    asistencias: [] as { eventId: string; voy: string[]; no?: string[] }[],
     messages: [] as AppState["messages"],
     charla: [] as CharlaPost[],
     matchSheets: [] as MatchSheet[],

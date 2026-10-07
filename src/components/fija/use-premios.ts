@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { pedirFotosCard } from "@/lib/fija/fotos-card";
-import { useFija } from "@/lib/fija/store";
+import { useFija, useRespuestas } from "@/lib/fija/store";
 import type { ContextoPremios } from "@/lib/fija/premios";
 
 export function useContextoPremios(): ContextoPremios {
@@ -9,7 +9,7 @@ export function useContextoPremios(): ContextoPremios {
   const events = useFija((s) => s.events);
   const sheets = useFija((s) => s.matchSheets);
   const votes = useFija((s) => s.figuraVotes);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const club = useFija((s) => s.club);
   const tournaments = useFija((s) => s.tournaments);
   const fotosCard = useFija((s) => s.fotosCard);

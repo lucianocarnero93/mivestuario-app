@@ -16,7 +16,7 @@ import { alumniMember } from "@/lib/fija/stats";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { leerFamilia } from "@/lib/fija/familia";
 import { reaccionId } from "@/lib/fija/vivo";
-import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
+import { sheetFor, useFija, useRespuestas, useIsStaff, useMe } from "@/lib/fija/store";
 import type { ClubEvent, ReaccionFecha } from "@/lib/fija/types";
 
 export const Route = createFileRoute("/fecha")({
@@ -76,7 +76,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
   const me = useMe();
   const members = useFija((s) => s.members);
   const sheets = useFija((s) => s.matchSheets);
-  const rsvps = useFija((s) => s.rsvps);
+  const rsvps = useRespuestas();
   const markMatchResult = useFija((s) => s.markMatchResult);
   const reaccionarFecha = useFija((s) => s.reaccionarFecha);
   const flushCloud = useFija((s) => s.flushCloud);

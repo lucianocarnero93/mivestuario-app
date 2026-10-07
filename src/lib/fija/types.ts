@@ -297,6 +297,10 @@ export type ClubBundle = {
   charla: CharlaPost[];
   matchSheets: MatchSheet[];
   figuraVotes?: FiguraVote[];
+  /** Asistencia vieja, sin las filas sueltas. La escribe el server. */
+  asistencias?: { eventId: string; voy: string[]; no?: string[] }[];
+  /** Si está, el celular también compacta. Lo pone el server. */
+  compactacion?: { version: 1 };
   invites: Invite[];
   convocatorias: Convocatoria[];
   inbox: InboxItem[];
@@ -400,6 +404,8 @@ export type AppState = {
   members: Member[];
   events: ClubEvent[];
   rsvps: Rsvp[];
+  asistencias?: { eventId: string; voy: string[]; no?: string[] }[];
+  compactacion?: { version: 1 };
   messages: ChatMessage[];
   charla: CharlaPost[];
   matchSheets: MatchSheet[];

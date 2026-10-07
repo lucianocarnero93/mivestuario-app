@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { isClubMember, memberIdInClub, memberIdsInClub, readClub } from "./cloud";
 import { memberGetsPush, pushCopy } from "./club-rules";
+import { respuestasDe } from "./compactar";
 import { sanitizeCode } from "./sanitize";
 
 const PUSHES = "pushes";
@@ -223,7 +224,7 @@ export const notifyClub = createServerFn({ method: "POST" })
       const person = bundle.members.find((member) => member.id === item.memberId);
       if (!person) return false;
       if (!note) return person.role === "dt" || person.role === "ayudante";
-      const status = (bundle.rsvps ?? []).find(
+      const status = respuestasDe(bundle).find(
         (row) => row.eventId === note.eventId && row.memberId === person.id,
       )?.status;
       const known = status === "voy" || status === "no" || status === "pendiente" ? status : null;
