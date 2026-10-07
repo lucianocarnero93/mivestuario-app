@@ -34,6 +34,14 @@ export function VivoPantalla({
   const [pop, setPop] = useState(false);
   const previo = useRef<{ gf: number; gc: number } | null>(null);
   const cardRef = useRef(inicial?.ok ? inicial.card : null);
+  const [cardRota, setCardRota] = useState(false);
+  const firmaCard = marcador?.ok && marcador.card
+    ? `${marcador.card.esquema}:${marcador.card.titulares.map((ficha) => `${ficha.key}${ficha.nombre}`).join(",")}`
+    : "";
+
+  useEffect(() => {
+    setCardRota(false);
+  }, [firmaCard]);
 
   useEffect(() => {
     if (!t && !e) return;
@@ -217,8 +225,8 @@ export function VivoPantalla({
             </ol>
           ) : null}
 
-          {m.card ? (
-            <FormacionCard datos={m.card} />
+          {m.card && !cardRota ? (
+            <FormacionCard datos={m.card} onFallo={() => setCardRota(true)} />
           ) : m.titulares.length > 0 ? (
             <section className="mt-6">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-muted">Mirá cómo salen</h2>
@@ -299,12 +307,13 @@ export function VivoPantalla({
   );
 }
 
-function FormacionCard({ datos }: { datos: DatosAlineacion }) {
+function FormacionCard({ datos, onFallo }: { datos: DatosAlineacion; onFallo: () => void }) {
   const [url, setUrl] = useState<string | null>(null);
   const clave = [
     datos.rival,
     datos.esquema,
     datos.fecha,
+    datos.escudo ? "e" : "0",
     datos.titulares.map((ficha) => `${ficha.key}:${ficha.nombre}:${ficha.numero ?? ""}:${ficha.imagen?.tipo === "foto" ? (ficha.imagen.src ? "f" : "0") : "i"}`).join("|"),
     datos.banco.map((ficha) => `${ficha.id}:${ficha.nombre}:${ficha.numero ?? ""}:${ficha.imagen?.tipo === "foto" ? (ficha.imagen.src ? "f" : "0") : "i"}`).join("|"),
     datos.dt.map((ficha) => `${ficha.id}:${ficha.nombre}:${ficha.imagen?.tipo === "foto" ? (ficha.imagen.src ? "f" : "0") : "i"}`).join("|"),
@@ -313,18 +322,22 @@ function FormacionCard({ datos }: { datos: DatosAlineacion }) {
     let cancel = false;
     void import("@/lib/fija/alineacion-dibujo")
       .then((mod) => mod.dibujarAlineacion(datos))
-      .then((blob) => {
-        const next = URL.createObjectURL(blob);
-        if (cancel) {
-          URL.revokeObjectURL(next);
-          return;
-        }
-        setUrl((anterior) => {
-          if (anterior) URL.revokeObjectURL(anterior);
-          return next;
+      .then(async (blob) => {
+        const next = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === "string") resolve(reader.result);
+            else reject(new Error("card"));
+          };
+          reader.onerror = () => reject(new Error("card"));
+          reader.readAsDataURL(blob);
         });
+        if (cancel) return;
+        setUrl(next);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancel) onFallo();
+      });
     return () => {
       cancel = true;
     };

@@ -365,6 +365,34 @@ export function bibliotecaMasNueva(incomingAt?: string, existingAt?: string): bo
   return next >= prev;
 }
 
+const FUTURO_MARCA_MS = 120_000;
+
+function millisDeMarca(value: string | undefined, now: number): number {
+  const parsed = Date.parse(value ?? "");
+  if (!Number.isFinite(parsed) || parsed > now + FUTURO_MARCA_MS) return 0;
+  return parsed;
+}
+
+/**
+ * Dos del cuerpo técnico pueden guardar a la vez.
+ * Gana la marca más nueva de ESE campo. Una copia vieja no pisa el cambio del otro.
+ * Sin marca, gana el que llega.
+ */
+export function valorConMarca<T>(
+  existing: T,
+  incoming: T,
+  existingAt: string | undefined,
+  incomingAt: string | undefined,
+  now = Date.now(),
+): { value: T; at: string | undefined } {
+  const prev = millisDeMarca(existingAt, now);
+  const next = millisDeMarca(incomingAt, now);
+  if (next > prev) return { value: incoming, at: incomingAt };
+  if (prev > next) return { value: existing, at: existingAt };
+  if (next > 0) return { value: incoming, at: incomingAt };
+  return { value: incoming, at: incomingAt || existingAt };
+}
+
 function stampMillis(value: string | undefined, now: number): number | null {
   const parsed = Date.parse(value ?? "");
   if (!Number.isFinite(parsed) || parsed > now + FUTURE_SKEW_MS) return null;

@@ -5,12 +5,13 @@ import { formatWhen, uid } from "./format";
 import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
+import { coloresDelEquipo } from "./alineacion";
 import { FORMATIONS } from "./formations";
-import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva } from "./club-rules";
+import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, valorConMarca } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
-import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, saveCrest, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
+import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, saveCrest, savePortrait, traeEquipo, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
 import { clearPedirEdad, readMenor } from "./edad";
 import { aplicarMarcasDeJugador, menorAlGuardar, partidoMarcable, elegirTokenEquipo } from "./vivo";
 import { noteQuiet } from "@/lib/note";
@@ -257,6 +258,7 @@ async function currentAccountId(): Promise<string | null> {
 
 let applyingCloud = false;
 let syncingNow = false;
+const revisionNube = new Map<string, string>();
 
 export const useFija = create<State>()(
   persist(
@@ -918,7 +920,7 @@ export const useFija = create<State>()(
         if (!isStaffId(get())) return;
         const firstHours = clampHours(policy.firstHours);
         const secondHours = clampHours(policy.secondHours);
-        set({ reminderPolicy: { firstHours, secondHours } });
+        set({ reminderPolicy: { firstHours, secondHours }, reminderAt: new Date().toISOString() });
       },
       // Cada tanto revisa si ya pasó el plazo y hay que recordar a los que no contestaron.
       tickAlerts: () => {
@@ -1868,11 +1870,11 @@ export const useFija = create<State>()(
         let cloudFailed = false;
         try {
           const remoteTeam = await loadClubDoc({ data: inviteCode });
-          if (remoteTeam.ok) teamFound = remoteTeam.bundle;
-          else if (remoteTeam.reason === "limited") {
+          if (traeEquipo(remoteTeam)) teamFound = remoteTeam.bundle;
+          else if (!remoteTeam.ok && remoteTeam.reason === "limited") {
             set({ cloudStatus: "off" });
             throw new Error("Demasiados intentos. Esperá un rato.");
-          } else if (remoteTeam.reason === "forbidden") {
+          } else if (!remoteTeam.ok && remoteTeam.reason === "forbidden") {
             const account = await currentAccountId();
             if (!account) {
               set({ cloudStatus: "off" });
@@ -1896,7 +1898,7 @@ export const useFija = create<State>()(
               throw new Error(claimed.error || "No se pudo entrar al equipo.");
             }
             const again = await loadClubDoc({ data: inviteCode });
-            if (!again.ok) {
+            if (!traeEquipo(again)) {
               set({ cloudStatus: "off" });
               throw new Error("No pudimos leer el equipo.");
             }
@@ -2176,9 +2178,9 @@ export const useFija = create<State>()(
         if (linked) {
           const remote = await loadClubDoc({ data: club.inviteCode });
           const onServer =
-            remote.ok &&
+            traeEquipo(remote) &&
             remote.bundle.members.some((person) => person.accountId === account.id || person.id === account.id);
-          if (onServer || remote.reason === "limited" || remote.reason === "missing") return;
+          if (onServer || (!remote.ok && (remote.reason === "limited" || remote.reason === "missing"))) return;
         }
         const name = linked?.name || account.name || state.profile.name || "Jugador";
         const nick = linked?.nick || name.split(" ")[0] || "Jugador";
@@ -2274,7 +2276,7 @@ export const useFija = create<State>()(
         for (const team of suspects) {
           try {
             const remote = await loadClubDoc({ data: team.code });
-            if (remote.ok || remote.reason === "limited") continue;
+            if (remote.ok || (!remote.ok && remote.reason === "limited")) continue;
             const seen = (get().seenCodes ?? []).includes(team.code.trim().toUpperCase());
             if (remote.reason === "forbidden" || (remote.reason === "missing" && (!team.active || seen))) {
               get().forgetClub(team.id, `Ya no estás en «${team.name}».`);
@@ -2296,7 +2298,7 @@ export const useFija = create<State>()(
         for (const item of missing.slice(0, 12)) {
           try {
             const remote = await loadClubDoc({ data: item.code });
-            if (remote.ok) loaded.push(remote.bundle);
+            if (traeEquipo(remote)) loaded.push(remote.bundle);
           } catch {
             // El siguiente equipo puede estar bien.
           }
@@ -2399,9 +2401,16 @@ export const useFija = create<State>()(
         if (!quiet) set({ cloudStatus: "syncing" });
         const stillHere = () => epoch === cloudEpoch && get().club?.id === clubId;
         try {
-          const remoteTeam = await loadClubDoc({ data: code });
+          const rev = get().dirty ? "" : (revisionNube.get(clubId) ?? "");
+          const remoteTeam = await loadClubDoc({ data: rev ? { code, rev } : code });
           if (!stillHere()) return;
-          if (remoteTeam.ok) {
+          if (remoteTeam.ok && "unchanged" in remoteTeam && remoteTeam.unchanged) {
+            revisionNube.set(clubId, remoteTeam.rev);
+            if (!get().dirty && get().cloudStatus !== "ok") set({ cloudStatus: "ok", cloudError: null });
+            return;
+          }
+          if (traeEquipo(remoteTeam)) {
+            revisionNube.set(clubId, remoteTeam.rev);
             const current = get();
             if (!current.club || current.club.id !== clubId) return;
             const seen = code.trim().toUpperCase();
@@ -2455,14 +2464,14 @@ export const useFija = create<State>()(
             ) {
               await get().flushCloud();
             }
-          } else if (remoteTeam.reason === "forbidden") {
+          } else if (!remoteTeam.ok && remoteTeam.reason === "forbidden") {
             if (!resumeTried.has(clubId)) {
               resumeTried.add(clubId);
               await get().ensureMySpot();
             } else if (!quiet) {
               set({ cloudStatus: "off" });
             }
-          } else if (remoteTeam.reason === "missing") {
+          } else if (!remoteTeam.ok && remoteTeam.reason === "missing") {
             if (!stillHere()) return;
             if ((get().seenCodes ?? []).includes(code.trim().toUpperCase())) {
               get().forgetClub(clubId, `«${club.name}» ya no está.`);
@@ -2470,7 +2479,7 @@ export const useFija = create<State>()(
             }
             const published = await get().publishClub();
             if (!published && !quiet && stillHere()) set({ cloudStatus: "off" });
-          } else if (!quiet && stillHere()) {
+          } else if (!remoteTeam.ok && !quiet && stillHere()) {
             set({
               cloudStatus: "off",
               cloudError: remoteTeam.reason === "limited" ? "Demasiados intentos. Esperá un rato." : null,
@@ -2504,11 +2513,11 @@ export const useFija = create<State>()(
             let remote: ClubBundle | null = null;
             try {
               const loaded = await loadClubDoc({ data: clubNow.inviteCode });
-              if (loaded.ok) remote = loaded.bundle;
-              else if (loaded.reason === "forbidden") {
+              if (traeEquipo(loaded)) remote = loaded.bundle;
+              else if (!loaded.ok && loaded.reason === "forbidden") {
                 lastError = "No estás en este equipo.";
                 break;
-              } else if (loaded.reason === "limited") {
+              } else if (!loaded.ok && loaded.reason === "limited") {
                 lastError = "Demasiados intentos. Esperá un rato.";
                 break;
               }
@@ -2609,7 +2618,7 @@ export const useFija = create<State>()(
         if (!uploaded || !code) return false;
         try {
           const remote = await loadClubDoc({ data: code });
-          if (!remote.ok) {
+          if (!traeEquipo(remote)) {
             set({
               cloudStatus: "off",
               cloudError: "El equipo no quedó publicado. Tocá de nuevo en un momento.",
@@ -2652,6 +2661,7 @@ export const useFija = create<State>()(
         inbox: s.inbox,
         alertLog: s.alertLog,
         reminderPolicy: s.reminderPolicy,
+        reminderAt: s.reminderAt,
         tournaments: s.tournaments,
         archivedClubs: s.archivedClubs,
         otherClubs: s.otherClubs,
@@ -2960,12 +2970,20 @@ function mergeClubBundles(
   who: { activeId: string; staff: boolean; dirty?: boolean },
 ): ClubBundle {
   const trustLocal = Boolean(who.staff && who.dirty);
-  const club = trustLocal ? { ...remote.club, ...local.club } : { ...local.club, ...remote.club, ...(!who.staff ? {} : remote.club) };
+  const colores = valorConMarca(
+    remote.club.colores ?? null,
+    local.club.colores ?? null,
+    remote.club.coloresAt,
+    trustLocal ? local.club.coloresAt : remote.club.coloresAt,
+  );
+  const club = trustLocal ? { ...remote.club, ...local.club } : { ...local.club, ...remote.club };
   club.inviteCode = remote.club.inviteCode || local.club.inviteCode;
   club.createdBy = trustLocal ? local.club.createdBy || remote.club.createdBy : remote.club.createdBy;
   club.crest = trustLocal
     ? escudoElegido(remote.club.crest, local.club.crest, true)
     : escudoElegido(local.club.crest, remote.club.crest, true);
+  club.colores = coloresDelEquipo(trustLocal ? colores.value : remote.club.colores, remote.club.colores);
+  club.coloresAt = trustLocal ? colores.at : remote.club.coloresAt;
   if (trustLocal) {
     const token = elegirTokenEquipo(remote.club, local.club);
     club.teamLiveToken = token.teamLiveToken;
@@ -3010,7 +3028,14 @@ function mergeClubBundles(
     ).map(({ id: _id, ...item }) => item),
     inbox: unionById(remote.inbox, local.inbox),
     alertLog: unionById(remote.alertLog, local.alertLog),
-    reminderPolicy: who.staff ? local.reminderPolicy : remote.reminderPolicy,
+    reminderPolicy: (trustLocal
+      ? valorConMarca(remote.reminderPolicy, local.reminderPolicy, remote.reminderAt, local.reminderAt)
+      : { value: remote.reminderPolicy, at: remote.reminderAt }
+    ).value,
+    reminderAt: (trustLocal
+      ? valorConMarca(remote.reminderPolicy, local.reminderPolicy, remote.reminderAt, local.reminderAt)
+      : { value: remote.reminderPolicy, at: remote.reminderAt }
+    ).at,
     tournaments: mergeTournaments(remote.tournaments, who.staff ? local.tournaments : []),
     droppedIds: [...new Set([...(remote.droppedIds ?? []), ...(local.droppedIds ?? [])])].filter(
       (id) => id !== creatorId,
@@ -3182,6 +3207,7 @@ function toBundle(state: {
   inbox: InboxItem[];
   alertLog: AlertLog[];
   reminderPolicy: ReminderPolicy;
+  reminderAt?: string;
   tournaments: Tournament[];
   droppedIds?: string[];
   droppedEventIds?: string[];
@@ -3205,6 +3231,7 @@ function toBundle(state: {
     inbox: state.inbox,
     alertLog: state.alertLog,
     reminderPolicy: state.reminderPolicy,
+    reminderAt: state.reminderAt,
     tournaments: state.tournaments,
     droppedIds: state.droppedIds ?? [],
     droppedEventIds: state.droppedEventIds ?? [],
@@ -3301,6 +3328,8 @@ function parseSnapshot(raw: unknown): Partial<ReturnType<typeof createSeed>> | n
               typeof data.club.crest === "string" && data.club.crest.startsWith("data:image/")
                 ? data.club.crest
                 : null,
+            colores: coloresDelEquipo(data.club.colores, null),
+            coloresAt: typeof data.club.coloresAt === "string" ? data.club.coloresAt : undefined,
           }
         : seedData.club;
   const events = (data.events as ClubEvent[]).map((event) => ({
@@ -3342,6 +3371,7 @@ function parseSnapshot(raw: unknown): Partial<ReturnType<typeof createSeed>> | n
       ? (data.alertLog as ReturnType<typeof createSeed>["alertLog"])
       : [],
     reminderPolicy: policy,
+    reminderAt: typeof data.reminderAt === "string" ? data.reminderAt : undefined,
     tournaments: Array.isArray(data.tournaments)
       ? (data.tournaments as Tournament[])
       : seedData.tournaments,

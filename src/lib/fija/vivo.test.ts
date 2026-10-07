@@ -341,7 +341,7 @@ test("la card del vivo lleva foto y nombre, y al menor no", () => {
   }
   const json = JSON.stringify(publico.card);
   assert.equal(publico.card.formato, "whatsapp");
-  assert.equal(publico.card.escudo, null);
+  assert.equal(publico.card.escudo, "data:image/png;base64,AAAA");
   assert.equal(json.includes("Nombre Secreto"), false);
   assert.equal(json.includes("José"), false);
   assert.equal(json.includes("PepeOculto"), false);
@@ -369,6 +369,34 @@ test("la card del vivo lleva foto y nombre, y al menor no", () => {
     token,
   });
   assert.equal(sinPublicar.ok && sinPublicar.card, null);
+});
+
+test("la card del vivo usa el plan que está mirando el plantel", () => {
+  const event = partido({
+    lineupPublishedAt: kick,
+    lineup: {},
+    planActivo: "b",
+    planes: [{ id: "b", idea: "", cambio: "", lineup: { DC: "tato" }, dibujos: [] }],
+  });
+  const people: PersonaVivo[] = [
+    { id: "tato", nick: "Tato", name: "Mateo Díaz", number: 10, menor: false, role: "jugador" },
+  ];
+  const publico = marcadorDeDatos({
+    modo: "partido",
+    clubName: "Los Pibes FC",
+    crest: null,
+    event,
+    sheet: null,
+    slots: [],
+    people,
+    votes: [],
+    events: [event],
+    sheets: [],
+    familia: { pelota: 0, aplauso: 0, fuego: 0 },
+    now: Date.parse("2026-10-04T15:30:00-03:00"),
+    token,
+  });
+  assert.equal(publico.ok && publico.card?.titulares.some((ficha) => ficha.nombre === "Mateo Díaz"), true);
 });
 
 test("un jugador suma un gol y un guardado viejo no borra el último", () => {

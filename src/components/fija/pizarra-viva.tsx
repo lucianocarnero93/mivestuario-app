@@ -221,34 +221,32 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
         </div>
       ) : null}
 
+      {(staff || event.lineupPublishedAt) && vista === "puesto" ? <SquadPanel event={event} staff={staff} onNotice={(message) => setNota(message ?? "")} /> : null}
+
       {vista === "puesto" && staff ? (
-        <ul className="mt-3 grid gap-2">
-          <li className="text-sm text-muted">Cada jugador ve su puesto y su indicación. No ve la de los demás.</li>
+        <ul className="mt-3 grid gap-1">
+          <li className="text-sm text-muted">Cada jugador ve solo su indicación.</li>
           {Object.entries(event.lineup).map(([key, id]) => {
             const person = members.find((item) => item.id === id);
             const puesto = forma.slots.find((item) => item.key === key);
             if (!person) return null;
             return (
               <li key={key}>
-                <label className="block text-xs normal-case text-muted" htmlFor={`nota-${key}`}>
-                  {person.nick} · {puesto?.label ?? "Puesto"}
+                <label className="grid grid-cols-[7.5rem_1fr] items-center gap-2 text-xs normal-case text-muted" htmlFor={`nota-${key}`}>
+                  <span className="truncate">{person.nick} · {puesto?.label ?? "Puesto"}</span>
+                  <input
+                    id={`nota-${key}`}
+                    className="h-11 w-full rounded-md bg-surface px-3 text-base normal-case text-fg"
+                    maxLength={NOTA_JUGADOR_MAX}
+                    placeholder="Indicación"
+                    autoCapitalize="sentences"
+                    autoCorrect="on"
+                    spellCheck
+                    value={event.notas?.[id] ?? ""}
+                    onChange={(e) => setNotaJugador(event.id, id, e.target.value)}
+                    onBlur={(e) => setNotaJugador(event.id, id, e.target.value.trim())}
+                  />
                 </label>
-                <Textarea
-                  id={`nota-${key}`}
-                  className="mt-1 min-h-20 border-line/30 bg-surface text-base normal-case text-fg"
-                  rows={3}
-                  maxLength={NOTA_JUGADOR_MAX}
-                  placeholder="Marcá al 9. No te tires atrás."
-                  autoCapitalize="sentences"
-                  autoCorrect="on"
-                  spellCheck
-                  value={event.notas?.[id] ?? ""}
-                  onChange={(e) => setNotaJugador(event.id, id, e.target.value)}
-                  onBlur={(e) => setNotaJugador(event.id, id, e.target.value.trim())}
-                />
-                <p className="mt-1 text-right text-[11px] text-muted">
-                  {(event.notas?.[id] ?? "").length}/{NOTA_JUGADOR_MAX}
-                </p>
               </li>
             );
           })}
@@ -332,7 +330,6 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
           {event.lineupPublishedAt ? "Actualizar formación y avisar" : "Publicar formación"}
         </Button>
       ) : null}
-      {(staff || event.lineupPublishedAt) && vista === "puesto" ? <SquadPanel event={event} staff={staff} onNotice={(message) => setNota(message ?? "")} /> : null}
 
       <Dialog open={slot != null} onOpenChange={(open) => !open && setSlot(null)}>
         <DialogContent title="Elegí jugador">

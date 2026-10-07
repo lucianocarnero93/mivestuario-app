@@ -99,6 +99,8 @@ export type Club = {
   crest: string | null;
   /** Camiseta. Si falta, la card de la formación usa los colores de Mi Vestuario. */
   colores?: { primary: string; secondary: string } | null;
+  /** Cuándo se cambiaron los colores. Una copia vieja no los pisa. */
+  coloresAt?: string;
   /** Link público del equipo. No vence con el partido. */
   teamLiveToken?: string | null;
   /** Cuándo se prendió o se apagó ese link. Una copia vieja no lo revive. */
@@ -298,6 +300,8 @@ export type ClubBundle = {
   inbox: InboxItem[];
   alertLog: AlertLog[];
   reminderPolicy: ReminderPolicy;
+  /** Cuándo se cambiaron los recordatorios. Una copia vieja no los pisa. */
+  reminderAt?: string;
   tournaments: Tournament[];
   /** Jugadores que el DT sacó. No vuelven a aparecer al mezclar. */
   droppedIds?: string[];
@@ -403,6 +407,7 @@ export type AppState = {
   inbox: InboxItem[];
   alertLog: AlertLog[];
   reminderPolicy: ReminderPolicy;
+  reminderAt?: string;
   tournaments: Tournament[];
   droppedIds?: string[];
   droppedEventIds?: string[];

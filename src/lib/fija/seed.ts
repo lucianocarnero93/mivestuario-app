@@ -459,6 +459,7 @@ export function createSeed(): Omit<AppState, "hydrated"> {
     inbox: callups.inbox,
     alertLog: callups.alertLog,
     reminderPolicy: { firstHours: 24, secondHours: 48 },
+    reminderAt: "",
     tournaments: TORNEOS,
     droppedIds: [],
     droppedEventIds: [],

@@ -1,6 +1,7 @@
 import { datosCard, estadoFigura, premiosDelPartido, type ContextoPremios } from "./premios.ts";
 import { votacionAbierta, FIGURA_CIERRE_HORAS } from "./figura.ts";
 import { armarAlineacion, type DatosAlineacion, type FichaBanco, type FichaTitular } from "./alineacion.ts";
+import { formacionDelPlan, planVisible } from "./pizarra.ts";
 import { clampStat, emptyStat } from "./stats.ts";
 import type { Club, ClubEvent, FiguraVote, MatchSheet, MarcaVivo } from "./types.ts";
 import type { Sponsor } from "./sponsors.ts";
@@ -660,13 +661,21 @@ function nombreEnCard(person: PersonaVivo): string {
   return ((person.name || "").trim() || (person.nick || "").trim()).slice(0, 24);
 }
 
+function escudoDeCard(valor: string | null | undefined): string | null {
+  if (!valor || !valor.startsWith("data:image/") || valor.length < 16 || valor.length > 120_000) return null;
+  return valor;
+}
+
 function cardDelPartido(
   event: ClubEvent,
   people: PersonaVivo[],
   club: string,
   sheet: MatchSheet | null,
+  crest: string | null,
 ): DatosAlineacion | null {
   if (!event.lineupPublishedAt) return null;
+  const plan = planVisible(event, event.planActivo ?? "a");
+  const forma = formacionDelPlan(event, plan);
   const visibles = people.filter((person) => person.menor === true || !esMenorEnVivo(person));
   try {
     const datos = armarAlineacion({
@@ -678,9 +687,10 @@ function cardDelPartido(
         modality: event.modality,
         convocados: event.convocados,
         suplentes: event.suplentes,
-        formacion: event.formacion,
+        formacion: forma.id,
       },
-      plan: { id: "a", lineup: event.lineup ?? {}, formacion: event.formacion },
+      plan,
+      forma,
       members: visibles.map((person) => {
         const menor = person.menor === true;
         return {
@@ -693,13 +703,13 @@ function cardDelPartido(
           photo: menor ? null : fotoDe(person.photo),
         };
       }),
-      club: { name: club },
+      club: { name: club, crest: escudoDeCard(crest) },
       sheet,
       conFotos: true,
       tema: "neon",
     });
     if (datos.titulares.length === 0 && datos.dt.length === 0) return null;
-    return { ...datos, escudo: null };
+    return datos;
   } catch {
     return null;
   }
@@ -765,9 +775,11 @@ export function marcadorDeDatos(input: {
   }
   const rival = nombreRival(event.title, input.sheet?.opponent);
   const club = input.clubName.slice(0, 80) || "Equipo";
+  const plan = planVisible(event, event.planActivo ?? "a");
+  const forma = formacionDelPlan(event, plan);
   const formacion = armarFormacionPublica(
-    input.slots,
-    event.lineup,
+    forma.slots,
+    plan.lineup,
     event.suplentes,
     people,
     Boolean(event.lineupPublishedAt),
@@ -814,7 +826,7 @@ export function marcadorDeDatos(input: {
     escudo: Boolean(input.crest?.startsWith("data:image/")),
     reaccion: reaccionId(input.modo, input.token, event.id),
     sponsors,
-    card: cardDelPartido(event, gente, club, input.sheet),
+    card: cardDelPartido(event, gente, club, input.sheet, input.crest),
   };
 }
 
@@ -980,6 +992,7 @@ export function marcadorSinFotos(marcador: MarcadorPublico): MarcadorPublico {
     ...marcador,
     card: {
       ...card,
+      escudo: null,
       titulares: card.titulares.map(fichaSinBytes),
       banco: card.banco.map(fichaSinBytes),
       dt: card.dt.map(fichaSinBytes),
@@ -1019,7 +1032,7 @@ export function conservarFotos(
     falta = falta || puesta.falta;
     return puesta.ficha;
   });
-  return { card: { ...nueva, titulares, banco, dt }, falta };
+  return { card: { ...nueva, escudo: nueva.escudo || anterior?.escudo || null, titulares, banco, dt }, falta };
 }
 
 export function tituloCompartido(
@@ -1057,7 +1070,7 @@ export function escaparXml(value: string): string {
 export function cspVivo(): string {
   return [
     "default-src 'self'",
-    "img-src 'self' data:",
+    "img-src 'self' data: blob:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "script-src 'self' 'unsafe-inline'",

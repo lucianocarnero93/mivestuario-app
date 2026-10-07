@@ -1,7 +1,7 @@
 const TAGS = /<\/?[^>]+>/g;
 
 /** Indicación del DT a un puesto. No recorta el espacio del final: si no, no se puede seguir escribiendo. */
-export const NOTA_JUGADOR_MAX = 160;
+export const NOTA_JUGADOR_MAX = 80;
 
 export function notaDeJugador(raw: string, max = NOTA_JUGADOR_MAX): string {
   return raw

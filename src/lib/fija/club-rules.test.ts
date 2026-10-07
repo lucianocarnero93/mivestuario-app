@@ -11,6 +11,7 @@ import {
   overAttempt,
   claimExistingName,
   bibliotecaMasNueva,
+  valorConMarca,
   decideClaim,
   equipmentHeading,
   mergePlayerAlerts,
@@ -641,6 +642,27 @@ test("dos Enzo no se confunden", () => {
   assert.equal(personLabel(people[1], people), "Enzo (Enzo Fernández)");
   assert.equal(personLabel(people[2], people), "Enzo · 1");
   assert.equal(personLabel(people[3], people), "9 Enzo");
+});
+
+test("colores y recordatorios no se pisan si se guardan juntos", () => {
+  const colores = valorConMarca(
+    { primary: "#112233", secondary: "#abcdef" },
+    { primary: "#000000", secondary: "#ffffff" },
+    "2026-10-07T12:02:00Z",
+    "2026-10-07T12:00:00Z",
+    Date.parse("2026-10-07T12:05:00Z"),
+  );
+  assert.equal(colores.value.primary, "#112233");
+  const avisos = valorConMarca(
+    { firstHours: 24, secondHours: 48 },
+    { firstHours: 2, secondHours: 1 },
+    "2026-10-07T12:00:00Z",
+    "2026-10-07T12:03:00Z",
+    Date.parse("2026-10-07T12:05:00Z"),
+  );
+  assert.equal(avisos.value.firstHours, 2);
+  const futuro = valorConMarca("verde", "rojo", "2026-10-07T12:00:00Z", "2099-01-01T00:00:00Z", Date.parse("2026-10-07T12:05:00Z"));
+  assert.equal(futuro.value, "verde");
 });
 
 

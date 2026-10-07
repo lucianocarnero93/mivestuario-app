@@ -39,6 +39,7 @@ import { preferirJugada } from "./jugada";
 import { aplicarReaccionesJugador, camposDePizarra, juntarVistos, recortarParaJugador } from "./pizarra";
 import { contarDetalle } from "./familia";
 import { sanitizeCode } from "./sanitize";
+import { coloresDelEquipo } from "./alineacion";
 import {
   claimExistingName,
   canAssignRoles,
@@ -56,6 +57,7 @@ import {
   resultIsOpen,
   bibliotecaMasNueva,
   escudoElegido,
+  valorConMarca,
   HARD_BYTES,
   mergeAlumni,
   mergePlayerAlerts,
@@ -94,8 +96,13 @@ export type ClubCard = {
 };
 
 export type ClubLoad =
-  | { ok: true; bundle: ClubBundle }
+  | { ok: true; bundle: ClubBundle; rev: string }
+  | { ok: true; unchanged: true; rev: string }
   | { ok: false; reason: "missing" | "forbidden" | "limited" };
+
+export function traeEquipo(load: ClubLoad): load is { ok: true; bundle: ClubBundle; rev: string } {
+  return load.ok === true && "bundle" in load;
+}
 
 function userIdOf(context: { userId?: string } | undefined): string {
   return String(context?.userId ?? "");
@@ -147,22 +154,33 @@ async function noteLookup(userId: string, limit = ATTEMPT_LIMIT): Promise<void> 
 }
 
 export async function readClub(code: string): Promise<ClubBundle | null> {
+  const leido = await readClubRev(code);
+  return leido?.bundle ?? null;
+}
+
+async function readClubRev(code: string): Promise<{ bundle: ClubBundle; rev: string } | null> {
   const { getSql } = await import("@/lib/db");
   const sql = await getSql();
-  const rows = await sql.query<{ data: ClubBundle | string }>(
-    "select data from vestuario_docs where collection = $1 and id = $2",
+  const rows = await sql.query<{ data: ClubBundle | string; updated_at?: string | Date | null }>(
+    "select data, updated_at from vestuario_docs where collection = $1 and id = $2",
     [COLLECTION, code],
   );
   const raw = rows[0]?.data;
   if (raw == null) return null;
+  let bundle: ClubBundle | null = null;
   if (typeof raw === "string") {
     try {
-      return asBundle(JSON.parse(raw));
+      bundle = asBundle(JSON.parse(raw));
     } catch {
-      return null;
+      bundle = null;
     }
+  } else {
+    bundle = asBundle(raw);
   }
-  return asBundle(raw);
+  if (!bundle) return null;
+  const marca = rows[0]?.updated_at;
+  const rev = marca ? new Date(marca).toISOString() : "";
+  return { bundle, rev: Number.isFinite(Date.parse(rev)) ? rev : "" };
 }
 
 export async function memberIdsInClub(code: string): Promise<string[] | null> {
@@ -234,12 +252,19 @@ export const loadClubCard = createServerFn({ method: "POST" })
 
 export const loadClubDoc = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((code: string) => sanitizeCode(code))
-  .handler(async ({ data: code, context }): Promise<ClubLoad> => {
+  .validator((input: string | { code?: string; rev?: string }) => {
+    if (typeof input === "string") return { code: sanitizeCode(input), rev: "" };
+    return {
+      code: sanitizeCode(String(input?.code ?? "")),
+      rev: String(input?.rev ?? "").slice(0, 40),
+    };
+  })
+  .handler(async ({ data, context }): Promise<ClubLoad> => {
+    const code = data.code;
     if (!code) return { ok: false, reason: "missing" };
     const userId = userIdOf(context as { userId?: string });
-    const bundle = await readClub(code);
-    if (!bundle) {
+    const leido = await readClubRev(code);
+    if (!leido) {
       try {
         await noteLookup(userId);
       } catch {
@@ -247,6 +272,7 @@ export const loadClubDoc = createServerFn({ method: "POST" })
       }
       return { ok: false, reason: "missing" };
     }
+    const bundle = leido.bundle;
     if (!memberFor(bundle.members, userId)) {
       try {
         await noteLookup(userId);
@@ -257,8 +283,9 @@ export const loadClubDoc = createServerFn({ method: "POST" })
     }
     const me = memberFor(bundle.members, userId);
     if (!me) return { ok: false, reason: "forbidden" };
-    if (!isStaffMember(me)) return { ok: true, bundle: recortarParaJugador(bundle, me.id) };
-    return { ok: true, bundle };
+    if (data.rev && data.rev === leido.rev) return { ok: true, unchanged: true, rev: leido.rev };
+    if (!isStaffMember(me)) return { ok: true, bundle: recortarParaJugador(bundle, me.id), rev: leido.rev };
+    return { ok: true, bundle, rev: leido.rev };
   });
 
 export const peekClubName = createServerFn({ method: "POST" })
@@ -1448,6 +1475,19 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   const votos = (staff ? incoming.figuraVotes ?? [] : (incoming.figuraVotes ?? []).filter((row) => row.voterId === me?.id))
     .filter((row) => figuraPermitida(row, mergedEvents));
   const votosPrevios = (existing.figuraVotes ?? []).filter((row) => figuraPermitida(row, mergedEvents));
+  const coloresElegidos = valorConMarca(
+    existing.club.colores ?? null,
+    incoming.club.colores ?? null,
+    existing.club.coloresAt,
+    incoming.club.coloresAt,
+  );
+  const coloresConMarca = Boolean(existing.club.coloresAt || incoming.club.coloresAt);
+  const recordatorios = valorConMarca(
+    existing.reminderPolicy,
+    incoming.reminderPolicy ?? existing.reminderPolicy,
+    existing.reminderAt,
+    incoming.reminderAt,
+  );
   return withoutDroppedCharla(
     pruneBundle(
     lightenClosedMatches(
@@ -1463,6 +1503,10 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
             ? incoming.club.createdBy || creatorId
             : creatorId,
           crest: escudoElegido(existing.club.crest, incoming.club.crest, staff),
+          colores: coloresConMarca
+            ? coloresDelEquipo(coloresElegidos.value, existing.club.colores)
+            : coloresDelEquipo(incoming.club.colores, existing.club.colores),
+          coloresAt: coloresConMarca ? coloresElegidos.at : existing.club.coloresAt,
           ...elegirTokenEquipo(existing.club, incoming.club),
         }
       : existing.club,
@@ -1495,7 +1539,8 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     alertLog: staff
       ? unionById(existing.alertLog, incoming.alertLog)
       : mergePlayerAlerts(existing.alertLog, incoming.alertLog, eventIds),
-    reminderPolicy: staff ? (incoming.reminderPolicy ?? existing.reminderPolicy) : existing.reminderPolicy,
+    reminderPolicy: staff ? recordatorios.value : existing.reminderPolicy,
+    reminderAt: staff ? recordatorios.at : existing.reminderAt,
     tournaments: staff
       ? mergeTournaments(existing.tournaments, incoming.tournaments)
       : mergeTournaments(existing.tournaments, []),
