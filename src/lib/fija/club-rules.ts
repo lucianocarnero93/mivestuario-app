@@ -373,6 +373,13 @@ function millisDeMarca(value: string | undefined, now: number): number {
   return parsed;
 }
 
+/** True solo si la marca que llega es más nueva. Sin marca, no gana. */
+export function marcaMasNueva(existingAt?: string, incomingAt?: string, now = Date.now()): boolean {
+  const next = millisDeMarca(incomingAt, now);
+  if (next === 0) return false;
+  return next > millisDeMarca(existingAt, now);
+}
+
 /**
  * Dos del cuerpo técnico pueden guardar a la vez.
  * Gana la marca más nueva de ESE campo. Una copia vieja no pisa el cambio del otro.

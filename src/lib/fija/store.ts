@@ -7,7 +7,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { coloresDelEquipo } from "./alineacion";
 import { FORMATIONS } from "./formations";
-import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, valorConMarca } from "./club-rules";
+import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, marcaMasNueva, valorConMarca } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
@@ -995,7 +995,7 @@ export const useFija = create<State>()(
             if (person.id === otherPerson.id) return { ...person, role: roleIHaveNow };
             return person;
           }),
-          club: { ...club, createdBy: otherPerson.id },
+          club: { ...club, createdBy: otherPerson.id, rolesAt: new Date().toISOString() },
           activeId: currentPerson.id,
         });
         void get().flushCloud();
@@ -1099,9 +1099,10 @@ export const useFija = create<State>()(
       // quien lo tenía pasa a jugador. Solo hay un DT y un ayudante.
       assignRole: (memberId, role) => {
         if (!isCreatorId(get())) return;
-        const { members } = get();
+        const { members, club } = get();
         if (!members.some((person) => person.id === memberId)) return;
         set({
+          club: club ? { ...club, rolesAt: new Date().toISOString() } : club,
           members: members.map((person) => {
             if (person.id === memberId) {
               return { ...person, role, juega: role === "jugador" ? true : person.juega };
@@ -2417,6 +2418,7 @@ export const useFija = create<State>()(
             const current = get();
             if (!current.club || current.club.id !== clubId) return;
             const localCambio = localRev !== revAlPedir || current.dirty;
+            const rolesLocales = marcaMasNueva(remoteTeam.bundle.club.rolesAt, current.club.rolesAt);
             const seen = code.trim().toUpperCase();
             if (seen && !(current.seenCodes ?? []).includes(seen)) {
               set({ seenCodes: [...(current.seenCodes ?? []), seen].slice(-40) });
@@ -2441,7 +2443,7 @@ export const useFija = create<State>()(
               archivedClubs: current.archivedClubs,
               activeId: current.activeId,
               hydrated: true,
-              dirty: localCambio ? true : current.dirty,
+              dirty: localCambio || rolesLocales ? true : current.dirty,
               cloudStatus: localCambio ? current.cloudStatus : "ok",
               cloudError: localCambio ? current.cloudError : null,
               savedMine: mineSaved(remoteTeam.bundle.rsvps, current.activeId),
@@ -2541,6 +2543,14 @@ export const useFija = create<State>()(
                   dirty: true,
                 })
               : local;
+            if (localRev !== revAtSend) {
+              applyingCloud = true;
+              set({ dirty: true, cloudStatus: "syncing", lastFlushErrorAt: null });
+              applyingCloud = false;
+              if (flushTimer) window.clearTimeout(flushTimer);
+              flushTimer = window.setTimeout(() => void useFija.getState().flushCloud(), 800) as unknown as ReturnType<typeof setTimeout>;
+              return true;
+            }
             const result = await saveClubDoc({
               data: {
                 code: merged.club.inviteCode,
@@ -2909,6 +2919,16 @@ function mergeMembers(
   return merged;
 }
 
+function conRoles(merged: Member[], local: Member[], usarLocal: boolean): Member[] {
+  if (!usarLocal) return merged;
+  const porId = new Map(local.map((person) => [person.id, person]));
+  return merged.map((person) => {
+    const mine = porId.get(person.id);
+    if (!mine) return person;
+    return { ...person, role: mine.role, juega: mine.juega };
+  });
+}
+
 function keepAccountOwner(remote: Member[], merged: Member[]): Member[] {
   const owner = new Map<string, string>();
   for (const person of remote) {
@@ -2977,6 +2997,7 @@ function mergeClubBundles(
   who: { activeId: string; staff: boolean; dirty?: boolean },
 ): ClubBundle {
   const trustLocal = Boolean(who.staff && who.dirty);
+  const rolesLocales = marcaMasNueva(remote.club.rolesAt, local.club.rolesAt);
   const colores = valorConMarca(
     remote.club.colores ?? null,
     local.club.colores ?? null,
@@ -2991,6 +3012,7 @@ function mergeClubBundles(
     : escudoElegido(local.club.crest, remote.club.crest, true);
   club.colores = coloresDelEquipo(trustLocal ? colores.value : remote.club.colores, remote.club.colores);
   club.coloresAt = trustLocal ? colores.at : remote.club.coloresAt;
+  club.rolesAt = rolesLocales || trustLocal ? local.club.rolesAt || remote.club.rolesAt : remote.club.rolesAt;
   if (trustLocal) {
     const token = elegirTokenEquipo(remote.club, local.club);
     club.teamLiveToken = token.teamLiveToken;
@@ -3014,13 +3036,17 @@ function mergeClubBundles(
     withoutDroppedEvents(
       {
     club,
-    members: keepAccountOwner(
-      remote.members,
-      mergeMembers(remote.members, local.members, who).filter(
-        (person) =>
-          person.id === creatorId ||
-          (!(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id)),
+    members: conRoles(
+      keepAccountOwner(
+        remote.members,
+        mergeMembers(remote.members, local.members, who).filter(
+          (person) =>
+            person.id === creatorId ||
+            (!(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id)),
+        ),
       ),
+      local.members,
+      rolesLocales || trustLocal,
     ),
     events: mergeEvents(remote.events, local.events, who.staff, Boolean(who.dirty), remote.members),
     rsvps: mergeRsvps(remote.rsvps, local.rsvps),
@@ -3337,6 +3363,7 @@ function parseSnapshot(raw: unknown): Partial<ReturnType<typeof createSeed>> | n
                 : null,
             colores: coloresDelEquipo(data.club.colores, null),
             coloresAt: typeof data.club.coloresAt === "string" ? data.club.coloresAt : undefined,
+            rolesAt: typeof data.club.rolesAt === "string" ? data.club.rolesAt : undefined,
           }
         : seedData.club;
   const events = (data.events as ClubEvent[]).map((event) => ({

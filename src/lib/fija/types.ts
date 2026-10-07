@@ -105,6 +105,8 @@ export type Club = {
   teamLiveToken?: string | null;
   /** Cuándo se prendió o se apagó ese link. Una copia vieja no lo revive. */
   teamLiveAt?: string | null;
+  /** Cuándo se designó DT o ayudante. Una copia vieja no deshace el puesto. */
+  rolesAt?: string;
   /** Preparado para sponsors. Apagado hasta que SPONSORS_ACTIVO sea true. */
   sponsors?: { id: string; nombre: string; logoUrl: string; link?: string; activo: boolean }[];
 };

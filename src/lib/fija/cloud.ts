@@ -57,6 +57,7 @@ import {
   resultIsOpen,
   bibliotecaMasNueva,
   escudoElegido,
+  marcaMasNueva,
   valorConMarca,
   HARD_BYTES,
   mergeAlumni,
@@ -1311,14 +1312,18 @@ function callerIsCreator(existing: ClubBundle, userId: string): boolean {
   return canAssignRoles(existing.members, existing.club.createdBy, userId);
 }
 
-function lockStaffRoles(existing: ClubBundle, members: Member[], userId: string): Member[] {
-  if (callerIsCreator(existing, userId)) return members;
+function lockStaffRoles(existing: ClubBundle, incomingAt: string | undefined, members: Member[], userId: string): Member[] {
   const roles = new Map(existing.members.map((person) => [person.id, person.role]));
-  return members.map((person) => {
-    const role = roles.get(person.id);
-    if (role) return { ...person, role };
-    return { ...person, role: "jugador" };
-  });
+  const bloquear = () =>
+    members.map((person) => {
+      const role = roles.get(person.id);
+      if (role) return { ...person, role };
+      return { ...person, role: "jugador" as const };
+    });
+  if (!callerIsCreator(existing, userId)) return bloquear();
+  const previa = existing.club.rolesAt;
+  if (previa && incomingAt !== previa && !marcaMasNueva(previa, incomingAt)) return bloquear();
+  return members;
 }
 
 function capOversizedPhotos(previous: Member[], next: Member[]): Member[] {
@@ -1461,7 +1466,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     staff ? incoming.alumni : [],
   );
   const capped = capRoster(existing.members, capOversizedPhotos(existing.members, unique));
-  const listed = lockStaffRoles(existing, capped, userId);
+  const listed = lockStaffRoles(existing, incoming.club.rolesAt, capped, userId);
   const eventIds = new Set(existing.events.map((event) => event.id));
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
   const reacciones = staff
@@ -1502,6 +1507,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           createdBy: callerIsCreator(existing, userId)
             ? incoming.club.createdBy || creatorId
             : creatorId,
+          rolesAt: callerIsCreator(existing, userId) && marcaMasNueva(existing.club.rolesAt, incoming.club.rolesAt)
+            ? incoming.club.rolesAt
+            : existing.club.rolesAt,
           crest: escudoElegido(existing.club.crest, incoming.club.crest, staff),
           colores: coloresConMarca
             ? coloresDelEquipo(coloresElegidos.value, existing.club.colores)

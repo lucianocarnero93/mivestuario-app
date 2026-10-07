@@ -394,10 +394,18 @@ function DesignateDialog() {
   const members = useFija((s) => s.members);
   const assignRole = useFija((s) => s.assignRole);
   const [open, setOpen] = useState(false);
-  const lista = [me, ...members.filter((m) => m.id !== me.id)];
+  const [pedido, setPedido] = useState<{ id: string; role: Role; nombre: string } | null>(null);
+  const yo = members.find((person) => person.id === me.id);
+  const lista = yo ? [yo, ...members.filter((person) => person.id !== yo.id)] : members;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setPedido(null);
+      }}
+    >
       <DialogTrigger asChild>
         <Button variant="outline" className="h-14 w-full text-base">
           Designar DT o ayudante
@@ -407,45 +415,62 @@ function DesignateDialog() {
         <p className="mb-3 text-sm text-muted">
           También podés cambiarte vos. Si le das DT o ayudante a alguien, quien lo tenía pasa a jugador.
         </p>
-        <ul className="max-h-72 space-y-2 overflow-auto">
-          {lista.map((m) => {
-            const yo = m.id === me.id;
-            const nombre = yo ? "Vos" : etiqueta(m, members);
-            return (
-              <li key={m.id} className="rounded-lg bg-bg px-3 py-2">
-                <p className="text-sm font-medium">
-                  {nombre} <span className="text-xs font-normal text-muted">{ROLE_LABEL[m.role]}</span>
-                </p>
-                <div className="mt-2 flex gap-2">
-                  {(["dt", "ayudante", "jugador"] as Role[]).map((role) => (
-                    <button
-                      key={role}
-                      type="button"
-                      disabled={m.role === role}
-                      className="h-11 flex-1 rounded-md bg-surface-2 text-xs font-semibold disabled:opacity-40"
-                      onClick={() => {
-                        const sinDt =
-                          role !== "dt" &&
-                          m.role === "dt" &&
-                          !members.some((person) => person.id !== m.id && person.role === "dt");
-                        const aviso = sinDt
-                          ? `¿${nombre} pasa a ${ROLE_LABEL[role]}? El equipo queda sin DT hasta que designes uno.`
-                          : role === "dt" || role === "ayudante"
-                            ? `¿${nombre} pasa a ${ROLE_LABEL[role]}? Quien lo era pasa a jugador.`
-                            : `¿${nombre} pasa a jugador?`;
-                        if (!window.confirm(aviso)) return;
-                        assignRole(m.id, role);
-                        setOpen(false);
-                      }}
-                    >
-                      {ROLE_LABEL[role]}
-                    </button>
-                  ))}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        {pedido ? (
+          <div className="rounded-lg bg-surface-2 p-3">
+            <p className="text-sm">
+              ¿{pedido.nombre} pasa a {ROLE_LABEL[pedido.role]}?
+              {pedido.role !== "dt" &&
+              members.find((person) => person.id === pedido.id)?.role === "dt" &&
+              !members.some((person) => person.id !== pedido.id && person.role === "dt")
+                ? " El equipo queda sin DT hasta que designes uno."
+                : pedido.role === "jugador"
+                  ? ""
+                  : " Quien lo era pasa a jugador."}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Button
+                className="h-11"
+                onClick={() => {
+                  assignRole(pedido.id, pedido.role);
+                  setPedido(null);
+                  setOpen(false);
+                }}
+              >
+                Confirmar
+              </Button>
+              <Button variant="ghost" className="h-11" onClick={() => setPedido(null)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <ul className="max-h-72 space-y-2 overflow-auto">
+            {lista.map((m) => {
+              const propio = m.id === me.id;
+              const nombre = propio ? "Vos" : etiqueta(m, members);
+              return (
+                <li key={m.id} className="rounded-lg bg-bg px-3 py-2">
+                  <p className="text-sm font-medium">
+                    {nombre} <span className="text-xs font-normal text-muted">{ROLE_LABEL[m.role]}</span>
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    {(["dt", "ayudante", "jugador"] as Role[]).map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        disabled={m.role === role}
+                        className="h-11 flex-1 rounded-md bg-surface-2 text-xs font-semibold disabled:opacity-40"
+                        onClick={() => setPedido({ id: m.id, role, nombre })}
+                      >
+                        {ROLE_LABEL[role]}
+                      </button>
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </DialogContent>
     </Dialog>
   );

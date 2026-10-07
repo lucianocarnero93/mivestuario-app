@@ -11,6 +11,7 @@ import {
   overAttempt,
   claimExistingName,
   bibliotecaMasNueva,
+  marcaMasNueva,
   valorConMarca,
   decideClaim,
   equipmentHeading,
@@ -217,6 +218,13 @@ test("el ayudante no saca ni banea a un DT", () => {
 test("una cuenta menor no puede pasar a mayor por API", () => {
   assert.equal(patchKeepsMenor(true, { menor: false, name: "Nico" }).menor, true);
   assert.equal(patchKeepsMenor(false, { menor: false }).menor, false);
+});
+
+test("una marca vieja de puestos no gana", () => {
+  assert.equal(marcaMasNueva(undefined, "2026-10-07T19:00:00.000Z"), true);
+  assert.equal(marcaMasNueva("2026-10-07T19:00:00.000Z", "2026-10-07T19:01:00.000Z"), true);
+  assert.equal(marcaMasNueva("2026-10-07T19:01:00.000Z", "2026-10-07T19:00:00.000Z"), false);
+  assert.equal(marcaMasNueva("2026-10-07T19:01:00.000Z", undefined), false);
 });
 
 test("el noveno código de un equipo, válido o no, pasa el cupo", () => {
