@@ -29,6 +29,8 @@ import { Route as VivoRouteImport } from './routes/vivo'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiMpCallbackRouteImport } from './routes/api/mp/callback'
 import { Route as ApiMpWebhookRouteImport } from './routes/api/mp/webhook'
+import { Route as ApiOgVivoRouteImport } from './routes/api/og/vivo'
+import { Route as ApiVivoEscudoRouteImport } from './routes/api/vivo/escudo'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -130,6 +132,16 @@ const ApiMpWebhookRoute = ApiMpWebhookRouteImport.update({
   path: '/api/mp/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOgVivoRoute = ApiOgVivoRouteImport.update({
+  id: '/api/og/vivo',
+  path: '/api/og/vivo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiVivoEscudoRoute = ApiVivoEscudoRouteImport.update({
+  id: '/api/vivo/escudo',
+  path: '/api/vivo/escudo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -152,6 +164,8 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/mp/callback': typeof ApiMpCallbackRoute
   '/api/mp/webhook': typeof ApiMpWebhookRoute
+  '/api/og/vivo': typeof ApiOgVivoRoute
+  '/api/vivo/escudo': typeof ApiVivoEscudoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -174,6 +188,8 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/mp/callback': typeof ApiMpCallbackRoute
   '/api/mp/webhook': typeof ApiMpWebhookRoute
+  '/api/og/vivo': typeof ApiOgVivoRoute
+  '/api/vivo/escudo': typeof ApiVivoEscudoRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -197,6 +213,8 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/mp/callback': typeof ApiMpCallbackRoute
   '/api/mp/webhook': typeof ApiMpWebhookRoute
+  '/api/og/vivo': typeof ApiOgVivoRoute
+  '/api/vivo/escudo': typeof ApiVivoEscudoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -221,6 +239,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/mp/callback'
     | '/api/mp/webhook'
+    | '/api/og/vivo'
+    | '/api/vivo/escudo'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -243,6 +263,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/mp/callback'
     | '/api/mp/webhook'
+    | '/api/og/vivo'
+    | '/api/vivo/escudo'
   id:
     | '__root__'
     | '/'
@@ -265,6 +287,8 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/mp/callback'
     | '/api/mp/webhook'
+    | '/api/og/vivo'
+    | '/api/vivo/escudo'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -288,6 +312,8 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiMpCallbackRoute: typeof ApiMpCallbackRoute
   ApiMpWebhookRoute: typeof ApiMpWebhookRoute
+  ApiOgVivoRoute: typeof ApiOgVivoRoute
+  ApiVivoEscudoRoute: typeof ApiVivoEscudoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -432,6 +458,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMpWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/og/vivo': {
+      id: '/api/og/vivo'
+      path: '/api/og/vivo'
+      fullPath: '/api/og/vivo'
+      preLoaderRoute: typeof ApiOgVivoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/vivo/escudo': {
+      id: '/api/vivo/escudo'
+      path: '/api/vivo/escudo'
+      fullPath: '/api/vivo/escudo'
+      preLoaderRoute: typeof ApiVivoEscudoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -456,6 +496,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiMpCallbackRoute: ApiMpCallbackRoute,
   ApiMpWebhookRoute: ApiMpWebhookRoute,
+  ApiOgVivoRoute: ApiOgVivoRoute,
+  ApiVivoEscudoRoute: ApiVivoEscudoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

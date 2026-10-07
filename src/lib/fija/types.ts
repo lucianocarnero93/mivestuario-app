@@ -97,6 +97,10 @@ export type Club = {
   createdBy: string;
   inviteCode: string;
   crest: string | null;
+  /** Link público del equipo. No vence con el partido. */
+  teamLiveToken?: string | null;
+  /** Preparado para sponsors. Apagado hasta que SPONSORS_ACTIVO sea true. */
+  sponsors?: { id: string; nombre: string; logoUrl: string; link?: string; activo: boolean }[];
 };
 
 export type Tournament = {
@@ -316,8 +320,9 @@ export type Alumni = {
 
 export type MarcaVivo = {
   id: string;
-  kind: "gol" | "gol-rival" | "tarjeta";
+  kind: "gol" | "gol-rival" | "tarjeta" | "inicio" | "entretiempo" | "segundo";
   memberId?: string;
+  card?: "amarilla" | "roja";
   at: string;
 };
 

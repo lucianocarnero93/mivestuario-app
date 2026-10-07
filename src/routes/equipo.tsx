@@ -17,6 +17,8 @@ import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABEL, ROLE_TAB, personLabel } from "@/lib/fija/format";
+import { esMenorEnVivo } from "@/lib/fija/vivo";
+import { PanelSponsors } from "@/components/fija/espacio-sponsor";
 import { MAX_BYTES } from "@/lib/fija/club-rules";
 import { leerFotoJugador } from "@/lib/fija/foto-jugador";
 import { alumniMember, playerRows, rankedBy, teamRecord } from "@/lib/fija/stats";
@@ -33,6 +35,7 @@ function EquipoPage() {
   const setClubCrest = useFija((s) => s.setClubCrest);
   const setMyPhoto = useFija((s) => s.setMyPhoto);
   const setJuega = useFija((s) => s.setJuega);
+  const updateMember = useFija((s) => s.updateMember);
   const removeMember = useFija((s) => s.removeMember);
   const members = useFija((s) => s.members);
   const events = useFija((s) => s.events);
@@ -154,6 +157,18 @@ function EquipoPage() {
                   {ROLE_TAB[m.role]}
                   {staff && m.menor ? " · Menor" : ""}
                 </p>
+                {staff ? (
+                  <label className="mt-2 flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-5 accent-accent"
+                      checked={esMenorEnVivo(m)}
+                      disabled={m.menor === true}
+                      onChange={(e) => updateMember(m.id, { menor: e.target.checked })}
+                    />
+                    Es menor de 18
+                  </label>
+                ) : null}
               </div>
               {me.role === "dt" || creator ? (
                 <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs font-medium text-muted">
@@ -191,6 +206,18 @@ function EquipoPage() {
                   </p>
                   <p className="text-xs text-muted">{p.name}</p>
                   {me.role === "dt" ? <MemberEdit memberId={p.id} nick={p.nick} number={p.number} /> : null}
+                  {staff ? (
+                    <label className="mt-2 flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="size-5 accent-accent"
+                        checked={esMenorEnVivo(p)}
+                        disabled={p.menor === true}
+                        onChange={(e) => updateMember(p.id, { menor: e.target.checked })}
+                      />
+                      Es menor de 18
+                    </label>
+                  ) : null}
                   {p.id === me.id && !staff ? <OwnNick memberId={p.id} nick={p.nick} /> : null}
                 </div>
                 <PlayerMarks row={byMember.get(p.id)} />
@@ -223,6 +250,7 @@ function EquipoPage() {
       </section>
 
       <SoyEste />
+      <PanelSponsors />
       {creator ? (
         <div className="mt-6 grid gap-3">
           <CreateTeamDialog />

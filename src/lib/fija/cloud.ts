@@ -6,10 +6,29 @@ import { withTransaction } from "@/lib/db";
 import { mergeCaja, cobrosConfiables, cobrosDelJugador } from "./caja";
 import { figuraPermitida, mergeFiguraVotes, votosAceptables } from "./figura";
 import { FORMATIONS } from "./formations";
-import { armarFormacionPublica, estadoMarcador, sanitizeLiveToken, vivoAttemptKey, vivoPointerAllows, VIVO_READ_LIMIT, type PuestoPublico } from "./vivo";
+import {
+  debeLimpiar,
+  elegirPartidoEquipo,
+  esCrawler,
+  guardarCache,
+  invalidarCache,
+  marcadorDeDatos,
+  menorAlGuardar,
+  punteroHuerfano,
+  sanitizeLiveToken,
+  tomarCache,
+  vivoAttemptKey,
+  vivoBotKey,
+  vivoPointerAllows,
+  vivoReadLimited,
+  VIVO_BOT_LIMIT,
+  VIVO_CACHE_MS,
+  VIVO_READ_LIMIT,
+  type MarcadorPublico,
+} from "./vivo";
 import { preferirJugada } from "./jugada";
-import { aplicarVistosJugador, camposDePizarra, juntarVistos, recortarParaJugador } from "./pizarra";
-import { contarFamilia } from "./familia";
+import { aplicarReaccionesJugador, camposDePizarra, juntarVistos, recortarParaJugador } from "./pizarra";
+import { contarDetalle } from "./familia";
 import { sanitizeCode } from "./sanitize";
 import {
   claimExistingName,
@@ -260,12 +279,24 @@ async function peekBucket(): Promise<string | null> {
 }
 
 const VIVO = "vivo";
+const VIVO_EQUIPO = "vivo-equipo";
+const cacheMarcador = new Map<string, { at: number; value: MarcadorPublico }>();
+const cuposVivo = new Map<string, { n: number; since: number }>();
+let ultimoBarrido = 0;
+
+export type { MarcadorPublico };
+
+function invalidarMarcador(token: string) {
+  invalidarCache(cacheMarcador, `t:${token}`);
+  invalidarCache(cacheMarcador, `e:${token}`);
+}
 
 async function vivoCodeOf(
   sql: { query: (text: string, params?: unknown[]) => Promise<{ data: { code?: string } | string }[]> },
   token: string,
+  collection = VIVO,
 ): Promise<string | null> {
-  const rows = await sql.query("select data from vestuario_docs where collection = $1 and id = $2", [VIVO, token]);
+  const rows = await sql.query("select data from vestuario_docs where collection = $1 and id = $2", [collection, token]);
   const raw = rows[0]?.data;
   let pointer: { code?: string } | null = null;
   if (typeof raw === "string") {
@@ -279,21 +310,214 @@ async function vivoCodeOf(
   return code || null;
 }
 
-export type MarcadorPublico =
-  | {
-      ok: true;
-      club: string;
-      title: string;
-      place: string;
-      startsAt: string;
-      goalsFor: number;
-      goalsAgainst: number;
-      estado: "espera" | "juego" | "final";
-      titulares: PuestoPublico[];
-      banco: string[];
-      familia: number;
+async function agenteDe(): Promise<string> {
+  try {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    return getRequest()?.headers?.get("user-agent") ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function rechazoVigente(key: string, now: number): Promise<{ n: number; since: number } | null> {
+  const { getSql } = await import("@/lib/db");
+  const sql = await getSql();
+  const rows = await sql.query<{ data: { n?: number; since?: number; rejected?: boolean } | string }>(
+    "select data from vestuario_docs where collection = $1 and id = $2",
+    [ATTEMPTS, key],
+  );
+  const raw = rows[0]?.data;
+  let parsed: { n?: number; since?: number; rejected?: boolean } | null = null;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw) as { n?: number; since?: number; rejected?: boolean };
+    } catch {
+      parsed = null;
     }
-  | { ok: false; reason: "missing" | "limited" };
+  } else if (raw && typeof raw === "object") parsed = raw;
+  if (!parsed?.rejected || typeof parsed.since !== "number") return null;
+  if (now - parsed.since >= ATTEMPT_WINDOW_MS) return null;
+  return { n: parsed.n ?? VIVO_READ_LIMIT + 1, since: parsed.since };
+}
+
+async function guardarRechazo(key: string, row: { n: number; since: number }) {
+  const { getSql } = await import("@/lib/db");
+  const sql = await getSql();
+  await sql.query(
+    `insert into vestuario_docs (collection, id, data, updated_at)
+     values ($1, $2, $3::jsonb, now())
+     on conflict (collection, id)
+     do update set data = excluded.data, updated_at = now()`,
+    [ATTEMPTS, key, JSON.stringify({ n: row.n, since: row.since, rejected: true })],
+  );
+}
+
+async function cupoVivo(key: string, limit: number): Promise<boolean> {
+  const now = Date.now();
+  const row = cuposVivo.get(key);
+  if (!row || now - row.since >= ATTEMPT_WINDOW_MS) {
+    const frenado = await rechazoVigente(key, now);
+    if (frenado) {
+      cuposVivo.set(key, frenado);
+      return true;
+    }
+    cuposVivo.set(key, { n: 1, since: now });
+    return false;
+  }
+  row.n += 1;
+  if (!vivoReadLimited(row.n, limit)) return false;
+  await guardarRechazo(key, row);
+  return true;
+}
+
+async function escudoDe(code: string, crest: string | null | undefined): Promise<string | null> {
+  if (crest?.startsWith("data:image/")) return crest;
+  const { getSql } = await import("@/lib/db");
+  const sql = await getSql();
+  const rows = await sql.query<{ data: { crest?: string | null } | string }>(
+    "select data from vestuario_docs where collection = $1 and id = $2",
+    ["escudos", code],
+  );
+  const raw = rows[0]?.data;
+  let data: { crest?: string | null } | null = null;
+  if (typeof raw === "string") {
+    try {
+      data = JSON.parse(raw) as { crest?: string | null };
+    } catch {
+      data = null;
+    }
+  } else if (raw && typeof raw === "object") data = raw;
+  return data?.crest?.startsWith("data:image/") ? data.crest : null;
+}
+
+async function barrerVivo() {
+  const ahora = Date.now();
+  if (!debeLimpiar(ultimoBarrido, ahora)) return;
+  ultimoBarrido = ahora;
+  const { getSql } = await import("@/lib/db");
+  const sql = await getSql();
+  await sql.query("delete from vestuario_docs where collection = $1 and updated_at < now() - interval '2 hours'", [
+    ATTEMPTS,
+  ]);
+  const rows = await sql.query<{ id: string; data: { code?: string; eventId?: string } | string }>(
+    "select id, data from vestuario_docs where collection = $1 order by updated_at asc limit 8",
+    [VIVO],
+  );
+  for (const row of rows) {
+    const raw = row.data;
+    let pointer: { code?: string; eventId?: string } | null = null;
+    if (typeof raw === "string") {
+      try {
+        pointer = JSON.parse(raw) as { code?: string; eventId?: string };
+      } catch {
+        pointer = null;
+      }
+    } else if (raw && typeof raw === "object") pointer = raw;
+    const code = sanitizeCode(String(pointer?.code ?? ""));
+    const bundle = code ? await readClub(code) : null;
+    const event = bundle?.events.find((item) => item.id === pointer?.eventId) ?? null;
+    if (punteroHuerfano(row.id, event)) {
+      await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [VIVO, row.id]);
+      invalidarMarcador(row.id);
+    }
+  }
+}
+
+async function armarDesde(code: string, modo: "partido" | "equipo", token: string, eventId = ""): Promise<MarcadorPublico> {
+  const bundle = await readClub(code);
+  if (!bundle) return { ok: false, reason: "missing" };
+  const event = modo === "partido"
+    ? bundle.events.find((item) => item.kind === "partido" && item.id === eventId && item.liveToken === token) ?? null
+    : elegirPartidoEquipo(bundle.events);
+  if (modo === "partido" && !event) return { ok: false, reason: "missing" };
+  const sheet = event ? bundle.matchSheets.find((item) => item.eventId === event.id) ?? null : null;
+  const list = event ? (FORMATIONS[event.modality] ?? FORMATIONS.f8) : [];
+  const slots = event ? (list.find((item) => item.id === event.formacion) ?? list[0])?.slots ?? [] : [];
+  const crest = await escudoDe(code, bundle.club.crest);
+  const reaccion = event ? (modo === "partido" ? token : `eq:${token}:${event.id}`) : "";
+  const familia = reaccion ? await contarDetalle(reaccion) : { pelota: 0, aplauso: 0, fuego: 0 };
+  return marcadorDeDatos({
+    modo,
+    clubName: bundle.club.name,
+    crest,
+    event,
+    sheet,
+    slots,
+    people: bundle.members.map((person) => ({
+      id: person.id,
+      nick: person.nick,
+      name: "",
+      number: person.number,
+      menor: person.menor,
+      accountId: person.accountId,
+    })),
+    votes: bundle.figuraVotes ?? [],
+    events: bundle.events,
+    sheets: bundle.matchSheets,
+    familia,
+    sponsors: bundle.club.sponsors,
+    token,
+  });
+}
+
+export async function resolverMarcador(input: { t?: string; e?: string }, ua = ""): Promise<MarcadorPublico> {
+  const t = sanitizeLiveToken(input.t);
+  const e = sanitizeLiveToken(input.e);
+  if (!t && !e) return { ok: false, reason: "missing" };
+  const modo = e ? "equipo" : "partido";
+  const token = e || t;
+  const clave = `${modo === "equipo" ? "e" : "t"}:${token}`;
+  const bucket = (await peekBucket()) ?? "peek:comun";
+  const bot = esCrawler(ua);
+  const limitado = await cupoVivo(bot ? vivoBotKey(token) : vivoAttemptKey(bucket, token), bot ? VIVO_BOT_LIMIT : VIVO_READ_LIMIT);
+  if (limitado) return { ok: false, reason: "limited" };
+  const ahora = Date.now();
+  const cacheado = tomarCache(cacheMarcador, clave, ahora, VIVO_CACHE_MS);
+  if (cacheado) return cacheado;
+  const { getSql } = await import("@/lib/db");
+  const sql = await getSql();
+  void barrerVivo();
+  if (modo === "equipo") {
+    const code = await vivoCodeOf(sql, token, VIVO_EQUIPO);
+    if (!code) return { ok: false, reason: "missing" };
+    const armado = await armarDesde(code, "equipo", token);
+    if (armado.ok) guardarCache(cacheMarcador, clave, armado, Date.now());
+    return armado;
+  }
+  const rows = await sql.query<{ data: { code?: string; eventId?: string } | string }>(
+    "select data from vestuario_docs where collection = $1 and id = $2",
+    [VIVO, token],
+  );
+  const raw = rows[0]?.data;
+  let pointer: { code?: string; eventId?: string } | null = null;
+  if (typeof raw === "string") {
+    try {
+      pointer = JSON.parse(raw) as { code?: string; eventId?: string };
+    } catch {
+      pointer = null;
+    }
+  } else if (raw && typeof raw === "object") pointer = raw;
+  const code = sanitizeCode(String(pointer?.code ?? ""));
+  const eventId = String(pointer?.eventId ?? "");
+  if (!code || !eventId) return { ok: false, reason: "missing" };
+  const armado = await armarDesde(code, "partido", token, eventId);
+  if (armado.ok) guardarCache(cacheMarcador, clave, armado, Date.now());
+  return armado;
+}
+
+export async function escudoDelLink(input: { t?: string; e?: string }): Promise<string | null> {
+  const publico = await resolverMarcador(input);
+  if (!publico.ok || !publico.escudo) return null;
+  const token = sanitizeLiveToken(input.e) || sanitizeLiveToken(input.t);
+  if (!token) return null;
+  const { getSql } = await import("@/lib/db");
+  const sql = await getSql();
+  const collection = sanitizeLiveToken(input.e) ? VIVO_EQUIPO : VIVO;
+  const code = await vivoCodeOf(sql, token, collection);
+  if (!code) return null;
+  const bundle = await readClub(code);
+  return escudoDe(code, bundle?.club.crest);
+}
 
 export const publicarMarcador = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -320,6 +544,7 @@ export const publicarMarcador = createServerFn({ method: "POST" })
        do update set data = excluded.data, updated_at = now()`,
       [VIVO, data.token, JSON.stringify({ code: data.code, eventId: event.id })],
     );
+    invalidarMarcador(data.token);
     return { ok: true };
   });
 
@@ -340,72 +565,64 @@ export const cerrarMarcador = createServerFn({ method: "POST" })
     const owner = await vivoCodeOf(sql, data.token);
     if (owner !== data.code) return { ok: false };
     await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [VIVO, data.token]);
+    invalidarMarcador(data.token);
+    return { ok: true };
+  });
+
+export const publicarEquipo = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code?: string; token?: string }) => ({
+    code: sanitizeCode(String(input?.code ?? "")),
+    token: sanitizeLiveToken(input?.token),
+  }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !data.code || !data.token) return { ok: false };
+    const bundle = await readClub(data.code);
+    const me = memberFor(bundle?.members ?? [], userId);
+    if (!bundle || !isStaffMember(me)) return { ok: false };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const owner = await vivoCodeOf(sql, data.token, VIVO_EQUIPO);
+    if (!vivoPointerAllows(owner, data.code)) return { ok: false };
+    await sql.query(
+      `insert into vestuario_docs (collection, id, data, updated_at)
+       values ($1, $2, $3::jsonb, now())
+       on conflict (collection, id)
+       do update set data = excluded.data, updated_at = now()`,
+      [VIVO_EQUIPO, data.token, JSON.stringify({ code: data.code })],
+    );
+    invalidarMarcador(data.token);
+    return { ok: true };
+  });
+
+export const cerrarEquipo = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((input: { code?: string; token?: string }) => ({
+    code: sanitizeCode(String(input?.code ?? "")),
+    token: sanitizeLiveToken(input?.token),
+  }))
+  .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    const userId = userIdOf(context as { userId?: string });
+    if (!userId || !data.code || !data.token) return { ok: false };
+    const bundle = await readClub(data.code);
+    const me = memberFor(bundle?.members ?? [], userId);
+    if (!bundle || !isStaffMember(me)) return { ok: false };
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const owner = await vivoCodeOf(sql, data.token, VIVO_EQUIPO);
+    if (owner !== data.code) return { ok: false };
+    await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [VIVO_EQUIPO, data.token]);
+    invalidarMarcador(data.token);
     return { ok: true };
   });
 
 export const leerMarcador = createServerFn({ method: "POST" })
-  .validator((token: string) => sanitizeLiveToken(token))
-  .handler(async ({ data: token }): Promise<MarcadorPublico> => {
-    if (!token) return { ok: false, reason: "missing" };
-    const bucket = (await peekBucket()) ?? "peek:comun";
-    try {
-      await noteLookup(vivoAttemptKey(bucket), VIVO_READ_LIMIT);
-    } catch {
-      return { ok: false, reason: "limited" };
-    }
-    const { getSql } = await import("@/lib/db");
-    const sql = await getSql();
-    const rows = await sql.query<{ data: { code?: string; eventId?: string } | string }>(
-      "select data from vestuario_docs where collection = $1 and id = $2",
-      [VIVO, token],
-    );
-    const raw = rows[0]?.data;
-    let pointer: { code?: string; eventId?: string } | null = null;
-    if (typeof raw === "string") {
-      try {
-        pointer = JSON.parse(raw) as { code?: string; eventId?: string };
-      } catch {
-        pointer = null;
-      }
-    } else if (raw && typeof raw === "object") {
-      pointer = raw;
-    }
-    const code = sanitizeCode(String(pointer?.code ?? ""));
-    const eventId = String(pointer?.eventId ?? "");
-    if (!code || !eventId) return { ok: false, reason: "missing" };
-    const bundle = await readClub(code);
-    const event = bundle?.events.find((item) => item.id === eventId && item.liveToken === token);
-    if (!bundle || !event) return { ok: false, reason: "missing" };
-    const sheet = bundle.matchSheets.find((item) => item.eventId === event.id);
-    const list = FORMATIONS[event.modality] ?? FORMATIONS.f8;
-    const slots = (list.find((item) => item.id === event.formacion) ?? list[0]).slots;
-    const formacion = armarFormacionPublica(
-      slots,
-      event.lineup,
-      event.suplentes,
-      bundle.members.map((person) => ({
-        id: person.id,
-        nick: person.nick,
-        name: person.name,
-        number: person.number,
-        menor: person.menor === true,
-      })),
-      Boolean(event.lineupPublishedAt),
-    );
-    return {
-      ok: true,
-      club: bundle.club.name.slice(0, 80),
-      title: event.title.slice(0, 80),
-      place: (event.place || "").slice(0, 80),
-      startsAt: event.startsAt,
-      goalsFor: sheet?.goalsFor ?? 0,
-      goalsAgainst: sheet?.goalsAgainst ?? 0,
-      estado: estadoMarcador(event),
-      titulares: formacion.titulares,
-      banco: formacion.banco,
-      familia: await contarFamilia(token),
-    };
-  });
+  .validator((input: { t?: string; e?: string } | string) => {
+    if (typeof input === "string") return { t: sanitizeLiveToken(input), e: "" };
+    return { t: sanitizeLiveToken(input?.t), e: sanitizeLiveToken(input?.e) };
+  })
+  .handler(async ({ data }): Promise<MarcadorPublico> => resolverMarcador(data, await agenteDe()));
 
 export const listMyClubs = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
@@ -1099,7 +1316,8 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
               ? { ...person, name: identity.name, nick: identity.nick, number: identity.number, profileAt: identity.profileAt }
               : person;
             const kept = guardMember(old?.accountId ? { ...next, accountId: old.accountId } : next, old);
-            return kept;
+            const menor = menorAlGuardar(old?.menor, person.menor);
+            return menor === undefined ? kept : guardMember({ ...kept, menor }, old);
           })
       : existing.members.map((person) => {
         if (person.accountId !== userId && person.id !== userId) return person;
@@ -1143,7 +1361,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
   const mergedEvents = staff
     ? mergeEvents(existing.events, incoming.events)
-    : aplicarVistosJugador(existing.events, incoming.events, me?.id);
+    : aplicarReaccionesJugador(existing.events, incoming.events, me?.id);
   const votos = (staff ? incoming.figuraVotes ?? [] : (incoming.figuraVotes ?? []).filter((row) => row.voterId === me?.id))
     .filter((row) => figuraPermitida(row, mergedEvents));
   const votosPrevios = (existing.figuraVotes ?? []).filter((row) => figuraPermitida(row, mergedEvents));
@@ -1298,6 +1516,10 @@ export const saveClubDoc = createServerFn({ method: "POST" })
         }
         return { next, weight: after };
       });
+      if (merged.next.club.teamLiveToken) invalidarMarcador(merged.next.club.teamLiveToken);
+      for (const event of merged.next.events) {
+        if (event.liveToken) invalidarMarcador(event.liveToken);
+      }
       return { ok: true, bundle: merged.next, weight: merged.weight };
     } catch (error) {
       const message = error instanceof Error ? error.message : "error desconocido";

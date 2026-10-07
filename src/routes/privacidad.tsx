@@ -62,7 +62,9 @@ function PrivacidadPage() {
             asistencia. Si el DT comparte el resultado en vivo, quien tenga ese link ve el nombre del
             equipo, el rival, el horario, la cancha, el marcador y la formación publicada (apodo, número y
             puesto). No ve fotos, nombres reales, menores, indicaciones, jugadas ni la charla, ni a quien
-            no fue citado.
+            no fue citado. Para que una persona no deje dos veces la misma reacción, guardamos un
+            identificador técnico anonimizado de la conexión (un hash con sal, no la dirección IP). Las
+            reacciones son solo toques: no hay texto libre.
           </p>
         </section>
 

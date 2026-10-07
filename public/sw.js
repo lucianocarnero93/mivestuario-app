@@ -1,7 +1,7 @@
 /* Mi Vestuario App service worker
  * Offline shell, network intercept, push, background sync.
  */
-const CACHE = "mi-vestuario-v11";
+const CACHE = "mi-vestuario-v12";
 const PRECACHE = [
   "/",
   "/offline.html",
@@ -61,17 +61,18 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/marketing")) return;
 
   if (request.mode === "navigate") {
+    const esVivo = url.pathname === "/vivo" || url.pathname.startsWith("/vivo/");
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put("/", copy)).catch(() => undefined);
-          }
-          return response;
-        })
+        .then((response) => response)
         .catch(async () => {
-          const cached = (await caches.match(request)) || (await caches.match("/"));
+          if (esVivo) {
+            return new Response("El partido no está guardado en el celular. Abrilo de nuevo con señal.", {
+              status: 503,
+              headers: { "Content-Type": "text/plain; charset=utf-8" },
+            });
+          }
+          const cached = await caches.match("/");
           if (cached) return cached;
           const offline = await caches.match("/offline.html");
           return (

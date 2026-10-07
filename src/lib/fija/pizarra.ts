@@ -426,3 +426,17 @@ export function aplicarVistosJugador(base: ClubEvent[], incoming: ClubEvent[], m
     return { ...event, vistos: juntarVistos(event.vistos, extra) };
   });
 }
+
+/** El jugador solo puede dejar su reacción. El resto del partido no se toca. */
+export function aplicarReaccionesJugador(base: ClubEvent[], incoming: ClubEvent[], memberId: string | undefined): ClubEvent[] {
+  const withVistos = aplicarVistosJugador(base, incoming, memberId);
+  if (!memberId) return withVistos;
+  const map = new Map(incoming.map((event) => [event.id, event]));
+  return withVistos.map((event) => {
+    const propias = (map.get(event.id)?.reacciones ?? []).filter((item) => item.memberId === memberId);
+    if (propias.length === 0) return event;
+    const mia = propias[propias.length - 1];
+    const resto = (event.reacciones ?? []).filter((item) => item.memberId !== memberId);
+    return { ...event, reacciones: [...resto, mia].slice(-80) };
+  });
+}

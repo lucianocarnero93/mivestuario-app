@@ -14,6 +14,11 @@ test("sin apodo usa el nombre", () => {
   assert.equal(nombreEnTarjeta({ nick: "  ", name: "Juan Pérez" }), "Juan Pérez");
 });
 
+test("en un contexto público, sin apodo no usa el nombre real", () => {
+  assert.equal(nombreEnTarjeta({ nick: "", name: "Juan Pérez" }, { publico: true }), "Jugador");
+  assert.equal(nombreEnTarjeta({ name: "Juan Pérez" }, { publico: true }).includes("Juan"), false);
+});
+
 test("un menor no lleva foto propia ni la del equipo", () => {
   assert.equal(fotoEnTarjeta({ photo: "data:image/jpeg,abc", menor: true }, "data:image/jpeg,eq"), null);
 });

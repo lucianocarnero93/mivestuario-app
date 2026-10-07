@@ -101,17 +101,17 @@ export function whatsAppSinConfirmar(club: Club, event: ClubEvent, names: string
   return `Falta confirmar ${event.title} (${formatWhen(event.startsAt)}). ${quienes}: contesten en Mi Vestuario si van. — ${club.name}`;
 }
 
-export function vivoUrl(token: string): string {
-  if (typeof window === "undefined") return `/vivo?t=${token}`;
+export function vivoUrl(token: string, modo: "t" | "e" = "t"): string {
+  if (typeof window === "undefined") return `/vivo?${modo}=${token}`;
   const url = new URL(window.location.href);
   url.pathname = "/vivo";
-  url.search = `?t=${encodeURIComponent(token)}`;
+  url.search = `?${modo}=${encodeURIComponent(token)}`;
   url.hash = "";
   return url.toString();
 }
 
-export function whatsAppEnVivo(event: ClubEvent, url: string): string {
-  return `Seguí ${event.title} en vivo, en Mi Vestuario: ${url}`;
+export function whatsAppEnVivo(_event: ClubEvent, url: string): string {
+  return `Seguilo acá ⚽ ${url}`;
 }
 
 export function whatsAppResultado(

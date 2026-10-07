@@ -36,10 +36,13 @@ type PartidoMin = {
   suplentes?: string[];
 };
 
-export function nombreEnTarjeta(player: { nick?: string; name?: string; menor?: boolean }): string {
+export function nombreEnTarjeta(
+  player: { nick?: string; name?: string; menor?: boolean },
+  opciones?: { publico?: boolean },
+): string {
   const nick = (player.nick ?? "").trim();
   if (nick) return nick.slice(0, 24);
-  if (player.menor) return "Jugador";
+  if (player.menor || opciones?.publico) return "Jugador";
   return ((player.name ?? "").trim() || "Jugador").slice(0, 24);
 }
 

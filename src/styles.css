@@ -113,6 +113,27 @@
   }
 }
 
+@keyframes vivo-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.vivo-pop { animation: vivo-pop 0.7s ease; }
+@keyframes vivo-latido {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.vivo-punto { animation: vivo-latido 1.6s ease-in-out infinite; }
+@keyframes vivo-tap {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+.vivo-tap { animation: vivo-tap 0.45s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .vivo-pop, .vivo-punto, .vivo-tap { animation: none; }
+}
+
 @layer components {
   .pitch-shell {
     background-color: var(--color-bg);

@@ -17,6 +17,7 @@ import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
 import { clampStat, emptyStat } from "./stats";
 import { mergeFiguraVotes } from "./figura";
+import { SPONSORS_ACTIVO, logoPropio } from "./sponsors";
 import { estadoFigura } from "./premios";
 import { aplicarCobro, armarGasto, cajaVacia, conCierre, cuponesDe, mergeCaja } from "./caja";
 import { ponerReaccion, votarEncuesta } from "./fecha";
@@ -115,7 +116,7 @@ type State = ReturnType<typeof createSeed> & {
   postCharla: (text: string) => void;
   deleteCharla: (id: string) => void;
   updateCharla: (id: string, text: string) => void;
-  updateMember: (memberId: string, patch: { name?: string; nick?: string; number?: number | null }) => void;
+  updateMember: (memberId: string, patch: { name?: string; nick?: string; number?: number | null; menor?: boolean }) => void;
   reopenTournament: (id: string) => void;
   sendConvocatoria: (eventId: string) => void;
   setReminderPolicy: (policy: ReminderPolicy) => void;
@@ -131,7 +132,12 @@ type State = ReturnType<typeof createSeed> & {
   assignRole: (memberId: string, role: Role) => void;
     setJuega: (memberId: string, juega: boolean) => void;
     saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">, options?: { confirmClosed?: boolean }) => void;
-  anotarEnCancha: (eventId: string, kind: "gol" | "gol-rival" | "tarjeta", memberId?: string) => boolean;
+  anotarEnCancha: (
+    eventId: string,
+    kind: "gol" | "gol-rival" | "tarjeta" | "inicio" | "entretiempo" | "segundo",
+    memberId?: string,
+    tarjeta?: "amarilla" | "roja",
+  ) => boolean;
   deshacerEnCancha: (eventId: string) => void;
   reaccionarFecha: (eventId: string, emoji: ReaccionFecha["emoji"]) => void;
   ocultarFecha: (eventId: string, oculta: boolean) => void;
@@ -154,6 +160,10 @@ type State = ReturnType<typeof createSeed> & {
   voteFigura: (eventId: string, pickId: string) => void;
   abrirEnVivo: (eventId: string) => string | null;
   cerrarEnVivo: (eventId: string) => void;
+  abrirLinkEquipo: () => string | null;
+  cerrarLinkEquipo: () => void;
+  rotarLinkEquipo: () => string | null;
+  setSponsors: (sponsors: { id: string; nombre: string; logoUrl: string; link?: string; activo: boolean }[]) => void;
   asignarEquipamiento: (eventId: string, item: ItemEquipamiento, memberId: string | null) => void;
   ultimoEquipamiento: (beforeEventId: string, item: ItemEquipamiento) => string | null;
   createTournament: (name: string) => string | null;
@@ -852,16 +862,21 @@ export const useFija = create<State>()(
         const name = staff && patch.name != null ? sanitizeName(patch.name) : undefined;
         const nick = patch.nick != null ? sanitizeName(patch.nick) : undefined;
         const number = staff ? patch.number : undefined;
-        if (!name && nick == null && number === undefined) return;
+        const menor = staff && typeof patch.menor === "boolean" ? patch.menor : undefined;
+        if (!name && nick == null && number === undefined && menor === undefined) return;
         const profileAt = new Date().toISOString();
         set({
           members: get().members.map((person) => {
             if (person.id !== memberId) return person;
+            const nextMenor =
+              menor === undefined ? person.menor : person.menor === true || menor ? true : false;
             return {
               ...person,
               name: name || person.name,
               nick: nick || person.nick,
               number: number === undefined ? person.number : number,
+              menor: nextMenor,
+              photo: nextMenor === true ? null : person.photo,
               profileAt,
             };
           }),
@@ -1151,12 +1166,28 @@ export const useFija = create<State>()(
         set({ matchSheets: [...otherSheets, sheet] });
       },
 
-      anotarEnCancha: (eventId, kind, memberId) => {
+      anotarEnCancha: (eventId, kind, memberId, tarjeta) => {
         if (!isStaffId(get())) return false;
         const event = get().events.find((item) => item.id === eventId);
         if (!event || event.kind !== "partido" || !resultIsOpen(event.startsAt) || event.resultClosedAt) return false;
         const tournament = get().tournaments.find((item) => item.id === event.tournamentId);
         if (tournament?.status === "finished") return false;
+        const now = new Date().toISOString();
+        if (kind === "inicio" || kind === "entretiempo" || kind === "segundo") {
+          set({
+            events: get().events.map((item) =>
+              item.id === eventId
+                ? {
+                    ...item,
+                    liveLog: [...(item.liveLog ?? []), { id: uid("lv"), kind, at: now }].slice(-40),
+                    liveUpdatedAt: now,
+                    fechaUpdatedAt: now,
+                  }
+                : item,
+            ),
+          });
+          return true;
+        }
         const existing = get().matchSheets.find((sheet) => sheet.eventId === eventId);
         const players = (existing?.players ?? []).map((row) => ({ ...row }));
         let goalsFor = existing?.goalsFor ?? 0;
@@ -1172,11 +1203,11 @@ export const useFija = create<State>()(
         if (kind === "tarjeta") {
           if (!memberId) return false;
           const row = players.find((item) => item.memberId === memberId) ?? emptyStat(memberId);
-          row.yellow = clampStat(row.yellow + 1);
+          if (tarjeta === "roja") row.red = clampStat(row.red + 1);
+          else row.yellow = clampStat(row.yellow + 1);
           if (!players.some((item) => item.memberId === memberId)) players.push(row);
         }
         if (players.reduce((sum, row) => sum + row.goals, 0) > goalsFor) return false;
-        const now = new Date().toISOString();
         const sheet: MatchSheet = {
           eventId,
           opponent: sanitizeName(existing?.opponent || event.title),
@@ -1186,7 +1217,13 @@ export const useFija = create<State>()(
           recordedAt: now,
           players,
         };
-        const marca = { id: uid("lv"), kind, memberId, at: now };
+        const marca = {
+          id: uid("lv"),
+          kind,
+          memberId,
+          card: kind === "tarjeta" ? (tarjeta === "roja" ? "roja" as const : "amarilla" as const) : undefined,
+          at: now,
+        };
         set({
           matchSheets: [...get().matchSheets.filter((saved) => saved.eventId !== eventId), sheet],
           events: get().events.map((item) =>
@@ -1196,6 +1233,7 @@ export const useFija = create<State>()(
                   resultClosedAt: null,
                   resultPending: true,
                   resultUpdatedAt: now,
+                  liveUpdatedAt: now,
                   liveLog: [...(item.liveLog ?? []), marca].slice(-40),
                   fechaUpdatedAt: now,
                 }
@@ -1210,7 +1248,19 @@ export const useFija = create<State>()(
         const event = get().events.find((item) => item.id === eventId);
         const marca = event?.liveLog?.[event.liveLog.length - 1];
         const existing = get().matchSheets.find((sheet) => sheet.eventId === eventId);
-        if (!event || !marca || !existing || event.resultClosedAt) return;
+        if (!event || !marca || event.resultClosedAt) return;
+        const now = new Date().toISOString();
+        if (marca.kind === "inicio" || marca.kind === "entretiempo" || marca.kind === "segundo") {
+          set({
+            events: get().events.map((item) =>
+              item.id === eventId
+                ? { ...item, liveLog: (item.liveLog ?? []).slice(0, -1), liveUpdatedAt: now, fechaUpdatedAt: now }
+                : item,
+            ),
+          });
+          return;
+        }
+        if (!existing) return;
         const players = existing.players.map((row) => ({ ...row }));
         let goalsFor = existing.goalsFor;
         let goalsAgainst = existing.goalsAgainst;
@@ -1222,9 +1272,11 @@ export const useFija = create<State>()(
         if (marca.kind === "gol-rival") goalsAgainst = Math.max(0, goalsAgainst - 1);
         if (marca.kind === "tarjeta" && marca.memberId) {
           const row = players.find((item) => item.memberId === marca.memberId);
-          if (row) row.yellow = Math.max(0, row.yellow - 1);
+          if (row) {
+            if (marca.card === "roja") row.red = Math.max(0, row.red - 1);
+            else row.yellow = Math.max(0, row.yellow - 1);
+          }
         }
-        const now = new Date().toISOString();
         set({
           matchSheets: [
             ...get().matchSheets.filter((saved) => saved.eventId !== eventId),
@@ -1237,6 +1289,7 @@ export const useFija = create<State>()(
                   resultClosedAt: null,
                   resultPending: true,
                   resultUpdatedAt: now,
+                  liveUpdatedAt: now,
                   liveLog: (item.liveLog ?? []).slice(0, -1),
                   fechaUpdatedAt: now,
                 }
@@ -1435,6 +1488,42 @@ export const useFija = create<State>()(
             item.id === eventId ? { ...item, liveToken: null, liveUpdatedAt: now } : item,
           ),
         });
+      },
+
+      abrirLinkEquipo: () => {
+        if (!isStaffId(get())) return null;
+        const club = get().club;
+        if (!club) return null;
+        const current = club.teamLiveToken ?? "";
+        const token = /^[a-f0-9]{32}$/.test(current) ? current : crypto.randomUUID().replace(/-/g, "");
+        if (club.teamLiveToken !== token) set({ club: { ...club, teamLiveToken: token } });
+        return token;
+      },
+
+      cerrarLinkEquipo: () => {
+        if (!isStaffId(get())) return;
+        const club = get().club;
+        if (!club) return;
+        set({ club: { ...club, teamLiveToken: null } });
+      },
+
+      rotarLinkEquipo: () => {
+        if (!isStaffId(get())) return null;
+        const club = get().club;
+        if (!club) return null;
+        const token = crypto.randomUUID().replace(/-/g, "");
+        set({ club: { ...club, teamLiveToken: token } });
+        return token;
+      },
+
+      setSponsors: (sponsors) => {
+        if (!SPONSORS_ACTIVO || !isStaffId(get())) return;
+        const club = get().club;
+        if (!club) return;
+        const limpios = sponsors
+          .filter((item) => item.nombre.trim() && logoPropio(item.logoUrl) && item.logoUrl.length < 80_000)
+          .slice(0, 3);
+        set({ club: { ...club, sponsors: limpios } });
       },
 
       // El DT o el ayudante asignan quién lleva un item del equipamiento.

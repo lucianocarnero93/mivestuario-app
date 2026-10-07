@@ -7,7 +7,7 @@ export const Route = createRootRoute({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Mi Vestuario App" },
       { name: "theme-color", content: "#0b1c12" },
       { name: "mobile-web-app-capable", content: "yes" },
@@ -16,7 +16,7 @@ export const Route = createRootRoute({
       { name: "apple-mobile-web-app-title", content: "Vestuario" },
       {
         name: "description",
-        content: "El vestuario de tu equipo amateur. Convocatorias, pizarra, stats y charla técnica.",
+        content: "El vestuario de tu equipo amateur. Convocatorias, pizarra, fecha y stats.",
       },
     ],
     links: [
@@ -35,7 +35,7 @@ export const Route = createRootRoute({
 
 function RootDocument() {
   return (
-    <html lang="es-AR" className="antialiased" suppressHydrationWarning>
+    <html lang="es" className="antialiased" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
