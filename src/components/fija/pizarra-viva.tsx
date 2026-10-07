@@ -812,7 +812,7 @@ function Compartir({ event, planId, plan, puede }: { event: ClubEvent; planId: P
       fotosCard,
       conFotos,
       tema: temaNombre === "equipo" && colores ? "equipo" : "neon",
-      link: event.liveToken ? vivoUrl(event.liveToken) : undefined,
+      link: club?.teamLiveToken ? vivoUrl(club.teamLiveToken, "e") : undefined,
     });
   }
 
@@ -823,7 +823,7 @@ function Compartir({ event, planId, plan, puede }: { event: ClubEvent; planId: P
     event.startsAt,
     event.title,
     event.place,
-    event.liveToken,
+    club?.teamLiveToken,
     JSON.stringify(event.suplentes ?? []),
     JSON.stringify(event.convocados ?? null),
     conFotos,
@@ -874,7 +874,7 @@ function Compartir({ event, planId, plan, puede }: { event: ClubEvent; planId: P
     const datos = datosDe(formato);
     const blob = await dibujarAlineacion(datos);
     const archivo = archivoAlineacion({ equipo: datos.equipo, rival: datos.rival, startsAt: event.startsAt, formato });
-    const link = event.liveToken ? vivoUrl(event.liveToken) : undefined;
+    const link = club?.teamLiveToken ? vivoUrl(club.teamLiveToken, "e") : undefined;
     const texto = textoAlineacion({ rival: datos.rival, startsAt: event.startsAt, link });
     const modo = await enviar(blob, archivo, texto, { copiarTexto: true });
     setNota(modo === "shared" ? "Listo, se mandó." : "La imagen se guardó y el texto quedó copiado.");
@@ -921,12 +921,12 @@ function Compartir({ event, planId, plan, puede }: { event: ClubEvent; planId: P
       ) : null}
       <Button className="h-14" onClick={() => void mandar("whatsapp")}>Mandar por WhatsApp</Button>
       <Button variant="secondary" className="h-14" onClick={() => void mandar("story")}>Story de Instagram</Button>
-      {event.liveToken ? (
+      {club?.teamLiveToken ? (
         <Button
           variant="outline"
           className="h-14"
           onClick={() => {
-            void navigator.clipboard?.writeText(vivoUrl(event.liveToken || ""));
+            void navigator.clipboard?.writeText(vivoUrl(club.teamLiveToken || "", "e"));
             setNota("Link copiado.");
           }}
         >

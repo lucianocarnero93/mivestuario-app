@@ -5,6 +5,7 @@ import { logo, png } from "@/lib/fija/lienzo";
 import { LogoMark } from "@/components/fija/logo";
 import { EspacioSponsor } from "@/components/fija/espacio-sponsor";
 import {
+  cercaDelSaque,
   diaVolver,
   intervaloVivo,
   textoActualizado,
@@ -56,6 +57,7 @@ export function VivoPantalla({
         return;
       }
       const recibido = next;
+      const cerca = recibido.ok && recibido.estado === "espera" && cercaDelSaque(recibido.startsAt);
       if (!recibido.ok && recibido.reason === "limited") {
         setMarcador((anterior) => (anterior?.ok ? anterior : recibido));
       } else {
@@ -70,6 +72,7 @@ export function VivoPantalla({
         cerrado: recibido.ok ? recibido.cerrado : null,
         figuraLista: recibido.ok && recibido.estado === "final" && recibido.figura.estado !== "abierta",
         intentoLimited: intento,
+        cerca,
       });
       if (espera <= 0) return;
       timer = window.setTimeout(tick, espera);
@@ -126,6 +129,7 @@ export function VivoPantalla({
 
   const m = marcador;
   const escudo = m.escudo ? `/api/vivo/escudo?${e ? `e=${e}` : `t=${t}`}` : "";
+  const previa = m.estado === "espera" && cercaDelSaque(m.startsAt, ahora);
 
   return (
     <main className="mx-auto min-h-dvh w-full max-w-[440px] px-4 py-6">
@@ -141,9 +145,9 @@ export function VivoPantalla({
         <h1 className="mt-8 text-4xl font-bold">Todavía no hay un partido</h1>
       ) : (
         <>
-          <Estado m={m} ahora={ahora} />
+          <Estado m={m} ahora={ahora} previa={previa} />
           <Escudos club={m.club} rival={m.rival} escudo={escudo} />
-          {m.estado === "espera" ? (
+          {m.estado === "espera" && !previa ? (
             <section className="mt-6">
               <p className="text-sm text-muted">{textoArranca(m.startsAt)}</p>
               <p className="mt-1 font-display text-5xl font-bold leading-none">{textoFalta(m.startsAt, ahora)}</p>
@@ -162,6 +166,11 @@ export function VivoPantalla({
             <section className="mt-6">
               {m.estado === "final" ? (
                 <h1 className="text-3xl font-bold">{textoResultado(m.goalsFor, m.goalsAgainst)}</h1>
+              ) : previa ? (
+                <>
+                  <p className="text-sm text-muted">{textoArranca(m.startsAt)}</p>
+                  <p className="mt-1 font-display text-5xl font-bold leading-none">{textoFalta(m.startsAt, ahora)}</p>
+                </>
               ) : (
                 <p className="flex items-center gap-2 text-sm text-muted">
                   <span className="vivo-punto size-2 rounded-full bg-accent" />
@@ -173,6 +182,11 @@ export function VivoPantalla({
                 <p className="mt-3 text-2xl font-bold text-accent" role="status">
                   {grito}
                 </p>
+              ) : null}
+              {previa && m.maps ? (
+                <a href={m.maps} className="mt-4 block text-sm font-semibold text-accent" target="_blank" rel="noreferrer">
+                  {m.place || "Ver la cancha en el mapa"}
+                </a>
               ) : null}
             </section>
           )}
@@ -217,8 +231,8 @@ export function VivoPantalla({
             <p className="mt-6 text-sm text-muted">Cuando el DT publique la formación, la ves acá.</p>
           ) : null}
 
-          {m.estado !== "espera" && m.reaccion ? (
-            <Reacciones token={m.reaccion} inicial={m.familia} />
+          {m.estado !== "espera" || previa ? (
+            m.reaccion ? <Reacciones token={m.reaccion} inicial={m.familia} /> : null
           ) : null}
 
           {m.estado === "final" ? (
@@ -270,9 +284,10 @@ export function VivoPantalla({
   );
 }
 
-function Estado({ m, ahora }: { m: MarcadorOk; ahora: number }) {
-  const texto =
-    m.estado === "espera"
+function Estado({ m, ahora, previa }: { m: MarcadorOk; ahora: number; previa: boolean }) {
+  const texto = previa
+    ? "En vivo"
+    : m.estado === "espera"
       ? "Antes del partido"
       : m.estado === "juego"
         ? "En juego"

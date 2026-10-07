@@ -9,6 +9,7 @@ import {
   elegirPartidoEquipo,
   escaparXml,
   estadoMarcador,
+  cercaDelSaque,
   guardarCache,
   intervaloVivo,
   invalidarCache,
@@ -255,6 +256,15 @@ test("el link del equipo elige el partido según el momento", () => {
   assert.equal(elegirPartidoEquipo([pasado, cerrado, proximo], despues)?.id, "hoy");
   const lejos = Date.parse("2026-10-08T12:00:00-03:00");
   assert.equal(elegirPartidoEquipo([pasado, cerrado, proximo], lejos)?.id, "prox");
+});
+
+test("una hora antes el link del equipo ya pasa a ese partido", () => {
+  const viejo = partido({ id: "viejo", startsAt: "2026-10-03T15:00:00-03:00", resultClosedAt: "2026-10-03T17:00:00-03:00" });
+  const hoy = partido({ id: "hoy", startsAt: "2026-10-04T15:00:00-03:00" });
+  assert.equal(cercaDelSaque(hoy.startsAt, Date.parse("2026-10-04T14:00:00-03:00")), true);
+  assert.equal(cercaDelSaque(hoy.startsAt, Date.parse("2026-10-04T13:00:00-03:00")), false);
+  assert.equal(elegirPartidoEquipo([viejo, hoy], Date.parse("2026-10-04T14:10:00-03:00"))?.id, "hoy");
+  assert.equal(elegirPartidoEquipo([viejo, hoy], Date.parse("2026-10-04T13:00:00-03:00"))?.id, "viejo");
 });
 
 test("sin pitazo inicial no se inventan minutos", () => {

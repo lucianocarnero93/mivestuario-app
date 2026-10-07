@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { cerrarEquipo, cerrarMarcador, publicarEquipo, publicarMarcador } from "@/lib/fija/cloud";
+import { cerrarEquipo, publicarEquipo } from "@/lib/fija/cloud";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { candidatosFigura, figuraDe } from "@/lib/fija/figura";
 import { estadoFigura } from "@/lib/fija/premios";
@@ -14,19 +14,16 @@ const APODOS_KEY = "mv-apodos-revisados";
 export function ParaLaFamilia({ event }: { event: ClubEvent }) {
   const staff = useIsStaff();
   const club = useFija((s) => s.club);
-  const abrirEnVivo = useFija((s) => s.abrirEnVivo);
-  const cerrarEnVivo = useFija((s) => s.cerrarEnVivo);
   const abrirLinkEquipo = useFija((s) => s.abrirLinkEquipo);
   const cerrarLinkEquipo = useFija((s) => s.cerrarLinkEquipo);
   const rotarLinkEquipo = useFija((s) => s.rotarLinkEquipo);
   const flushCloud = useFija((s) => s.flushCloud);
-  const [cual, setCual] = useState<"equipo" | "partido">("equipo");
   const [fase, setFase] = useState<"idle" | "preparando" | "listo">("idle");
   const [nota, setNota] = useState("");
   const [aviso, setAviso] = useState(false);
   if (!staff || !club || event.kind !== "partido") return null;
 
-  const tokenListo = cual === "equipo" ? club.teamLiveToken : event.liveToken;
+  const tokenListo = club.teamLiveToken;
   const puedeCopiar = Boolean(tokenListo) && fase !== "preparando";
 
   function yaReviso(): boolean {
@@ -44,7 +41,7 @@ export function ParaLaFamilia({ event }: { event: ClubEvent }) {
     }
     setFase("preparando");
     setNota("");
-    const token = cual === "equipo" ? abrirLinkEquipo() : abrirEnVivo(event.id);
+    const token = abrirLinkEquipo();
     if (!token) {
       setFase("idle");
       return;
@@ -52,10 +49,7 @@ export function ParaLaFamilia({ event }: { event: ClubEvent }) {
     await flushCloud();
     let ok = false;
     for (let intento = 0; intento < 3 && !ok; intento += 1) {
-      const result =
-        cual === "equipo"
-          ? await publicarEquipo({ data: { code: club?.inviteCode, token } })
-          : await publicarMarcador({ data: { code: club?.inviteCode, token } });
+      const result = await publicarEquipo({ data: { code: club?.inviteCode, token } });
       ok = result.ok;
       if (!ok) await new Promise((resolve) => window.setTimeout(resolve, 700));
     }
@@ -64,27 +58,19 @@ export function ParaLaFamilia({ event }: { event: ClubEvent }) {
   }
 
   async function copiar() {
-    const token = cual === "equipo" ? club?.teamLiveToken : event.liveToken;
+    const token = club?.teamLiveToken;
     if (!token || fase === "preparando") return;
-    const text = whatsAppEnVivo(event, vivoUrl(token, cual === "equipo" ? "e" : "t"));
+    const text = whatsAppEnVivo(event, vivoUrl(token, "e"));
     await navigator.clipboard?.writeText(text);
     setNota("Link copiado. Mandalo por WhatsApp.");
   }
 
   async function cerrar() {
-    if (cual === "equipo") {
-      const token = club?.teamLiveToken;
-      cerrarLinkEquipo();
-      await flushCloud();
-      if (token && club) await cerrarEquipo({ data: { code: club.inviteCode, token } });
-      setNota("La familia ya no entra por el link del equipo.");
-    } else {
-      const token = event.liveToken;
-      cerrarEnVivo(event.id);
-      await flushCloud();
-      if (token && club) await cerrarMarcador({ data: { code: club.inviteCode, token } });
-      setNota("La familia ya no ve este partido.");
-    }
+    const token = club?.teamLiveToken;
+    cerrarLinkEquipo();
+    await flushCloud();
+    if (token && club) await cerrarEquipo({ data: { code: club.inviteCode, token } });
+    setNota("La familia ya no entra por este link.");
     setFase("idle");
   }
 
@@ -108,24 +94,8 @@ export function ParaLaFamilia({ event }: { event: ClubEvent }) {
     <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
       <p className="text-[13px] font-semibold uppercase tracking-widest text-muted">Para la familia</p>
       <p className="mt-1 text-sm text-muted">
-        El link muestra el resultado y la formación publicada: apodo, número y puesto. No muestra fotos, nombres, menores, indicaciones ni jugadas.
+        Un solo link. Lejos del partido muestra el próximo. Desde una hora antes ya es el en vivo: el resultado y la formación, y se actualiza solo. Se ven apodos, número y puesto. No hay fotos ni nombres.
       </p>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          className={`h-12 rounded-md text-sm font-semibold ${cual === "equipo" ? "bg-accent text-accent-fg" : "bg-bg"}`}
-          onClick={() => setCual("equipo")}
-        >
-          Link del equipo (recomendado)
-        </button>
-        <button
-          type="button"
-          className={`h-12 rounded-md text-sm font-semibold ${cual === "partido" ? "bg-accent text-accent-fg" : "bg-bg"}`}
-          onClick={() => setCual("partido")}
-        >
-          Solo este partido
-        </button>
-      </div>
       {aviso ? (
         <p className="mt-3 text-sm">
           En el link se ven los apodos. Revisá que ninguno sea un nombre completo.
@@ -147,17 +117,17 @@ export function ParaLaFamilia({ event }: { event: ClubEvent }) {
         </p>
       ) : null}
       <Button className="mt-3 h-14 w-full" disabled={fase === "preparando"} onClick={() => void publicar()}>
-        {fase === "preparando" ? "Preparando el link…" : cual === "equipo" ? "Compartir link del equipo" : "Compartir este partido"}
+        {fase === "preparando" ? "Preparando el link…" : "Compartir link del equipo"}
       </Button>
       <Button className="mt-2 h-12 w-full" variant="secondary" disabled={!puedeCopiar} onClick={() => void copiar()}>
-        {puedeCopiar ? "Copiar link del partido" : "Preparando el link…"}
+        {puedeCopiar ? "Copiar link" : "Preparando el link…"}
       </Button>
       {tokenListo ? (
         <Button variant="outline" className="mt-2 h-12 w-full" onClick={() => void cerrar()}>
           Dejar de compartir
         </Button>
       ) : null}
-      {cual === "equipo" && club.teamLiveToken ? (
+      {club.teamLiveToken ? (
         <Button variant="ghost" className="mt-2 h-12 w-full" onClick={() => void rotar()}>
           Generar link nuevo
         </Button>

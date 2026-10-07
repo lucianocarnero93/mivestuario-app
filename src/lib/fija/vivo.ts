@@ -76,6 +76,7 @@ export const VIVO_REACT_LIMIT = 60;
 export const VIVO_CACHE_MS = 5_000;
 export const VIVO_OG_CACHE_MS = 60_000;
 export const JUEGO_TOPE_MS = 3 * 60 * 60 * 1000;
+export const ANTES_EN_VIVO_MS = 60 * 60 * 1000;
 export const FINAL_VENTANA_MS = 48 * 60 * 60 * 1000;
 export const POLL_ESPERA = 60_000;
 export const POLL_JUEGO = 12_000;
@@ -173,11 +174,13 @@ export function intervaloVivo(input: {
   cerrado?: string | null;
   figuraLista: boolean;
   intentoLimited?: number;
+  cerca?: boolean;
 }): number {
   if (input.estado === "limited") {
     const n = Math.max(1, input.intentoLimited ?? 1);
     return Math.min(POLL_FINAL, 15_000 * 2 ** (n - 1));
   }
+  if (input.estado === "espera" && input.cerca) return POLL_JUEGO;
   if (input.estado === "espera" || input.estado === "oficial") return POLL_ESPERA;
   if (input.estado === "juego") return POLL_JUEGO;
   if (input.figuraLista) return 0;
@@ -425,6 +428,14 @@ function textoLinea(marca: MarcaVivo, people: PersonaVivo[], club: string, rival
   return null;
 }
 
+/** Falta una hora o menos para el saque. El mismo link ya muestra el en vivo. */
+export function cercaDelSaque(startsAt: string, now = Date.now()): boolean {
+  const start = Date.parse(startsAt);
+  if (!Number.isFinite(start)) return false;
+  const falta = start - now;
+  return falta > 0 && falta <= ANTES_EN_VIVO_MS;
+}
+
 export function elegirPartidoEquipo<T extends { id: string; kind: string; startsAt: string; resultClosedAt?: string | null }>(
   events: T[],
   now = Date.now(),
@@ -434,6 +445,10 @@ export function elegirPartidoEquipo<T extends { id: string; kind: string; starts
     .filter((event) => estadoMarcador(event, now) === "juego")
     .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt));
   if (enJuego[0]) return enJuego[0];
+  const cerca = partidos
+    .filter((event) => !event.resultClosedAt && cercaDelSaque(event.startsAt, now))
+    .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
+  if (cerca[0]) return cerca[0];
   const recientes = partidos
     .filter((event) => {
       const closed = Date.parse(event.resultClosedAt ?? "");

@@ -15,6 +15,7 @@ import { PremioMini } from "@/components/fija/premio-card";
 import { alumniMember } from "@/lib/fija/stats";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { leerFamilia } from "@/lib/fija/familia";
+import { reaccionId } from "@/lib/fija/vivo";
 import { sheetFor, useFija, useIsStaff, useMe } from "@/lib/fija/store";
 import type { ClubEvent, ReaccionFecha } from "@/lib/fija/types";
 
@@ -77,6 +78,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
   const markMatchResult = useFija((s) => s.markMatchResult);
   const reaccionarFecha = useFija((s) => s.reaccionarFecha);
   const flushCloud = useFija((s) => s.flushCloud);
+  const teamToken = useFija((s) => s.club?.teamLiveToken ?? "");
   const [familias, setFamilias] = useState(0);
   const [nota, setNota] = useState("");
   const votes = useFija((s) => s.figuraVotes);
@@ -102,9 +104,10 @@ function FechaViva({ event }: { event: ClubEvent }) {
   const premiosMios = premiosDelPartido(event.id, ctx).filter((premio) => premio.memberId === me.id && premio.tipo === "figura");
 
   useEffect(() => {
-    if (!event.liveToken) return;
-    void leerFamilia({ data: event.liveToken }).then((result) => setFamilias(result.n)).catch(() => setFamilias(0));
-  }, [event.liveToken, event.resultClosedAt]);
+    const id = teamToken ? reaccionId("equipo", teamToken, event.id) : event.liveToken || "";
+    if (!id) return;
+    void leerFamilia({ data: id }).then((result) => setFamilias(result.n)).catch(() => setFamilias(0));
+  }, [teamToken, event.id, event.liveToken, event.resultClosedAt]);
   useEffect(() => {
     if (window.location.hash !== "#votar") return;
     document.getElementById("votar")?.scrollIntoView({ block: "start" });
