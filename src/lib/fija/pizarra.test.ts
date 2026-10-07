@@ -67,7 +67,7 @@ test("el visto no se repite y el jugador no marca a otro", () => {
 test("la jugada pide dos cuadros y el video tiene que ser un link", () => {
   const corta = guardarPasos(partido(), plantillaPelota("corned", []));
   assert.ok((corta.pasos?.cuadros.length ?? 0) >= 2);
-  assert.match(corta.pasos?.cuadros[0]?.texto ?? "", /primer palo/i);
+  assert.match(corta.pasos?.cuadros[0]?.texto ?? "", /córner a favor/i);
   assert.equal(guardarPasos(partido(), { id: "x", nombre: "x", tipo: "jugada", cuadros: [] }).pasos, undefined);
   assert.equal(videoLimpio("https://youtube.com/watch?v=1"), "https://youtube.com/watch?v=1");
   assert.equal(videoLimpio("nota.mp4"), "");

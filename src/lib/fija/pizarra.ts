@@ -230,27 +230,31 @@ export function sacarPaso(pasos: JugadaPaso, indice: number): JugadaPaso {
 export type PuestoJugada = { key: string; x: number; y: number; memberId?: string };
 
 export type ClaveJugada =
-  | "pared"
-  | "cambio"
+  | "presion"
+  | "transicion"
   | "salida"
   | "pelotazo"
-  | "primer-palo"
-  | "corto"
+  | "corner-favor"
+  | "corner-contra"
   | "tiro"
-  | "lateral";
+  | "tiro-izq"
+  | "tiro-der"
+  | "corto";
 
 export const JUGADAS_ABIERTAS: { id: ClaveJugada; nombre: string }[] = [
-  { id: "pared", nombre: "Pared" },
-  { id: "cambio", nombre: "Cambio de frente" },
+  { id: "presion", nombre: "Presión" },
+  { id: "transicion", nombre: "Transición" },
   { id: "salida", nombre: "Salida corta" },
   { id: "pelotazo", nombre: "Pelotazo" },
 ];
 
 export const PELOTAS_PARADAS: { id: ClaveJugada; nombre: string }[] = [
-  { id: "primer-palo", nombre: "Primer palo" },
-  { id: "corto", nombre: "Córner corto" },
+  { id: "corner-favor", nombre: "Córner a favor" },
+  { id: "corner-contra", nombre: "Córner en contra" },
   { id: "tiro", nombre: "Tiro libre" },
-  { id: "lateral", nombre: "Lateral" },
+  { id: "tiro-izq", nombre: "Tiro libre desde la izquierda" },
+  { id: "tiro-der", nombre: "Tiro libre desde la derecha" },
+  { id: "corto", nombre: "Córner corto" },
 ];
 
 function elegir(puestos: PuestoJugada[], keys: string[], usado: Set<string>): string | undefined {
@@ -290,20 +294,20 @@ export function armarJugada(clave: ClaveJugada, puestos: PuestoJugada[]): Jugada
   const a = (key: string | undefined, x: number, y: number) => (key ? { [key]: { x, y } } : {});
 
   const recetas: Record<ClaveJugada, { nombre: string; tipo: TipoPelota; cuadros: CuadroPaso[] }> = {
-    pared: {
-      nombre: "Pared",
+    presion: {
+      nombre: "Presión",
       tipo: "jugada",
       cuadros: armarCuadros(puestos, [
-        { texto: "El que tiene la pelota se la da al compañero y sigue la carrera.", pelota: { x: 58, y: 48 }, cambios: { ...a(volante, 58, 50), ...a(delantero, 70, 36) } },
-        { texto: "Se la devuelve al espacio, al que pasó. Es un uno-dos.", pelota: { x: 74, y: 28 }, cambios: { ...a(volante, 76, 30), ...a(delantero, 64, 40) } },
+        { texto: "Ellos tienen la pelota. Subimos juntos, no se queda nadie atrás.", pelota: { x: 50, y: 42 }, cambios: { ...a(delantero, 50, 30), ...a(volante, 42, 48), ...a(costado, 70, 46) } },
+        { texto: "El más cercano va a la pelota. El resto le cierra el pase.", pelota: { x: 48, y: 38 }, cambios: { ...a(delantero, 48, 34), ...a(segundo, 62, 36), ...a(volante, 36, 44) } },
       ]),
     },
-    cambio: {
-      nombre: "Cambio de frente",
+    transicion: {
+      nombre: "Transición",
       tipo: "jugada",
       cuadros: armarCuadros(puestos, [
-        { texto: "Están todos de un lado. No te metas ahí.", pelota: { x: 22, y: 46 }, cambios: { ...a(costado, 18, 44) } },
-        { texto: "Cambio de frente. El del otro lado tiene que estar abierto, no escondido.", pelota: { x: 82, y: 40 }, cambios: { ...a(costado, 86, 38), ...a(segundo, 78, 24) } },
+        { texto: "La recuperamos. El primer pase es para adelante, no para atrás.", pelota: { x: 46, y: 58 }, cambios: { ...a(volante, 46, 56), ...a(delantero, 58, 28) } },
+        { texto: "El 9 pica al espacio. Llegamos antes de que se ordenen.", pelota: { x: 64, y: 22 }, cambios: { ...a(delantero, 66, 16), ...a(segundo, 74, 28), ...a(volante, 52, 36) } },
       ]),
     },
     salida: {
@@ -323,13 +327,12 @@ export function armarJugada(clave: ClaveJugada, puestos: PuestoJugada[]): Jugada
         { texto: "Pelotazo al espacio, a la espalda de ellos. El 9 arranca antes del pase.", pelota: { x: 62, y: 18 }, cambios: { ...a(delantero, 64, 16) } },
       ]),
     },
-    "primer-palo": {
-      nombre: "Córner al primer palo",
+    "corner-favor": {
+      nombre: "Córner a favor",
       tipo: "corned",
       cuadros: armarCuadros(puestos, [
-        { texto: "El 9 al primer palo. Uno en el segundo. Otro en el corto, por si no hay centro.", pelota: { x: 94, y: 6 }, cambios: { ...a(delantero, 72, 14), ...a(segundo, 30, 16), ...a(volante, 82, 26) } },
-        { texto: "Centro al primer palo. Llega el 9, no se queda mirando.", pelota: { x: 70, y: 10 }, cambios: { ...a(delantero, 68, 12), ...a(segundo, 32, 16) } },
-        { texto: "Si se pasa, es del que está en el segundo palo.", pelota: { x: 34, y: 12 }, cambios: { ...a(segundo, 34, 14) } },
+        { texto: "Córner a favor. El 9 al área, uno al segundo palo y otro al borde.", pelota: { x: 94, y: 6 }, cambios: { ...a(delantero, 70, 14), ...a(segundo, 36, 16), ...a(volante, 80, 24) } },
+        { texto: "Centro al área. El que llega, define. El del borde, al rebote.", pelota: { x: 62, y: 12 }, cambios: { ...a(delantero, 64, 12), ...a(volante, 72, 22) } },
       ]),
     },
     corto: {
@@ -349,12 +352,28 @@ export function armarJugada(clave: ClaveJugada, puestos: PuestoJugada[]): Jugada
         { texto: "De ahí, centro al segundo palo.", pelota: { x: 36, y: 14 }, cambios: { ...a(delantero, 34, 14) } },
       ]),
     },
-    lateral: {
-      nombre: "Lateral",
-      tipo: "lateral",
+    "tiro-izq": {
+      nombre: "Tiro libre desde la izquierda",
+      tipo: "tiro",
       cuadros: armarCuadros(puestos, [
-        { texto: "Corto al de cerca. No lo tires al medio sin mirar.", pelota: { x: 96, y: 42 }, cambios: { ...a(costado, 88, 44), ...a(delantero, 74, 24) } },
-        { texto: "Se la devuelve y seguís. Si el delantero está solo, recién ahí va larga.", pelota: { x: 86, y: 40 }, cambios: { ...a(costado, 84, 42), ...a(delantero, 76, 22) } },
+        { texto: "Tiro libre desde la izquierda. Uno patea y el 9 al segundo palo.", pelota: { x: 28, y: 30 }, cambios: { ...a(volante, 28, 32), ...a(delantero, 62, 14), ...a(costado, 48, 28) } },
+        { texto: "Si tapan el tiro, pase al que está libre y centro.", pelota: { x: 50, y: 26 }, cambios: { ...a(costado, 52, 24), ...a(delantero, 64, 14) } },
+      ]),
+    },
+    "tiro-der": {
+      nombre: "Tiro libre desde la derecha",
+      tipo: "tiro",
+      cuadros: armarCuadros(puestos, [
+        { texto: "Tiro libre desde la derecha. El que patea y el 9 al palo de atrás.", pelota: { x: 72, y: 30 }, cambios: { ...a(volante, 72, 32), ...a(delantero, 38, 14), ...a(costado, 54, 28) } },
+        { texto: "Si no hay tiro, la abrís al segundo palo.", pelota: { x: 40, y: 16 }, cambios: { ...a(delantero, 38, 14) } },
+      ]),
+    },
+    "corner-contra": {
+      nombre: "Córner en contra",
+      tipo: "corned",
+      cuadros: armarCuadros(puestos, [
+        { texto: "Córner en contra. Uno en cada palo. El resto marca a su hombre.", pelota: { x: 6, y: 6 }, cambios: { ...a(delantero, 70, 12), ...a(segundo, 34, 12), ...a(volante, 52, 20), ...a(costado, 78, 22) } },
+        { texto: "Si la rechazamos, salimos. Nadie se queda mirando.", pelota: { x: 50, y: 32 }, cambios: { ...a(volante, 48, 40), ...a(delantero, 60, 28) } },
       ]),
     },
   };
@@ -363,7 +382,7 @@ export function armarJugada(clave: ClaveJugada, puestos: PuestoJugada[]): Jugada
 }
 
 export function plantillaPelota(tipo: TipoPelota, fichas: { memberId: string; x: number; y: number }[]): JugadaPaso {
-  const clave: ClaveJugada = tipo === "tiro" ? "tiro" : tipo === "lateral" ? "lateral" : tipo === "salida" ? "salida" : tipo === "jugada" ? "pared" : "primer-palo";
+  const clave: ClaveJugada = tipo === "tiro" ? "tiro" : tipo === "salida" ? "salida" : tipo === "jugada" ? "presion" : tipo === "lateral" ? "tiro" : "corner-favor";
   const puestos = fichas.map((ficha, index) => ({ key: `f${index}`, x: ficha.x, y: ficha.y, memberId: ficha.memberId }));
   return armarJugada(clave, puestos);
 }
