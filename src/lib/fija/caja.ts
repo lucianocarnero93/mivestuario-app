@@ -220,6 +220,33 @@ export function mergeCaja(previous?: Caja, incoming?: Caja): Caja {
   };
 }
 
+/** Un jugador no se nombra tesorero. Si ya lo es, no puede pasarle el mando a otro. */
+export function cajaSegura(
+  existing: Caja | undefined,
+  incoming: Caja | undefined,
+  staff: boolean,
+  memberId = "",
+): Caja | undefined {
+  if (staff) {
+    if (!incoming) return existing;
+    return mergeCaja(existing, { ...incoming, cobros: cobrosConfiables(existing?.cobros, incoming.cobros) });
+  }
+  const tesoreroId = existing?.tesoreroId ?? "";
+  const esTesorero = Boolean(memberId && tesoreroId && memberId === tesoreroId);
+  if (esTesorero) {
+    if (!incoming) return existing;
+    return mergeCaja(existing, {
+      ...incoming,
+      tesoreroId,
+      cobros: cobrosConfiables(existing?.cobros, incoming.cobros),
+    });
+  }
+  const propios = cobrosDelJugador(existing?.cobros, incoming?.cobros, memberId);
+  if (propios.length === 0) return existing;
+  const base = existing ?? { tesoreroId: "", gastos: [], cobros: [] };
+  return mergeCaja(existing, { ...base, tesoreroId, cobros: propios });
+}
+
 export function cuponesDe(gasto: Gasto): Cupon[] {
   if (gasto.cupones?.length) return gasto.cupones;
   return partesIguales(gasto.monto, gasto.personas).map((parte) => ({ id: parte.memberId, monto: parte.monto }));

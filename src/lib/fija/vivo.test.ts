@@ -9,6 +9,8 @@ import {
   cspVivo,
   combinarMarcasVivo,
   elegirPartidoEquipo,
+  elegirResultado,
+  elegirTokenEquipo,
   escaparXml,
   estadoMarcador,
   cercaDelSaque,
@@ -30,6 +32,7 @@ import {
   sanitizeLiveToken,
   tituloCompartido,
   tomarCache,
+  unirLogsVivo,
   VIVO_READ_LIMIT,
   vivoAttemptKey,
   vivoBotKey,
@@ -83,6 +86,8 @@ test("otro equipo no puede pisar ni borrar el link en vivo", () => {
   assert.equal(vivoPointerAllows(null, "SIETE"), true);
   assert.equal(vivoPointerAllows("SIETE", "SIETE"), true);
   assert.equal(vivoPointerAllows("SIETE", "OTRO"), false);
+  assert.equal(vivoPointerAllows("SIETE", "SIETE", true), false);
+  assert.equal(vivoPointerAllows(null, "SIETE", true), false);
 });
 
 test("el link público solo acepta un token largo", () => {
@@ -272,6 +277,19 @@ test("una hora antes el link del equipo ya pasa a ese partido", () => {
   assert.equal(elegirPartidoEquipo([viejo, hoy], Date.parse("2026-10-04T13:00:00-03:00"))?.id, "viejo");
 });
 
+test("un final recién cerrado no salta a un partido que ya estaba en juego", () => {
+  const ahora = Date.parse("2026-10-04T16:40:00-03:00");
+  const cerrado = partido({
+    id: "nuestro",
+    startsAt: "2026-10-04T15:00:00-03:00",
+    resultClosedAt: "2026-10-04T16:30:00-03:00",
+  });
+  const yaEnJuego = partido({ id: "tigres", startsAt: "2026-10-04T15:30:00-03:00" });
+  const arrancoDespues = partido({ id: "despues", startsAt: "2026-10-04T16:35:00-03:00" });
+  assert.equal(elegirPartidoEquipo([cerrado, yaEnJuego], ahora)?.id, "nuestro");
+  assert.equal(elegirPartidoEquipo([cerrado, arrancoDespues], ahora)?.id, "despues");
+});
+
 test("un jugador suma un gol y no puede borrar uno del medio", () => {
   const roster = new Set(["tato"]);
   const base: MarcaVivo[] = [{ id: "lv-1", kind: "gol", memberId: "tato", at: "2026-10-04T15:10:00-03:00" }];
@@ -355,6 +373,7 @@ test("la card del vivo lleva foto y nombre, y al menor no", () => {
 
 test("un jugador suma un gol y un guardado viejo no borra el último", () => {
   const members = [{ id: "tato" }];
+  const durante = Date.parse("2026-10-04T15:30:00-03:00");
   const base = partido({
     liveLog: [{ id: "lv-1", kind: "gol", memberId: "tato", at: "2026-10-04T15:10:00-03:00" }],
     fechaUpdatedAt: "2026-10-04T15:10:00-03:00",
@@ -365,21 +384,32 @@ test("un jugador suma un gol y un guardado viejo no borra el último", () => {
     [
       {
         ...base,
-        liveLog: [...(base.liveLog ?? []), { id: "lv-2", kind: "gol-rival", at: "2026-10-04T15:20:00-03:00" }],
-        fechaUpdatedAt: "2026-10-04T15:20:00-03:00",
+        liveLog: [...(base.liveLog ?? []), { id: "lv-2", kind: "gol-rival", at: "2099-01-01T00:00:00-03:00" }],
+        fechaUpdatedAt: "2099-01-01T00:00:00-03:00",
+        liveUpdatedAt: "2099-01-01T00:00:00-03:00",
         resultClosedAt: "2026-10-04T15:21:00-03:00",
       },
     ],
     members,
+    durante,
   );
   assert.deepEqual(suma[0]?.liveLog?.map((marca) => marca.id), ["lv-1", "lv-2"]);
   assert.equal(suma[0]?.resultClosedAt ?? null, null);
-  const viejo = aplicarMarcasDeJugador(suma, [base], members);
+  assert.equal(suma[0]?.resultUpdatedAt, new Date(durante).toISOString());
+  const viejo = aplicarMarcasDeJugador(suma, [base], members, durante);
   assert.deepEqual(viejo[0]?.liveLog?.map((marca) => marca.id), ["lv-1", "lv-2"]);
+  const reaccion = aplicarMarcasDeJugador(
+    suma,
+    [{ ...base, fechaUpdatedAt: "2026-10-04T15:31:00-03:00" }],
+    members,
+    Date.parse("2026-10-04T15:31:00-03:00"),
+  );
+  assert.deepEqual(reaccion[0]?.liveLog?.map((marca) => marca.id), ["lv-1", "lv-2"]);
   const deshace = aplicarMarcasDeJugador(
     suma,
-    [{ ...suma[0], liveLog: suma[0]?.liveLog?.slice(0, -1), fechaUpdatedAt: "2026-10-04T15:25:00-03:00" }],
+    [{ ...suma[0], liveLog: suma[0]?.liveLog?.slice(0, -1), liveUpdatedAt: "2026-10-04T15:31:00-03:00" }],
     members,
+    Date.parse("2026-10-04T15:31:00-03:00"),
   );
   assert.deepEqual(deshace[0]?.liveLog?.map((marca) => marca.id), ["lv-1"]);
   const cerrado = partido({
@@ -394,13 +424,28 @@ test("un jugador suma un gol y un guardado viejo no borra el último", () => {
         ...cerrado,
         resultClosedAt: null,
         liveLog: [...(cerrado.liveLog ?? []), { id: "lv-9", kind: "gol", memberId: "tato", at: "2026-10-04T18:00:00-03:00" }],
-        fechaUpdatedAt: "2026-10-04T18:00:00-03:00",
+        liveUpdatedAt: "2026-10-04T18:00:00-03:00",
       },
     ],
     members,
+    Date.parse("2026-10-04T18:00:00-03:00"),
   );
   assert.equal(no[0]?.resultClosedAt, cerrado.resultClosedAt);
   assert.equal(no[0]?.liveLog?.length, 1);
+  const tarde = Date.parse(kick) + JUEGO_TOPE_MS + 60_000;
+  const partidoViejo = aplicarMarcasDeJugador(
+    [base],
+    [
+      {
+        ...base,
+        liveLog: [...(base.liveLog ?? []), { id: "lv-viejo", kind: "gol", memberId: "tato", at: new Date(tarde).toISOString() }],
+        liveUpdatedAt: new Date(tarde).toISOString(),
+      },
+    ],
+    members,
+    tarde,
+  );
+  assert.equal(partidoViejo[0]?.liveLog?.length, 1);
   const vacio = partido({ liveLog: [], fechaUpdatedAt: kick });
   const conGol = partido({
     liveLog: [{ id: "lv-1", kind: "gol", memberId: "tato", at: "2026-10-04T15:10:00-03:00" }],
@@ -411,6 +456,47 @@ test("un jugador suma un gol y un guardado viejo no borra el último", () => {
   assert.equal(sheets[0]?.players[0]?.memberId, "tato");
   const sinGol = planillasDeMarcas(sheets, [conGol], [vacio]);
   assert.equal(sinGol[0]?.goalsFor, 0);
+});
+
+test("dos marcas distintas se suman y una hora futura no reabre", () => {
+  const ahora = Date.parse("2026-10-04T16:00:00-03:00");
+  const base: MarcaVivo[] = [{ id: "lv-1", kind: "gol", memberId: "tato", at: "2026-10-04T15:10:00-03:00" }];
+  const uno = unirLogsVivo(
+    base,
+    [...base, { id: "lv-2", kind: "gol", memberId: "enzo", at: "2026-10-04T15:20:00-03:00" }],
+    "2026-10-04T15:10:00-03:00",
+    "2026-10-04T15:20:00-03:00",
+    ahora,
+  );
+  const dos = unirLogsVivo(
+    uno,
+    [...base, { id: "lv-3", kind: "gol-rival", at: "2026-10-04T15:21:00-03:00" }],
+    "2026-10-04T15:20:00-03:00",
+    "2026-10-04T15:21:00-03:00",
+    ahora,
+  );
+  assert.deepEqual(dos.map((marca) => marca.id), ["lv-1", "lv-2", "lv-3"]);
+  const cerrado = { resultClosedAt: "2026-10-04T16:00:00-03:00" as string | null, resultPending: false, resultUpdatedAt: "2026-10-04T16:00:00-03:00" };
+  const copia = { resultClosedAt: null as string | null, resultPending: true, resultUpdatedAt: "2099-01-01T00:00:00-03:00" };
+  assert.equal(elegirResultado(cerrado, copia, ahora).resultClosedAt, cerrado.resultClosedAt);
+  const reabre = { resultClosedAt: null as string | null, resultPending: true, resultUpdatedAt: "2026-10-04T16:05:00-03:00" };
+  assert.equal(elegirResultado(cerrado, reabre, Date.parse("2026-10-04T16:05:00-03:00")).resultClosedAt, null);
+});
+
+test("apagar el link no lo revive una copia vieja", () => {
+  const ahora = Date.parse("2026-10-04T18:00:00-03:00");
+  const apagado = elegirTokenEquipo(
+    { teamLiveToken: null, teamLiveAt: "2026-10-04T17:00:00-03:00" },
+    { teamLiveToken: token, teamLiveAt: "2026-10-04T16:00:00-03:00" },
+    ahora,
+  );
+  assert.equal(apagado.teamLiveToken, null);
+  const prende = elegirTokenEquipo(
+    { teamLiveToken: null, teamLiveAt: "2026-10-04T17:00:00-03:00" },
+    { teamLiveToken: "b".repeat(32), teamLiveAt: "2026-10-04T17:30:00-03:00" },
+    ahora,
+  );
+  assert.equal(prende.teamLiveToken, "b".repeat(32));
 });
 
 test("sin pitazo inicial no se inventan minutos", () => {
@@ -570,6 +656,7 @@ test("un puntero sin partido o de otro tipo es huérfano", () => {
   assert.equal(punteroHuerfano(token, { kind: "entrenamiento", liveToken: token }), true);
   assert.equal(punteroHuerfano(token, { kind: "partido", liveToken: "b".repeat(32) }), true);
   assert.equal(punteroHuerfano(token, { kind: "partido", liveToken: token }), false);
+  assert.equal(punteroHuerfano(token, null, true), false);
 });
 
 test("el título para WhatsApp cambia con el momento", () => {

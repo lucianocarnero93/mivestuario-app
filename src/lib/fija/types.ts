@@ -101,6 +101,8 @@ export type Club = {
   colores?: { primary: string; secondary: string } | null;
   /** Link público del equipo. No vence con el partido. */
   teamLiveToken?: string | null;
+  /** Cuándo se prendió o se apagó ese link. Una copia vieja no lo revive. */
+  teamLiveAt?: string | null;
   /** Preparado para sponsors. Apagado hasta que SPONSORS_ACTIVO sea true. */
   sponsors?: { id: string; nombre: string; logoUrl: string; link?: string; activo: boolean }[];
 };
@@ -408,6 +410,8 @@ export type AppState = {
   alumni?: Alumni[];
   caja?: Caja;
   biblioteca?: JugadaGuardada[];
+  /** Cuándo se cambió Mis jugadas. Una copia vieja no pisa una nueva. */
+  bibliotecaAt?: string;
   archivedClubs: ClubBundle[];
   profile: Profile;
   gpsConsent: GpsConsent;

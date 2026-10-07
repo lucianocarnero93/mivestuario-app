@@ -10,6 +10,7 @@ import {
   memberGetsPush,
   overAttempt,
   claimExistingName,
+  bibliotecaMasNueva,
   decideClaim,
   equipmentHeading,
   mergePlayerAlerts,
@@ -309,6 +310,29 @@ test("el DT no se puede convertir en un jugador cargado a mano", () => {
   assert.equal(claimed.ok, false);
   if (claimed.ok) return;
   assert.match(claimed.error, /otro jugador/);
+});
+
+test("un jugador ya en el plantel no se queda con un lugar sin cuenta", () => {
+  const team = bundle([
+    person({ id: "j-pepe", name: "Pepe", accountId: "acc-p" }),
+    person({ id: "j-enzo", name: "Enzo", number: 8 }),
+    person({ id: "j-nino", name: "Nino", menor: true }),
+  ]);
+  const claimed = claimExistingName(team, "acc-p", "j-enzo");
+  assert.equal(claimed.ok, false);
+  const sombra = bundle([
+    person({ id: "acc-p", name: "Pepe", accountId: "acc-p" }),
+    person({ id: "j-nino", name: "Nino", menor: true }),
+  ]);
+  const menor = claimExistingName(sombra, "acc-p", "j-nino");
+  assert.equal(menor.ok, false);
+});
+
+test("mis jugadas se guardan aunque el servidor no tenga hora", () => {
+  assert.equal(bibliotecaMasNueva("2026-10-07T12:00:00-03:00", undefined), true);
+  assert.equal(bibliotecaMasNueva("2026-10-07T12:00:00-03:00", ""), true);
+  assert.equal(bibliotecaMasNueva(undefined, "2026-10-07T12:00:00-03:00"), false);
+  assert.equal(bibliotecaMasNueva("2026-10-07T11:00:00-03:00", "2026-10-07T12:00:00-03:00"), false);
 });
 
 function match(id = "e1", startsAt = "2026-04-01T21:00:00.000Z"): ClubEvent {

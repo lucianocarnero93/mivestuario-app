@@ -51,7 +51,9 @@ function FechaPage() {
     <main className="px-4 py-5">
       <h1 className="text-2xl font-semibold">Fecha</h1>
       <p className="mt-1 text-sm text-muted">
-        {momento === "antes"
+        {actual?.resultClosedAt && momento === "en_juego"
+          ? "Este partido ya terminó."
+          : momento === "antes"
           ? "Cada fecha tiene su figura. Ahora tiene card."
           : momento === "en_juego"
             ? "El partido está en juego."
@@ -169,7 +171,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
                 return;
               }
               void flushCloud();
-              setNota("Partido terminado. La familia ve el final si el link sigue abierto.");
+              setNota("Partido terminado. La familia ve este final en el link, salvo que otro partido haya arrancado después.");
             }}
           >
             Terminar partido

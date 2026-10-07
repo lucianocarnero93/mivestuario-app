@@ -94,11 +94,11 @@ export function ParaLaFamilia({ event }: { event: ClubEvent }) {
     <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
       <p className="text-[13px] font-semibold uppercase tracking-widest text-muted">Para la familia</p>
       <p className="mt-1 text-sm text-muted">
-        Un solo link. Lejos del partido muestra el próximo. Desde una hora antes ya es el en vivo: el resultado y la formación, y se actualiza solo. Se ven apodos, número y puesto. No hay fotos ni nombres.
+        Un solo link. Lejos del partido muestra el próximo. Desde una hora antes ya es el en vivo: el resultado y la formación, y se actualiza solo. Se ven foto y nombre. Un menor va con apodo y sin foto.
       </p>
       {aviso ? (
         <p className="mt-3 text-sm">
-          En el link se ven los apodos. Revisá que ninguno sea un nombre completo.
+          Un menor sale con apodo y sin foto. Revisá que ese apodo no sea el nombre completo.
           <button
             type="button"
             className="mt-2 h-12 w-full rounded-md bg-accent font-semibold text-accent-fg"

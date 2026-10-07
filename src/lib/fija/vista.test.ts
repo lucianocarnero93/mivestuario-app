@@ -84,4 +84,12 @@ test("el lunes muestra la semana pasada en horario de Buenos Aires", () => {
   assert.equal(resumen.titulo, "Resumen de la semana pasada");
   assert.equal(resumen.partidos.length, 1);
   assert.equal(resumen.partidos[0]?.goleador, "mati");
+  assert.equal(resumen.partidos[0]?.resultado, "2–1 vs Academia");
+  const conVs = resumenSemana(
+    [{ ...event, id: "p2", title: "vs QA Vivo" }],
+    [{ eventId: "p2", opponent: "", goalsFor: 2, goalsAgainst: 0, notes: "", recordedAt: "", players: [] }],
+    (id) => id,
+    lunes,
+  );
+  assert.equal(conVs.partidos[0]?.resultado, "2–0 vs QA Vivo");
 });

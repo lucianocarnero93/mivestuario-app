@@ -356,6 +356,15 @@ export function escudoElegido(
 
 const FUTURE_SKEW_MS = 2 * 60 * 1000;
 
+/** Sin hora en el servidor, la biblioteca que llega es la primera. Una hora inválida no pisa. */
+export function bibliotecaMasNueva(incomingAt?: string, existingAt?: string): boolean {
+  const next = Date.parse(incomingAt ?? "");
+  if (!Number.isFinite(next)) return false;
+  const prev = Date.parse(existingAt ?? "");
+  if (!Number.isFinite(prev)) return true;
+  return next >= prev;
+}
+
 function stampMillis(value: string | undefined, now: number): number | null {
   const parsed = Date.parse(value ?? "");
   if (!Number.isFinite(parsed) || parsed > now + FUTURE_SKEW_MS) return null;
@@ -671,8 +680,11 @@ export function claimExistingName(
   if (staff && caller.id !== target.id) {
     return { ok: false, error: "Ya estás en el equipo. Ese nombre es de otro jugador." };
   }
-  if (!staff && target.accountId && target.id !== caller.id) {
-    return { ok: false, error: "Ese nombre ya tiene otra cuenta." };
+  if (!staff && caller.id !== target.id) {
+    const sombra = caller.id === accountId;
+    if (!sombra || target.accountId || target.menor === true || (target.role && target.role !== "jugador")) {
+      return { ok: false, error: "Ese nombre es de otro jugador." };
+    }
   }
   if (target.id === caller.id && target.accountId === accountId) return { ok: true, bundle };
   const duplicate = bundle.members.find(

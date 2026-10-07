@@ -3,7 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { withTransaction } from "@/lib/db";
-import { mergeCaja, cobrosConfiables, cobrosDelJugador } from "./caja";
+import { cobrosConfiables, cajaSegura } from "./caja";
 import { figuraPermitida, mergeFiguraVotes, votosAceptables } from "./figura";
 import { FORMATIONS } from "./formations";
 import {
@@ -24,6 +24,12 @@ import {
   vivoBotKey,
   vivoPointerAllows,
   vivoReadLimited,
+  unirLogsVivo,
+  elegirResultado,
+  elegirTokenEquipo,
+  instanteConfiable,
+  sellarInstante,
+  sellarEvento,
   VIVO_BOT_LIMIT,
   VIVO_CACHE_MS,
   VIVO_READ_LIMIT,
@@ -48,6 +54,7 @@ import {
   pickMemberIdentity,
   perfilMasNuevo,
   resultIsOpen,
+  bibliotecaMasNueva,
   escudoElegido,
   HARD_BYTES,
   mergeAlumni,
@@ -64,7 +71,7 @@ import {
 } from "./club-rules";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { vestuarioLog } from "@/lib/vestuario-log";
-import type { ClubBundle, ClubEvent, MatchSheet, Member, Rsvp, Tournament } from "./types";
+import type { ClubBundle, ClubEvent, MarcaVivo, MatchSheet, Member, Rsvp, Tournament } from "./types";
 
 const COLLECTION = "clubs";
 const ATTEMPTS = "intentos";
@@ -295,23 +302,58 @@ function invalidarMarcador(token: string) {
   invalidarCache(cacheMarcador, `e:${token}`);
 }
 
+type PunteroVivo = { code: string | null; eventId: string; closed: boolean };
+
+function parsePuntero(raw: unknown): { code?: string; eventId?: string; closed?: boolean } | null {
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as { code?: string; eventId?: string; closed?: boolean };
+    } catch {
+      return null;
+    }
+  }
+  if (raw && typeof raw === "object") return raw as { code?: string; eventId?: string; closed?: boolean };
+  return null;
+}
+
+async function leerPuntero(
+  sql: { query: (text: string, params?: unknown[]) => Promise<{ data: unknown }[]> },
+  token: string,
+  collection = VIVO,
+): Promise<PunteroVivo> {
+  const rows = await sql.query("select data from vestuario_docs where collection = $1 and id = $2", [collection, token]);
+  const pointer = parsePuntero(rows[0]?.data);
+  const code = sanitizeCode(String(pointer?.code ?? "")) || null;
+  return {
+    code,
+    eventId: String(pointer?.eventId ?? ""),
+    closed: pointer?.closed === true,
+  };
+}
+
 async function vivoCodeOf(
-  sql: { query: (text: string, params?: unknown[]) => Promise<{ data: { code?: string } | string }[]> },
+  sql: { query: (text: string, params?: unknown[]) => Promise<{ data: unknown }[]> },
   token: string,
   collection = VIVO,
 ): Promise<string | null> {
-  const rows = await sql.query("select data from vestuario_docs where collection = $1 and id = $2", [collection, token]);
-  const raw = rows[0]?.data;
-  let pointer: { code?: string } | null = null;
-  if (typeof raw === "string") {
-    try {
-      pointer = JSON.parse(raw) as { code?: string };
-    } catch {
-      pointer = null;
-    }
-  } else if (raw && typeof raw === "object") pointer = raw;
-  const code = sanitizeCode(String(pointer?.code ?? ""));
-  return code || null;
+  const puntero = await leerPuntero(sql, token, collection);
+  if (puntero.closed) return null;
+  return puntero.code;
+}
+
+async function guardarPuntero(
+  sql: { query: (text: string, params?: unknown[]) => Promise<unknown> },
+  collection: string,
+  token: string,
+  data: { code: string; eventId?: string; closed?: boolean },
+) {
+  await sql.query(
+    `insert into vestuario_docs (collection, id, data, updated_at)
+     values ($1, $2, $3::jsonb, now())
+     on conflict (collection, id)
+     do update set data = excluded.data, updated_at = now()`,
+    [collection, token, JSON.stringify(data)],
+  );
 }
 
 async function agenteDe(): Promise<string> {
@@ -403,20 +445,16 @@ async function barrerVivo() {
   await sql.query("delete from vestuario_docs where collection = $1 and updated_at < now() - interval '2 hours'", [
     ATTEMPTS,
   ]);
-  const rows = await sql.query<{ id: string; data: { code?: string; eventId?: string } | string }>(
+  const rows = await sql.query<{ id: string; data: unknown }>(
     "select id, data from vestuario_docs where collection = $1 order by updated_at asc limit 8",
     [VIVO],
   );
   for (const row of rows) {
-    const raw = row.data;
-    let pointer: { code?: string; eventId?: string } | null = null;
-    if (typeof raw === "string") {
-      try {
-        pointer = JSON.parse(raw) as { code?: string; eventId?: string };
-      } catch {
-        pointer = null;
-      }
-    } else if (raw && typeof raw === "object") pointer = raw;
+    const pointer = parsePuntero(row.data);
+    if (pointer?.closed === true) {
+      await sql.query("update vestuario_docs set updated_at = now() where collection = $1 and id = $2", [VIVO, row.id]);
+      continue;
+    }
     const code = sanitizeCode(String(pointer?.code ?? ""));
     const bundle = code ? await readClub(code) : null;
     const event = bundle?.events.find((item) => item.id === pointer?.eventId) ?? null;
@@ -520,19 +558,12 @@ export async function resolverMarcador(input: { t?: string; e?: string }, ua = "
     if (armado.ok) guardarCache(cacheMarcador, clave, armado, Date.now());
     return armado;
   }
-  const rows = await sql.query<{ data: { code?: string; eventId?: string } | string }>(
+  const rows = await sql.query<{ data: unknown }>(
     "select data from vestuario_docs where collection = $1 and id = $2",
     [VIVO, token],
   );
-  const raw = rows[0]?.data;
-  let pointer: { code?: string; eventId?: string } | null = null;
-  if (typeof raw === "string") {
-    try {
-      pointer = JSON.parse(raw) as { code?: string; eventId?: string };
-    } catch {
-      pointer = null;
-    }
-  } else if (raw && typeof raw === "object") pointer = raw;
+  const pointer = parsePuntero(rows[0]?.data);
+  if (pointer?.closed === true) return { ok: false, reason: "missing" };
   const code = sanitizeCode(String(pointer?.code ?? ""));
   const eventId = String(pointer?.eventId ?? "");
   if (!code || !eventId) return { ok: false, reason: "missing" };
@@ -571,15 +602,9 @@ export const publicarMarcador = createServerFn({ method: "POST" })
     if (!event) return { ok: false, reason: "esperando" };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    const owner = await vivoCodeOf(sql, data.token);
-    if (!vivoPointerAllows(owner, data.code)) return { ok: false };
-    await sql.query(
-      `insert into vestuario_docs (collection, id, data, updated_at)
-       values ($1, $2, $3::jsonb, now())
-       on conflict (collection, id)
-       do update set data = excluded.data, updated_at = now()`,
-      [VIVO, data.token, JSON.stringify({ code: data.code, eventId: event.id })],
-    );
+    const owner = await leerPuntero(sql, data.token);
+    if (!vivoPointerAllows(owner.code, data.code, owner.closed)) return { ok: false };
+    await guardarPuntero(sql, VIVO, data.token, { code: data.code, eventId: event.id });
     invalidarMarcador(data.token);
     return { ok: true };
   });
@@ -598,9 +623,9 @@ export const cerrarMarcador = createServerFn({ method: "POST" })
     if (!bundle || !isStaffMember(me)) return { ok: false };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    const owner = await vivoCodeOf(sql, data.token);
-    if (owner !== data.code) return { ok: false };
-    await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [VIVO, data.token]);
+    const owner = await leerPuntero(sql, data.token);
+    if (owner.code !== data.code) return { ok: false };
+    await guardarPuntero(sql, VIVO, data.token, { code: data.code, closed: true });
     invalidarMarcador(data.token);
     return { ok: true };
   });
@@ -619,15 +644,9 @@ export const publicarEquipo = createServerFn({ method: "POST" })
     if (!bundle || !isStaffMember(me)) return { ok: false };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    const owner = await vivoCodeOf(sql, data.token, VIVO_EQUIPO);
-    if (!vivoPointerAllows(owner, data.code)) return { ok: false };
-    await sql.query(
-      `insert into vestuario_docs (collection, id, data, updated_at)
-       values ($1, $2, $3::jsonb, now())
-       on conflict (collection, id)
-       do update set data = excluded.data, updated_at = now()`,
-      [VIVO_EQUIPO, data.token, JSON.stringify({ code: data.code })],
-    );
+    const owner = await leerPuntero(sql, data.token, VIVO_EQUIPO);
+    if (!vivoPointerAllows(owner.code, data.code, owner.closed)) return { ok: false };
+    await guardarPuntero(sql, VIVO_EQUIPO, data.token, { code: data.code });
     invalidarMarcador(data.token);
     return { ok: true };
   });
@@ -646,9 +665,9 @@ export const cerrarEquipo = createServerFn({ method: "POST" })
     if (!bundle || !isStaffMember(me)) return { ok: false };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
-    const owner = await vivoCodeOf(sql, data.token, VIVO_EQUIPO);
-    if (owner !== data.code) return { ok: false };
-    await sql.query("delete from vestuario_docs where collection = $1 and id = $2", [VIVO_EQUIPO, data.token]);
+    const owner = await leerPuntero(sql, data.token, VIVO_EQUIPO);
+    if (owner.code !== data.code) return { ok: false };
+    await guardarPuntero(sql, VIVO_EQUIPO, data.token, { code: data.code, closed: true });
     invalidarMarcador(data.token);
     return { ok: true };
   });
@@ -1086,7 +1105,7 @@ function boardStamp(value: string | undefined): number {
   return Number.isFinite(time) ? time : 0;
 }
 
-export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
+export function pickEvent(previous: ClubEvent, incoming: ClubEvent, now = Date.now()): ClubEvent {
   const previousSpots = Object.keys(previous.lineup ?? {}).length;
   const incomingSpots = Object.keys(incoming.lineup ?? {}).length;
   const boardChanged =
@@ -1101,20 +1120,23 @@ export function pickEvent(previous: ClubEvent, incoming: ClubEvent): ClubEvent {
         : boardChanged || incomingSpots >= previousSpots
           ? { ...previous, ...incoming }
           : { ...incoming, ...previous, lineup: previous.lineup };
-  const tidy = tidySquad(keepResultMark(previous, incoming, merged));
-  const prevLive = boardStamp(previous.liveUpdatedAt);
-  const nextLive = boardStamp(incoming.liveUpdatedAt);
+  const tidy = tidySquad(keepResultMark(previous, incoming, merged, now));
+  const prevLive = instanteConfiable(previous.liveUpdatedAt, now);
+  const nextLive = instanteConfiable(incoming.liveUpdatedAt, now);
   const liveSource = nextLive >= prevLive ? incoming : previous;
-  return {
-    ...tidy,
-    liveToken: liveSource.liveToken ?? null,
-    liveUpdatedAt: liveSource.liveUpdatedAt,
-    jugada: preferirJugada(previous.jugada, incoming.jugada),
-    vistos: juntarVistos(previous.vistos, incoming.vistos),
-    ...camposDePizarra(previous, incoming),
-    ...camposFecha(previous, incoming),
-    ...datosDeFecha(previous, incoming),
-  };
+  return sellarEvento(
+    {
+      ...tidy,
+      liveToken: liveSource.liveToken ?? null,
+      liveUpdatedAt: liveSource.liveUpdatedAt,
+      jugada: preferirJugada(previous.jugada, incoming.jugada),
+      vistos: juntarVistos(previous.vistos, incoming.vistos),
+      ...camposDePizarra(previous, incoming),
+      ...camposFecha(previous, incoming, now),
+      ...datosDeFecha(previous, incoming),
+    },
+    now,
+  );
 }
 
 function tidySquad(event: ClubEvent): ClubEvent {
@@ -1132,13 +1154,14 @@ function tidySquad(event: ClubEvent): ClubEvent {
   return { ...event, lineup, convocados, suplentes };
 }
 
-function sheetTime(sheet: MatchSheet): number {
-  const time = sheet.recordedAt ? +new Date(sheet.recordedAt) : 0;
-  return Number.isFinite(time) ? time : 0;
+function sheetTime(sheet: MatchSheet, now = Date.now()): number {
+  return instanteConfiable(sheet.recordedAt, now);
 }
 
-export function pickSheet(previous: MatchSheet, incoming: MatchSheet): MatchSheet {
-  return sheetTime(incoming) >= sheetTime(previous) ? incoming : previous;
+export function pickSheet(previous: MatchSheet, incoming: MatchSheet, now = Date.now()): MatchSheet {
+  const chosen = sheetTime(incoming, now) >= sheetTime(previous, now) ? incoming : previous;
+  const recordedAt = sellarInstante(chosen.recordedAt, now) ?? chosen.recordedAt;
+  return recordedAt === chosen.recordedAt ? chosen : { ...chosen, recordedAt };
 }
 
 export function withoutDroppedCharla(bundle: ClubBundle, dropped: Set<string>): ClubBundle {
@@ -1190,12 +1213,13 @@ function datosDeFecha(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent,
   };
 }
 
-function camposFecha(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, "liveLog" | "reacciones" | "fechaOculta" | "encuesta" | "fechaUpdatedAt"> {
-  const prev = boardStamp(previous.fechaUpdatedAt);
-  const next = boardStamp(incoming.fechaUpdatedAt);
+function camposFecha(previous: ClubEvent, incoming: ClubEvent, now = Date.now()): Pick<ClubEvent, "liveLog" | "reacciones" | "fechaOculta" | "encuesta" | "fechaUpdatedAt"> {
+  const prev = instanteConfiable(previous.fechaUpdatedAt, now);
+  const next = instanteConfiable(incoming.fechaUpdatedAt, now);
+  const liveLog = unirLogsVivo(previous.liveLog, incoming.liveLog, previous.liveUpdatedAt, incoming.liveUpdatedAt, now);
   if (prev === 0 && next === 0) {
     return {
-      liveLog: (incoming.liveLog ?? previous.liveLog ?? []).slice(-40),
+      liveLog,
       reacciones: (incoming.reacciones ?? previous.reacciones ?? []).slice(-80),
       fechaOculta: Boolean(incoming.fechaOculta || previous.fechaOculta),
       encuesta: incoming.encuesta ?? previous.encuesta,
@@ -1204,7 +1228,7 @@ function camposFecha(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, 
   }
   const source = next >= prev ? incoming : previous;
   return {
-    liveLog: (source.liveLog ?? []).slice(-40),
+    liveLog,
     reacciones: (source.reacciones ?? []).slice(-80),
     fechaOculta: Boolean(source.fechaOculta),
     encuesta: source.encuesta,
@@ -1212,17 +1236,36 @@ function camposFecha(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, 
   };
 }
 
-function keepResultMark(previous: ClubEvent, incoming: ClubEvent, merged: ClubEvent): ClubEvent {
-  const prevTime = previous.resultUpdatedAt ? +new Date(previous.resultUpdatedAt) : 0;
-  const nextTime = incoming.resultUpdatedAt ? +new Date(incoming.resultUpdatedAt) : 0;
-  const source =
-    nextTime > prevTime ? incoming : nextTime < prevTime ? previous : incoming.resultClosedAt || incoming.resultPending ? incoming : previous;
+function keepResultMark(previous: ClubEvent, incoming: ClubEvent, merged: ClubEvent, now = Date.now()): ClubEvent {
+  const source = elegirResultado(previous, incoming, now);
   return {
     ...merged,
     resultClosedAt: source.resultClosedAt ?? null,
     resultPending: Boolean(source.resultPending),
     resultUpdatedAt: source.resultUpdatedAt,
   };
+}
+
+function logDistinto(antes: MarcaVivo[] | undefined, despues: MarcaVivo[] | undefined): boolean {
+  const left = antes ?? [];
+  const right = despues ?? [];
+  return left.length !== right.length || left.some((marca, index) => marca.id !== right[index]?.id);
+}
+
+function hojasConLog(merged: MatchSheet[], serverSheets: MatchSheet[], antes: ClubEvent[], despues: ClubEvent[]): MatchSheet[] {
+  const desdeLog = planillasDeMarcas(serverSheets, antes, despues);
+  const tocados = new Set(
+    despues
+      .filter((event) => logDistinto(antes.find((item) => item.id === event.id)?.liveLog, event.liveLog))
+      .map((event) => event.id),
+  );
+  if (tocados.size === 0) return merged;
+  const porLog = new Map(desdeLog.filter((sheet) => tocados.has(sheet.eventId)).map((sheet) => [sheet.eventId, sheet]));
+  const next = merged.map((sheet) => porLog.get(sheet.eventId) ?? sheet);
+  for (const [id, sheet] of porLog) {
+    if (!next.some((item) => item.eventId === id)) next.push(sheet);
+  }
+  return next;
 }
 
 function mergeSheetsByTime(kept: MatchSheet[], incoming: MatchSheet[], events: ClubEvent[]): MatchSheet[] {
@@ -1283,16 +1326,7 @@ function cajaAlGuardar(
   staff: boolean,
   memberId?: string,
 ): ClubBundle["caja"] {
-  const tesoreroId = incoming?.tesoreroId || existing?.tesoreroId;
-  const puede = staff || Boolean(memberId && tesoreroId && memberId === tesoreroId);
-  if (puede) {
-    if (!incoming) return existing;
-    return mergeCaja(existing, { ...incoming, cobros: cobrosConfiables(existing?.cobros, incoming.cobros) });
-  }
-  const propios = cobrosDelJugador(existing?.cobros, incoming?.cobros, memberId ?? "");
-  if (propios.length === 0) return existing;
-  const base = existing ?? { tesoreroId: "", gastos: [], cobros: [] };
-  return mergeCaja(existing, { ...base, cobros: propios });
+  return cajaSegura(existing, incoming, staff, memberId);
 }
 
 function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId: string): ClubBundle {
@@ -1429,10 +1463,11 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
             ? incoming.club.createdBy || creatorId
             : creatorId,
           crest: escudoElegido(existing.club.crest, incoming.club.crest, staff),
+          ...elegirTokenEquipo(existing.club, incoming.club),
         }
       : existing.club,
     members: listed,
-    events: mergedEvents,
+    events: mergedEvents.map((event) => sellarEvento(event)),
     rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => listed.some((person) => person.id === row.memberId)),
     messages: clipTextList(
       unionById(
@@ -1442,7 +1477,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     ),
     charla: clipTextList(staff ? unionById(existing.charla, incoming.charla) : existing.charla),
     matchSheets: staff
-      ? mergeSheetsByTime(existing.matchSheets, incoming.matchSheets, mergedEvents)
+      ? hojasConLog(mergeSheetsByTime(existing.matchSheets, incoming.matchSheets, mergedEvents), existing.matchSheets, existing.events, mergedEvents)
       : planillasDeMarcas(existing.matchSheets, existing.events, mergedEvents),
     figuraVotes: mergeFiguraVotes(votosPrevios, votosAceptables(votosPrevios, votos, mergedEvents, Date.now())),
     invites: staff ? unionById(existing.invites, incoming.invites) : existing.invites,
@@ -1468,10 +1503,10 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     alumni,
     bannedAccounts,
     caja: cajaAlGuardar(existing.caja, incoming.caja, staff, me?.id),
-    biblioteca: staff && Date.parse(incoming.bibliotecaAt ?? "") >= Date.parse(existing.bibliotecaAt ?? "")
+    biblioteca: staff && bibliotecaMasNueva(incoming.bibliotecaAt, existing.bibliotecaAt)
       ? (incoming.biblioteca ?? []).slice(0, 30)
       : (existing.biblioteca ?? []),
-    bibliotecaAt: staff && Date.parse(incoming.bibliotecaAt ?? "") >= Date.parse(existing.bibliotecaAt ?? "")
+    bibliotecaAt: staff && bibliotecaMasNueva(incoming.bibliotecaAt, existing.bibliotecaAt)
       ? incoming.bibliotecaAt
       : existing.bibliotecaAt,
       },
@@ -1537,8 +1572,10 @@ export const saveClubDoc = createServerFn({ method: "POST" })
             [data.code, JSON.stringify({ crest: viejo })],
           );
         }
+        const yo = memberFor((existing ?? data.bundle).members, userId);
         for (const person of data.bundle.members ?? []) {
-          if (!person.accountId || person.menor) continue;
+          if (!yo || person.accountId !== userId || person.id !== yo.id) continue;
+          if (person.menor || yo.menor) continue;
           const foto = person.photo;
           if (!foto || !foto.startsWith("data:image/") || foto.length > 30_000) continue;
           await query(

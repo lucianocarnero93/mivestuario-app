@@ -1,7 +1,6 @@
 import { datosCard, estadoFigura, premiosDelPartido, type ContextoPremios } from "./premios.ts";
 import { votacionAbierta, FIGURA_CIERRE_HORAS } from "./figura.ts";
 import { armarAlineacion, type DatosAlineacion, type FichaBanco, type FichaTitular } from "./alineacion.ts";
-import { resultIsOpen } from "./club-rules.ts";
 import { clampStat, emptyStat } from "./stats.ts";
 import type { Club, ClubEvent, FiguraVote, MatchSheet, MarcaVivo } from "./types.ts";
 import type { Sponsor } from "./sponsors.ts";
@@ -86,6 +85,10 @@ export const VIVO_OG_CACHE_MS = 60_000;
 export const JUEGO_TOPE_MS = 3 * 60 * 60 * 1000;
 export const ANTES_EN_VIVO_MS = 60 * 60 * 1000;
 export const FINAL_VENTANA_MS = 48 * 60 * 60 * 1000;
+/** Un final recién cerrado se queda en el link si el otro partido ya había arrancado. */
+const FINAL_RECIEN_MS = 90 * 60 * 1000;
+/** Una hora adelantada más de esto no puede ganar una mezcla. */
+export const FUTURO_MS = 2 * 60 * 1000;
 export const POLL_ESPERA = 60_000;
 export const POLL_JUEGO = 12_000;
 export const POLL_FINAL = 5 * 60_000;
@@ -102,9 +105,46 @@ export function estadoMarcador(
   return "juego";
 }
 
-export function vivoPointerAllows(existingCode: string | null, requestedCode: string): boolean {
+export function vivoPointerAllows(existingCode: string | null, requestedCode: string, closed = false): boolean {
+  if (closed) return false;
   if (!existingCode) return true;
   return existingCode === requestedCode;
+}
+
+/** Una marca de hora futura no cuenta: si no, el celular adelantado traba al DT. */
+export function instanteConfiable(value: string | null | undefined, now = Date.now()): number {
+  const time = Date.parse(value ?? "");
+  if (!Number.isFinite(time) || time > now + FUTURO_MS) return 0;
+  return time;
+}
+
+export function sellarInstante(value: string | undefined, now = Date.now()): string | undefined {
+  if (!value) return value;
+  const time = Date.parse(value);
+  if (!Number.isFinite(time) || time > now + FUTURO_MS) return new Date(now).toISOString();
+  return value;
+}
+
+export function sellarEvento<T extends ClubEvent>(event: T, now = Date.now()): T {
+  const liveUpdatedAt = sellarInstante(event.liveUpdatedAt, now);
+  const fechaUpdatedAt = sellarInstante(event.fechaUpdatedAt, now);
+  const resultUpdatedAt = sellarInstante(event.resultUpdatedAt, now);
+  if (
+    liveUpdatedAt === event.liveUpdatedAt &&
+    fechaUpdatedAt === event.fechaUpdatedAt &&
+    resultUpdatedAt === event.resultUpdatedAt
+  ) {
+    return event;
+  }
+  return { ...event, liveUpdatedAt, fechaUpdatedAt, resultUpdatedAt };
+}
+
+/** El plantel marca solo mientras el partido está en juego: desde el saque y por 3 h. */
+export function partidoMarcable(startsAt: string, resultClosedAt?: string | null, now = Date.now()): boolean {
+  if (resultClosedAt) return false;
+  const start = Date.parse(startsAt);
+  if (!Number.isFinite(start) || start > now) return false;
+  return now - start < JUEGO_TOPE_MS;
 }
 
 export function sanitizeLiveToken(value: unknown): string {
@@ -151,7 +191,9 @@ export function debeLimpiar(ultimo: number, ahora: number, cada = 60 * 60 * 1000
 export function punteroHuerfano(
   token: string,
   event: { liveToken?: string | null; kind?: string } | null,
+  closed = false,
 ): boolean {
+  if (closed) return false;
   if (!event || event.kind !== "partido") return true;
   return event.liveToken !== token;
 }
@@ -452,6 +494,18 @@ export function elegirPartidoEquipo<T extends { id: string; kind: string; starts
   const enJuego = partidos
     .filter((event) => estadoMarcador(event, now) === "juego")
     .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt));
+  const finalReciente = partidos
+    .filter((event) => {
+      const closed = Date.parse(event.resultClosedAt ?? "");
+      return Number.isFinite(closed) && now >= closed && now - closed <= FINAL_RECIEN_MS;
+    })
+    .sort((a, b) => Date.parse(b.resultClosedAt ?? "") - Date.parse(a.resultClosedAt ?? ""))[0];
+  if (enJuego.length > 0 && finalReciente) {
+    const cierre = Date.parse(finalReciente.resultClosedAt ?? "");
+    const arrancoDespues = enJuego.some((event) => Date.parse(event.startsAt) >= cierre);
+    if (!arrancoDespues) return finalReciente;
+    return enJuego[0];
+  }
   if (enJuego[0]) return enJuego[0];
   const cerca = partidos
     .filter((event) => !event.resultClosedAt && cercaDelSaque(event.startsAt, now))
@@ -468,6 +522,37 @@ export function elegirPartidoEquipo<T extends { id: string; kind: string; starts
     .filter((event) => Date.parse(event.startsAt) > now)
     .sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
   return proximos[0] ?? null;
+}
+
+/** El link que se apagó no vuelve con una copia vieja. Sin hora, no se apaga ni se revive. */
+export function elegirTokenEquipo(
+  existing: { teamLiveToken?: string | null; teamLiveAt?: string | null },
+  incoming: { teamLiveToken?: string | null; teamLiveAt?: string | null },
+  now = Date.now(),
+): { teamLiveToken: string | null; teamLiveAt?: string } {
+  const prevAt = instanteConfiable(existing.teamLiveAt ?? undefined, now);
+  const nextAt = instanteConfiable(incoming.teamLiveAt ?? undefined, now);
+  const prev = sanitizeLiveToken(existing.teamLiveToken ?? "") || null;
+  const next = sanitizeLiveToken(incoming.teamLiveToken ?? "") || null;
+  if (nextAt > prevAt) return { teamLiveToken: next, teamLiveAt: new Date(nextAt).toISOString() };
+  if (prevAt > nextAt) return { teamLiveToken: prev, teamLiveAt: existing.teamLiveAt ?? new Date(prevAt).toISOString() };
+  if (!prev && next) return { teamLiveToken: next, teamLiveAt: new Date(now).toISOString() };
+  return { teamLiveToken: prev, teamLiveAt: existing.teamLiveAt ?? undefined };
+}
+
+/** En un empate de hora, un partido cerrado no se vuelve a abrir. */
+export function elegirResultado<T extends { resultClosedAt?: string | null; resultPending?: boolean; resultUpdatedAt?: string }>(
+  previous: T,
+  incoming: T,
+  now = Date.now(),
+): T {
+  const prevTime = instanteConfiable(previous.resultUpdatedAt, now);
+  const nextTime = instanteConfiable(incoming.resultUpdatedAt, now);
+  if (nextTime > prevTime) return incoming;
+  if (nextTime < prevTime) return previous;
+  if (previous.resultClosedAt && !incoming.resultClosedAt) return previous;
+  if (incoming.resultClosedAt || incoming.resultPending) return incoming;
+  return previous;
 }
 
 export function ultimosResultados(
@@ -774,7 +859,26 @@ export function combinarMarcasVivo(
   return [...base, ...nuevas].slice(-40);
 }
 
-function ajustarPlanilla(sheet: MatchSheet, marca: MarcaVivo, signo: 1 | -1): MatchSheet {
+/** Junta las marcas de los dos celulares. No reemplaza el registro entero. */
+export function unirLogsVivo(
+  previous: MarcaVivo[] | undefined,
+  incoming: MarcaVivo[] | undefined,
+  prevLiveAt: string | undefined,
+  nextLiveAt: string | undefined,
+  now = Date.now(),
+): MarcaVivo[] {
+  const base = previous ?? [];
+  if (!Array.isArray(incoming)) return base;
+  const pedido = incoming;
+  const roster = new Set<string>();
+  for (const marca of [...base, ...pedido]) {
+    if (marca?.memberId) roster.add(marca.memberId);
+  }
+  const deshacer = instanteConfiable(nextLiveAt, now) > instanteConfiable(prevLiveAt, now);
+  return combinarMarcasVivo(base, pedido, roster, deshacer);
+}
+
+function ajustarPlanilla(sheet: MatchSheet, marca: MarcaVivo, signo: 1 | -1, ahora: string): MatchSheet {
   const players = sheet.players.map((row) => ({ ...row }));
   let goalsFor = sheet.goalsFor;
   let goalsAgainst = sheet.goalsAgainst;
@@ -796,7 +900,7 @@ function ajustarPlanilla(sheet: MatchSheet, marca: MarcaVivo, signo: 1 | -1): Ma
     goalsFor,
     goalsAgainst,
     players: players.filter((row) => row.goals > 0 || row.assists > 0 || row.yellow > 0 || row.red > 0),
-    recordedAt: marca.at,
+    recordedAt: ahora,
   };
 }
 
@@ -804,29 +908,31 @@ export function aplicarMarcasDeJugador<T extends ClubEvent>(
   base: T[],
   incoming: ClubEvent[],
   members: { id: string }[],
+  now = Date.now(),
 ): T[] {
   const roster = new Set(members.map((person) => person.id));
   const map = new Map(incoming.map((event) => [event.id, event]));
   return base.map((event) => {
-    if (event.kind !== "partido" || event.resultClosedAt || !resultIsOpen(event.startsAt)) return event;
+    if (event.kind !== "partido" || !partidoMarcable(event.startsAt, event.resultClosedAt, now)) return event;
     const pedido = map.get(event.id);
     if (!pedido) return event;
-    const pedidoAt = Date.parse(pedido.fechaUpdatedAt || pedido.liveUpdatedAt || "");
-    const baseAt = Date.parse(event.fechaUpdatedAt || event.liveUpdatedAt || "");
-    const deshacer = Number.isFinite(pedidoAt) && (!Number.isFinite(baseAt) || pedidoAt > baseAt);
+    const pedidoAt = instanteConfiable(pedido.liveUpdatedAt, now);
+    const baseAt = instanteConfiable(event.liveUpdatedAt, now);
+    const deshacer = pedidoAt > baseAt;
     const liveLog = combinarMarcasVivo(event.liveLog ?? [], pedido.liveLog, roster, deshacer);
     const igual =
       liveLog.length === (event.liveLog ?? []).length &&
       liveLog.every((marca, index) => marca.id === event.liveLog?.[index]?.id);
     if (igual) return event;
-    const ahora = liveLog[liveLog.length - 1]?.at ?? new Date().toISOString();
+    const ahora = new Date(now).toISOString();
     return { ...event, liveLog, liveUpdatedAt: ahora, fechaUpdatedAt: ahora, resultPending: true, resultUpdatedAt: ahora };
   });
 }
 
-export function planillasDeMarcas(sheets: MatchSheet[], antes: ClubEvent[], despues: ClubEvent[]): MatchSheet[] {
+export function planillasDeMarcas(sheets: MatchSheet[], antes: ClubEvent[], despues: ClubEvent[], now = Date.now()): MatchSheet[] {
   const map = new Map(sheets.map((sheet) => [sheet.eventId, sheet]));
   const previo = new Map(antes.map((event) => [event.id, event.liveLog ?? []]));
+  const ahora = new Date(now).toISOString();
   for (const event of despues) {
     const base = previo.get(event.id) ?? [];
     const live = event.liveLog ?? [];
@@ -834,7 +940,7 @@ export function planillasDeMarcas(sheets: MatchSheet[], antes: ClubEvent[], desp
     let sheet = map.get(event.id);
     if (live.length === base.length - 1 && base.slice(0, -1).every((marca, index) => marca.id === live[index]?.id)) {
       if (!sheet) continue;
-      map.set(event.id, ajustarPlanilla(sheet, base[base.length - 1], -1));
+      map.set(event.id, ajustarPlanilla(sheet, base[base.length - 1], -1, ahora));
       continue;
     }
     const ids = new Set(base.map((marca) => marca.id));
@@ -847,11 +953,11 @@ export function planillasDeMarcas(sheets: MatchSheet[], antes: ClubEvent[], desp
         goalsFor: 0,
         goalsAgainst: 0,
         notes: "",
-        recordedAt: nuevas[0].at,
+        recordedAt: ahora,
         players: [],
       };
     }
-    for (const marca of nuevas) sheet = ajustarPlanilla(sheet, marca, 1);
+    for (const marca of nuevas) sheet = ajustarPlanilla(sheet, marca, 1, ahora);
     map.set(event.id, sheet);
   }
   return [...map.values()];

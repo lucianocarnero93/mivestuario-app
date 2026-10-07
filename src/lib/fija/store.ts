@@ -6,13 +6,13 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
-import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido } from "./club-rules";
+import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
 import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, saveCrest, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
 import { clearPedirEdad, readMenor } from "./edad";
-import { aplicarMarcasDeJugador, menorAlGuardar } from "./vivo";
+import { aplicarMarcasDeJugador, menorAlGuardar, partidoMarcable, elegirTokenEquipo } from "./vivo";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
@@ -1170,7 +1170,7 @@ export const useFija = create<State>()(
         const yo = get().members.some((person) => person.id === get().activeId);
         if (!yo) return false;
         const event = get().events.find((item) => item.id === eventId);
-        if (!event || event.kind !== "partido" || !resultIsOpen(event.startsAt) || event.resultClosedAt) return false;
+        if (!event || event.kind !== "partido" || !partidoMarcable(event.startsAt, event.resultClosedAt)) return false;
         const tournament = get().tournaments.find((item) => item.id === event.tournamentId);
         if (tournament?.status === "finished") return false;
         const now = new Date().toISOString();
@@ -1250,7 +1250,7 @@ export const useFija = create<State>()(
         const event = get().events.find((item) => item.id === eventId);
         const marca = event?.liveLog?.[event.liveLog.length - 1];
         const existing = get().matchSheets.find((sheet) => sheet.eventId === eventId);
-        if (!event || !marca || event.resultClosedAt) return;
+        if (!event || !marca || !partidoMarcable(event.startsAt, event.resultClosedAt)) return;
         const now = new Date().toISOString();
         if (marca.kind === "inicio" || marca.kind === "entretiempo" || marca.kind === "segundo") {
           set({
@@ -1498,7 +1498,8 @@ export const useFija = create<State>()(
         if (!club) return null;
         const current = club.teamLiveToken ?? "";
         const token = /^[a-f0-9]{32}$/.test(current) ? current : crypto.randomUUID().replace(/-/g, "");
-        if (club.teamLiveToken !== token) set({ club: { ...club, teamLiveToken: token } });
+        const now = new Date().toISOString();
+        if (club.teamLiveToken !== token) set({ club: { ...club, teamLiveToken: token, teamLiveAt: now } });
         return token;
       },
 
@@ -1506,7 +1507,7 @@ export const useFija = create<State>()(
         if (!isStaffId(get())) return;
         const club = get().club;
         if (!club) return;
-        set({ club: { ...club, teamLiveToken: null } });
+        set({ club: { ...club, teamLiveToken: null, teamLiveAt: new Date().toISOString() } });
       },
 
       rotarLinkEquipo: () => {
@@ -1514,7 +1515,7 @@ export const useFija = create<State>()(
         const club = get().club;
         if (!club) return null;
         const token = crypto.randomUUID().replace(/-/g, "");
-        set({ club: { ...club, teamLiveToken: token } });
+        set({ club: { ...club, teamLiveToken: token, teamLiveAt: new Date().toISOString() } });
         return token;
       },
 
@@ -2965,6 +2966,14 @@ function mergeClubBundles(
   club.crest = trustLocal
     ? escudoElegido(remote.club.crest, local.club.crest, true)
     : escudoElegido(local.club.crest, remote.club.crest, true);
+  if (trustLocal) {
+    const token = elegirTokenEquipo(remote.club, local.club);
+    club.teamLiveToken = token.teamLiveToken;
+    club.teamLiveAt = token.teamLiveAt;
+  } else {
+    club.teamLiveToken = remote.club.teamLiveToken ?? null;
+    club.teamLiveAt = remote.club.teamLiveAt;
+  }
   const droppedEvents = new Set([
     ...(remote.droppedEventIds ?? []),
     ...(who.staff ? (local.droppedEventIds ?? []) : []),
@@ -3019,10 +3028,10 @@ function mergeClubBundles(
             ? { ...(remote.caja ?? cajaVacia()), cobros: local.caja.cobros }
             : undefined,
         ),
-    biblioteca: who.staff && who.dirty && Date.parse(local.bibliotecaAt ?? "") >= Date.parse(remote.bibliotecaAt ?? "")
+    biblioteca: who.staff && who.dirty && bibliotecaMasNueva(local.bibliotecaAt, remote.bibliotecaAt)
       ? (local.biblioteca ?? [])
       : (remote.biblioteca ?? local.biblioteca ?? []),
-    bibliotecaAt: who.staff && who.dirty && Date.parse(local.bibliotecaAt ?? "") >= Date.parse(remote.bibliotecaAt ?? "")
+    bibliotecaAt: who.staff && who.dirty && bibliotecaMasNueva(local.bibliotecaAt, remote.bibliotecaAt)
       ? local.bibliotecaAt
       : remote.bibliotecaAt ?? local.bibliotecaAt,
       },

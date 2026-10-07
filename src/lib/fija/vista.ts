@@ -123,7 +123,9 @@ export function resumenSemana(
       const sheet = sheets.find((item) => item.eventId === event.id);
       const goleador = [...(sheet?.players ?? [])].sort((a, b) => b.goals - a.goals)[0];
       const marca = sheet ? `${sheet.goalsFor}–${sheet.goalsAgainst}` : "Sin cargar";
-      const rival = sheet?.opponent?.trim() || event.title;
+      const crudo = (sheet?.opponent?.trim() || event.title).trim();
+      const sinVs = crudo.replace(/^\s*vs\.?\s+/i, "").trim();
+      const rival = sinVs || crudo;
       return {
         id: event.id,
         titulo: event.title,

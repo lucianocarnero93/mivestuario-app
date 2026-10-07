@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { aplicarCobro, armarCupones, armarGasto, cajaVacia, cobrosConfiables, cobrosDelJugador, deudaDe, liquidar, pagoAlcanza, partesIguales, saldosDe } from "./caja.ts";
+import { aplicarCobro, armarCupones, armarGasto, cajaVacia, cajaSegura, cobrosConfiables, cobrosDelJugador, deudaDe, liquidar, pagoAlcanza, partesIguales, saldosDe } from "./caja.ts";
 
 test("reparte en partes iguales y el resto va a los primeros", () => {
   assert.deepEqual(partesIguales(10, ["a", "b", "c"]), [
@@ -153,4 +153,12 @@ test("un jugador solo marca el suyo y no lo confirma", () => {
     cobrosDelJugador([{ ...marcado, estado: "confirmado" }], [marcado], "a").length,
     0,
   );
+});
+
+test("un jugador no se pone de tesorero", () => {
+  const existing = { tesoreroId: "dt", gastos: [], cobros: [] };
+  const pedido = { tesoreroId: "j-pepe", gastos: [], cobros: [] };
+  assert.equal(cajaSegura(existing, pedido, false, "j-pepe")?.tesoreroId, "dt");
+  assert.equal(cajaSegura(existing, pedido, true, "dt")?.tesoreroId, "j-pepe");
+  assert.equal(cajaSegura(undefined, pedido, false, "j-pepe")?.tesoreroId ?? "", "");
 });
