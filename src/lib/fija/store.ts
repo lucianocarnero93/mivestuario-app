@@ -2401,9 +2401,12 @@ export const useFija = create<State>()(
         if (!quiet) set({ cloudStatus: "syncing" });
         const stillHere = () => epoch === cloudEpoch && get().club?.id === clubId;
         try {
+          const revAlPedir = localRev;
+          const saveAlPedir = saveGen;
           const rev = get().dirty ? "" : (revisionNube.get(clubId) ?? "");
           const remoteTeam = await loadClubDoc({ data: rev ? { code, rev } : code });
           if (!stillHere()) return;
+          if (saveGen !== saveAlPedir) return;
           if (remoteTeam.ok && "unchanged" in remoteTeam && remoteTeam.unchanged) {
             revisionNube.set(clubId, remoteTeam.rev);
             if (!get().dirty && get().cloudStatus !== "ok") set({ cloudStatus: "ok", cloudError: null });
@@ -2413,6 +2416,7 @@ export const useFija = create<State>()(
             revisionNube.set(clubId, remoteTeam.rev);
             const current = get();
             if (!current.club || current.club.id !== clubId) return;
+            const localCambio = localRev !== revAlPedir || current.dirty;
             const seen = code.trim().toUpperCase();
             if (seen && !(current.seenCodes ?? []).includes(seen)) {
               set({ seenCodes: [...(current.seenCodes ?? []), seen].slice(-40) });
@@ -2420,8 +2424,8 @@ export const useFija = create<State>()(
             const local = toBundle({ ...current, club: current.club });
             const merged = mergeClubBundles(local, remoteTeam.bundle, {
               activeId: current.activeId,
-              staff: isStaffId(current),
-              dirty: current.dirty,
+              staff: isStaffId(current) || isCreatorId(current),
+              dirty: localCambio,
             });
             const visible = conImagenes(current, merged);
             if (!stillHere()) return;
@@ -2437,8 +2441,9 @@ export const useFija = create<State>()(
               archivedClubs: current.archivedClubs,
               activeId: current.activeId,
               hydrated: true,
-              cloudStatus: current.dirty ? current.cloudStatus : "ok",
-              cloudError: current.dirty ? current.cloudError : null,
+              dirty: localCambio ? true : current.dirty,
+              cloudStatus: localCambio ? current.cloudStatus : "ok",
+              cloudError: localCambio ? current.cloudError : null,
               savedMine: mineSaved(remoteTeam.bundle.rsvps, current.activeId),
               bannedAccounts: merged.bannedAccounts ?? current.bannedAccounts,
             });
@@ -2574,6 +2579,7 @@ export const useFija = create<State>()(
                 flushTimer = window.setTimeout(() => void useFija.getState().flushCloud(), 800) as unknown as ReturnType<typeof setTimeout>;
                 return true;
               }
+              saveGen += 1;
               const savedBundle = conImagenes(get(), result.bundle);
               applyingCloud = true;
               set({
@@ -2728,6 +2734,7 @@ export const useFija = create<State>()(
 
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let localRev = 0;
+let saveGen = 0;
 let flushFailStreak = 0;
 let cloudEpoch = 0;
 let syncGeneration = 0;
