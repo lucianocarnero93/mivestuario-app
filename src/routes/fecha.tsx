@@ -143,7 +143,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
           </Link>
         </Button>
       ) : null}
-      {staff && !cerrado && vivo ? <EnCancha event={event} /> : null}
+      {!cerrado && vivo ? <EnCancha event={event} /> : null}
       {staff && !cerrado && !vivo && Date.parse(event.startsAt) > Date.now() ? (
         <Button
           className="mt-3 h-14 w-full"

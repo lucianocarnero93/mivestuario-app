@@ -14,6 +14,8 @@ import {
   invalidarCache,
   marcadorDeDatos,
   menorAlGuardar,
+  aplicarMarcasDeJugador,
+  planillasDeMarcas,
   punteroHuerfano,
   sanitizeLiveToken,
   tomarCache,
@@ -451,6 +453,8 @@ async function armarDesde(code: string, modo: "partido" | "equipo", token: strin
       number: person.number,
       menor: person.menor,
       accountId: person.accountId,
+      role: person.role,
+      juega: person.juega,
     })),
     votes: bundle.figuraVotes ?? [],
     events: bundle.events,
@@ -1361,9 +1365,14 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   const listed = lockStaffRoles(existing, capped, userId);
   const eventIds = new Set(existing.events.map((event) => event.id));
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
-  const mergedEvents = staff
+  const reacciones = staff
     ? mergeEvents(existing.events, incoming.events)
     : aplicarReaccionesJugador(existing.events, incoming.events, me?.id);
+  const mergedEvents = staff
+    ? reacciones
+    : me
+      ? aplicarMarcasDeJugador(reacciones, incoming.events, existing.members)
+      : reacciones;
   const votos = (staff ? incoming.figuraVotes ?? [] : (incoming.figuraVotes ?? []).filter((row) => row.voterId === me?.id))
     .filter((row) => figuraPermitida(row, mergedEvents));
   const votosPrevios = (existing.figuraVotes ?? []).filter((row) => figuraPermitida(row, mergedEvents));
@@ -1396,7 +1405,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     charla: clipTextList(staff ? unionById(existing.charla, incoming.charla) : existing.charla),
     matchSheets: staff
       ? mergeSheetsByTime(existing.matchSheets, incoming.matchSheets, mergedEvents)
-      : existing.matchSheets,
+      : planillasDeMarcas(existing.matchSheets, existing.events, mergedEvents),
     figuraVotes: mergeFiguraVotes(votosPrevios, votosAceptables(votosPrevios, votos, mergedEvents, Date.now())),
     invites: staff ? unionById(existing.invites, incoming.invites) : existing.invites,
     convocatorias: staff

@@ -16,6 +16,7 @@ import {
   type ConteosFamilia,
   type MarcadorOk,
 } from "@/lib/fija/vivo";
+import type { DatosAlineacion } from "@/lib/fija/alineacion";
 
 export function VivoPantalla({
   t,
@@ -204,7 +205,9 @@ export function VivoPantalla({
             </ol>
           ) : null}
 
-          {m.titulares.length > 0 ? (
+          {m.card ? (
+            <FormacionCard datos={m.card} />
+          ) : m.titulares.length > 0 ? (
             <section className="mt-6">
               <h2 className="text-sm font-semibold uppercase tracking-widest text-muted">Mirá cómo salen</h2>
               <div className="relative mt-2 aspect-[5/7] overflow-hidden rounded-2xl bg-linear-to-b from-pitch-top to-pitch-deep">
@@ -282,6 +285,42 @@ export function VivoPantalla({
       </footer>
     </main>
   );
+}
+
+function FormacionCard({ datos }: { datos: DatosAlineacion }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const clave = [
+    datos.rival,
+    datos.esquema,
+    datos.fecha,
+    datos.titulares.map((ficha) => `${ficha.key}:${ficha.nombre}:${ficha.numero ?? ""}`).join("|"),
+    datos.banco.map((ficha) => `${ficha.id}:${ficha.nombre}:${ficha.numero ?? ""}`).join("|"),
+    datos.dt.map((ficha) => `${ficha.id}:${ficha.nombre}`).join("|"),
+  ].join("~");
+  useEffect(() => {
+    let cancel = false;
+    void import("@/lib/fija/alineacion-dibujo")
+      .then((mod) => mod.dibujarAlineacion(datos))
+      .then((blob) => {
+        const next = URL.createObjectURL(blob);
+        if (cancel) {
+          URL.revokeObjectURL(next);
+          return;
+        }
+        setUrl((anterior) => {
+          if (anterior) URL.revokeObjectURL(anterior);
+          return next;
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancel = true;
+    };
+    // clave resume la formación. El objeto cambia en cada poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave]);
+  if (!url) return <p className="mt-6 text-sm text-muted">Armando la formación…</p>;
+  return <img src={url} alt={`Formación contra ${datos.rival}`} className="mt-6 w-full rounded-2xl" />;
 }
 
 function Estado({ m, ahora, previa }: { m: MarcadorOk; ahora: number; previa: boolean }) {

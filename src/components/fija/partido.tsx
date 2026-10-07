@@ -138,14 +138,14 @@ export function ParaLaFamilia({ event }: { event: ClubEvent }) {
 }
 
 export function EnCancha({ event }: { event: ClubEvent }) {
-  const staff = useIsStaff();
+  const enElPlantel = useFija((s) => s.members.some((person) => person.id === s.activeId));
   const anotarEnCancha = useFija((s) => s.anotarEnCancha);
   const deshacerEnCancha = useFija((s) => s.deshacerEnCancha);
   const members = useFija((s) => s.members);
   const sheets = useFija((s) => s.matchSheets);
   const [modo, setModo] = useState<"gol" | "amarilla" | "roja" | null>(null);
   const [aviso, setAviso] = useState("");
-  if (!staff || event.kind !== "partido" || event.resultClosedAt || !resultIsOpen(event.startsAt)) return null;
+  if (!enElPlantel || event.kind !== "partido" || event.resultClosedAt || !resultIsOpen(event.startsAt)) return null;
   const sheet = sheetFor(event.id, sheets);
   const nombres = candidatosFigura(event, members);
   const marcas = event.liveLog ?? [];
@@ -165,6 +165,7 @@ export function EnCancha({ event }: { event: ClubEvent }) {
   return (
     <section className="mt-4 rounded-xl bg-surface p-4 shadow-card">
       <p className="text-[13px] font-semibold uppercase tracking-widest text-muted">En la cancha</p>
+      <p className="mt-1 text-sm text-muted">Cualquiera del plantel puede anotar. El DT cierra el partido.</p>
       <p className="mt-1 text-2xl font-semibold">
         {sheet ? `${sheet.goalsFor}–${sheet.goalsAgainst}` : "0–0"}
       </p>

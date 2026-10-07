@@ -1,5 +1,8 @@
 import { datosCard, estadoFigura, premiosDelPartido, type ContextoPremios } from "./premios.ts";
 import { votacionAbierta, FIGURA_CIERRE_HORAS } from "./figura.ts";
+import { armarAlineacion, type DatosAlineacion } from "./alineacion.ts";
+import { resultIsOpen } from "./club-rules.ts";
+import { clampStat, emptyStat } from "./stats.ts";
 import type { Club, ClubEvent, FiguraVote, MatchSheet, MarcaVivo } from "./types.ts";
 import type { Sponsor } from "./sponsors.ts";
 import { sponsorsVisibles } from "./sponsors.ts";
@@ -21,6 +24,8 @@ export type PersonaVivo = {
   number: number | null;
   menor?: boolean;
   accountId?: string | null;
+  role?: "dt" | "ayudante" | "jugador";
+  juega?: boolean;
 };
 
 export type ConteosFamilia = { pelota: number; aplauso: number; fuego: number };
@@ -66,6 +71,8 @@ export type MarcadorOk = {
   escudo: boolean;
   reaccion: string;
   sponsors: { nombre: string; logoUrl: string; link?: string }[];
+  /** La misma card de la pizarra, sin fotos ni nombres. */
+  card: DatosAlineacion | null;
 };
 
 export type MarcadorPublico = MarcadorOk | { ok: false; reason: "missing" | "limited" };
@@ -557,6 +564,47 @@ function figuraPublica(
   return { estado: "lista", apodo: apodos.join(" y ") };
 }
 
+function cardDelPartido(
+  event: ClubEvent,
+  people: PersonaVivo[],
+  club: string,
+  sheet: MatchSheet | null,
+): DatosAlineacion | null {
+  if (!event.lineupPublishedAt) return null;
+  const visibles = people.filter((person) => person.menor === true || !esMenorEnVivo(person));
+  try {
+    const datos = armarAlineacion({
+      formato: "whatsapp",
+      event: {
+        title: event.title,
+        place: event.place,
+        startsAt: event.startsAt,
+        modality: event.modality,
+        convocados: event.convocados,
+        suplentes: event.suplentes,
+        formacion: event.formacion,
+      },
+      plan: { id: "a", lineup: event.lineup ?? {}, formacion: event.formacion },
+      members: visibles.map((person) => ({
+        id: person.id,
+        nick: person.nick,
+        role: person.role,
+        number: person.number,
+        menor: person.menor === true,
+        juega: person.juega,
+      })),
+      club: { name: club },
+      sheet,
+      conFotos: false,
+      tema: "neon",
+    });
+    if (datos.titulares.length === 0 && datos.dt.length === 0) return null;
+    return { ...datos, escudo: null };
+  } catch {
+    return null;
+  }
+}
+
 export function marcadorDeDatos(input: {
   modo: "partido" | "equipo";
   clubName: string;
@@ -611,6 +659,7 @@ export function marcadorDeDatos(input: {
       escudo: Boolean(input.crest?.startsWith("data:image/")),
       reaccion: "",
       sponsors,
+      card: null,
     };
   }
   const rival = nombreRival(event.title, input.sheet?.opponent);
@@ -664,7 +713,132 @@ export function marcadorDeDatos(input: {
     escudo: Boolean(input.crest?.startsWith("data:image/")),
     reaccion: reaccionId(input.modo, input.token, event.id),
     sponsors,
+    card: cardDelPartido(event, people, club, input.sheet),
   };
+}
+
+const MARCAS_VIVO = new Set<MarcaVivo["kind"]>(["gol", "gol-rival", "tarjeta", "inicio", "entretiempo", "segundo"]);
+
+function marcaVivaValida(marca: MarcaVivo, roster: Set<string>): boolean {
+  if (!marca || typeof marca.id !== "string" || !/^[A-Za-z0-9_-]{4,40}$/.test(marca.id)) return false;
+  if (!MARCAS_VIVO.has(marca.kind)) return false;
+  if (!Number.isFinite(Date.parse(marca.at ?? ""))) return false;
+  if ((marca.kind === "gol" || marca.kind === "tarjeta") && (!marca.memberId || !roster.has(marca.memberId))) return false;
+  if (marca.kind === "tarjeta" && marca.card !== "amarilla" && marca.card !== "roja") return false;
+  return true;
+}
+
+function marcaLimpia(marca: MarcaVivo): MarcaVivo {
+  const limpia: MarcaVivo = { id: marca.id, kind: marca.kind, at: marca.at.slice(0, 40) };
+  if ((marca.kind === "gol" || marca.kind === "tarjeta") && marca.memberId) limpia.memberId = marca.memberId;
+  if (marca.kind === "tarjeta") limpia.card = marca.card === "roja" ? "roja" : "amarilla";
+  return limpia;
+}
+
+/** El plantel puede sumar una marca o deshacer la última. No reescribe el resto. */
+export function combinarMarcasVivo(
+  base: MarcaVivo[],
+  pedido: MarcaVivo[] | undefined,
+  roster: Set<string>,
+  deshacer = true,
+): MarcaVivo[] {
+  if (!Array.isArray(pedido)) return base;
+  const validas = pedido.filter((marca) => marcaVivaValida(marca, roster));
+  if (
+    deshacer &&
+    base.length > 0 &&
+    pedido.length === base.length - 1 &&
+    base.slice(0, -1).every((marca, index) => pedido[index]?.id === marca.id)
+  ) {
+    return base.slice(0, -1);
+  }
+  const ids = new Set(base.map((marca) => marca.id));
+  const nuevas = validas.filter((marca) => !ids.has(marca.id)).slice(0, 8).map(marcaLimpia);
+  if (nuevas.length === 0) return base;
+  return [...base, ...nuevas].slice(-40);
+}
+
+function ajustarPlanilla(sheet: MatchSheet, marca: MarcaVivo, signo: 1 | -1): MatchSheet {
+  const players = sheet.players.map((row) => ({ ...row }));
+  let goalsFor = sheet.goalsFor;
+  let goalsAgainst = sheet.goalsAgainst;
+  if (marca.kind === "gol" && marca.memberId) {
+    goalsFor = clampStat(goalsFor + signo);
+    const row = players.find((item) => item.memberId === marca.memberId) ?? emptyStat(marca.memberId);
+    row.goals = clampStat(row.goals + signo);
+    if (!players.some((item) => item.memberId === marca.memberId)) players.push(row);
+  }
+  if (marca.kind === "gol-rival") goalsAgainst = clampStat(goalsAgainst + signo);
+  if (marca.kind === "tarjeta" && marca.memberId) {
+    const row = players.find((item) => item.memberId === marca.memberId) ?? emptyStat(marca.memberId);
+    if (marca.card === "roja") row.red = clampStat(row.red + signo);
+    else row.yellow = clampStat(row.yellow + signo);
+    if (!players.some((item) => item.memberId === marca.memberId)) players.push(row);
+  }
+  return {
+    ...sheet,
+    goalsFor,
+    goalsAgainst,
+    players: players.filter((row) => row.goals > 0 || row.assists > 0 || row.yellow > 0 || row.red > 0),
+    recordedAt: marca.at,
+  };
+}
+
+export function aplicarMarcasDeJugador<T extends ClubEvent>(
+  base: T[],
+  incoming: ClubEvent[],
+  members: { id: string }[],
+): T[] {
+  const roster = new Set(members.map((person) => person.id));
+  const map = new Map(incoming.map((event) => [event.id, event]));
+  return base.map((event) => {
+    if (event.kind !== "partido" || event.resultClosedAt || !resultIsOpen(event.startsAt)) return event;
+    const pedido = map.get(event.id);
+    if (!pedido) return event;
+    const pedidoAt = Date.parse(pedido.fechaUpdatedAt || pedido.liveUpdatedAt || "");
+    const baseAt = Date.parse(event.fechaUpdatedAt || event.liveUpdatedAt || "");
+    const deshacer = Number.isFinite(pedidoAt) && (!Number.isFinite(baseAt) || pedidoAt > baseAt);
+    const liveLog = combinarMarcasVivo(event.liveLog ?? [], pedido.liveLog, roster, deshacer);
+    const igual =
+      liveLog.length === (event.liveLog ?? []).length &&
+      liveLog.every((marca, index) => marca.id === event.liveLog?.[index]?.id);
+    if (igual) return event;
+    const ahora = liveLog[liveLog.length - 1]?.at ?? new Date().toISOString();
+    return { ...event, liveLog, liveUpdatedAt: ahora, fechaUpdatedAt: ahora, resultPending: true, resultUpdatedAt: ahora };
+  });
+}
+
+export function planillasDeMarcas(sheets: MatchSheet[], antes: ClubEvent[], despues: ClubEvent[]): MatchSheet[] {
+  const map = new Map(sheets.map((sheet) => [sheet.eventId, sheet]));
+  const previo = new Map(antes.map((event) => [event.id, event.liveLog ?? []]));
+  for (const event of despues) {
+    const base = previo.get(event.id) ?? [];
+    const live = event.liveLog ?? [];
+    if (live.length === base.length && live.every((marca, index) => marca.id === base[index]?.id)) continue;
+    let sheet = map.get(event.id);
+    if (live.length === base.length - 1 && base.slice(0, -1).every((marca, index) => marca.id === live[index]?.id)) {
+      if (!sheet) continue;
+      map.set(event.id, ajustarPlanilla(sheet, base[base.length - 1], -1));
+      continue;
+    }
+    const ids = new Set(base.map((marca) => marca.id));
+    const nuevas = live.filter((marca) => !ids.has(marca.id));
+    if (nuevas.length === 0) continue;
+    if (!sheet) {
+      sheet = {
+        eventId: event.id,
+        opponent: (event.title || "Rival").slice(0, 80),
+        goalsFor: 0,
+        goalsAgainst: 0,
+        notes: "",
+        recordedAt: nuevas[0].at,
+        players: [],
+      };
+    }
+    for (const marca of nuevas) sheet = ajustarPlanilla(sheet, marca, 1);
+    map.set(event.id, sheet);
+  }
+  return [...map.values()];
 }
 
 export function tituloCompartido(

@@ -4,8 +4,10 @@ import { aplicarReaccionesJugador } from "./pizarra.ts";
 import { hashIp } from "./vivo-ip.ts";
 import {
   aplicarReaccionFamiliar,
+  aplicarMarcasDeJugador,
   armarFormacionPublica,
   cspVivo,
+  combinarMarcasVivo,
   elegirPartidoEquipo,
   escaparXml,
   estadoMarcador,
@@ -17,6 +19,7 @@ import {
   marcadorDeDatos,
   marcaTiempo,
   minutoAproximado,
+  planillasDeMarcas,
   POLL_ESPERA,
   POLL_FINAL,
   POLL_JUEGO,
@@ -265,6 +268,146 @@ test("una hora antes el link del equipo ya pasa a ese partido", () => {
   assert.equal(cercaDelSaque(hoy.startsAt, Date.parse("2026-10-04T13:00:00-03:00")), false);
   assert.equal(elegirPartidoEquipo([viejo, hoy], Date.parse("2026-10-04T14:10:00-03:00"))?.id, "hoy");
   assert.equal(elegirPartidoEquipo([viejo, hoy], Date.parse("2026-10-04T13:00:00-03:00"))?.id, "viejo");
+});
+
+test("un jugador suma un gol y no puede borrar uno del medio", () => {
+  const roster = new Set(["tato"]);
+  const base: MarcaVivo[] = [{ id: "lv-1", kind: "gol", memberId: "tato", at: "2026-10-04T15:10:00-03:00" }];
+  const suma = combinarMarcasVivo(
+    base,
+    [...base, { id: "lv-2", kind: "gol-rival", at: "2026-10-04T15:20:00-03:00" }],
+    roster,
+  );
+  assert.deepEqual(suma.map((marca) => marca.id), ["lv-1", "lv-2"]);
+  const trucho = combinarMarcasVivo(base, [{ id: "lv-9", kind: "gol", memberId: "otro", at: "2026-10-04T15:21:00-03:00" }], roster);
+  assert.deepEqual(trucho.map((marca) => marca.id), ["lv-1"]);
+  const deshace = combinarMarcasVivo(suma, suma.slice(0, -1), roster);
+  assert.deepEqual(deshace.map((marca) => marca.id), ["lv-1"]);
+});
+
+test("la card del vivo no lleva el nombre real", () => {
+  const event = partido({
+    lineupPublishedAt: kick,
+    lineup: { DC: "nino", MC: "tato", ARQ: "pepe" },
+    suplentes: ["banco"],
+  });
+  const people: PersonaVivo[] = [
+    { id: "nino", nick: "Nino", name: "Nombre Secreto", number: 9, menor: true, role: "jugador" },
+    { id: "tato", nick: "Tato", name: "Mateo Díaz", number: 10, menor: false, role: "jugador" },
+    { id: "pepe", nick: "PepeOculto", name: "José Gómez", number: 1 },
+    { id: "banco", nick: "Banco", name: "Luis Banco", number: 7, menor: false, role: "jugador" },
+    { id: "profe", nick: "Profe", name: "Carlos Gómez", number: null, menor: false, role: "dt" },
+  ];
+  const publico = marcadorDeDatos({
+    modo: "partido",
+    clubName: "Los Pibes FC",
+    crest: "data:image/png;base64,AAAA",
+    event,
+    sheet: null,
+    slots: [],
+    people,
+    votes: [],
+    events: [event],
+    sheets: [],
+    familia: { pelota: 0, aplauso: 0, fuego: 0 },
+    now: Date.parse("2026-10-04T15:30:00-03:00"),
+    token,
+  });
+  assert.equal(publico.ok, true);
+  if (!publico.ok || !publico.card) {
+    assert.fail("la formación publicada tiene que salir en la card");
+    return;
+  }
+  const json = JSON.stringify(publico.card);
+  assert.equal(publico.card.formato, "whatsapp");
+  assert.equal(publico.card.escudo, null);
+  assert.equal(json.includes("Nombre Secreto"), false);
+  assert.equal(json.includes("Mateo"), false);
+  assert.equal(json.includes("José"), false);
+  assert.equal(json.includes("Carlos"), false);
+  assert.equal(json.includes("Luis"), false);
+  assert.equal(json.includes("PepeOculto"), false);
+  assert.equal(json.includes("data:image"), false);
+  assert.equal(publico.card.titulares.some((ficha) => ficha.nombre === "Nino"), true);
+  assert.equal(publico.card.titulares.some((ficha) => ficha.nombre === "Tato"), true);
+  assert.equal(publico.card.banco.some((ficha) => ficha.nombre === "Banco"), true);
+  assert.equal(publico.card.dt.some((ficha) => ficha.nombre === "Profe"), true);
+  assert.equal(publico.card.titulares.every((ficha) => ficha.imagen?.tipo !== "foto"), true);
+  const sinPublicar = marcadorDeDatos({
+    modo: "partido",
+    clubName: "Los Pibes FC",
+    crest: null,
+    event: partido({ lineup: { DC: "tato" } }),
+    sheet: null,
+    slots: [],
+    people,
+    votes: [],
+    events: [],
+    sheets: [],
+    familia: { pelota: 0, aplauso: 0, fuego: 0 },
+    token,
+  });
+  assert.equal(sinPublicar.ok && sinPublicar.card, null);
+});
+
+test("un jugador suma un gol y un guardado viejo no borra el último", () => {
+  const members = [{ id: "tato" }];
+  const base = partido({
+    liveLog: [{ id: "lv-1", kind: "gol", memberId: "tato", at: "2026-10-04T15:10:00-03:00" }],
+    fechaUpdatedAt: "2026-10-04T15:10:00-03:00",
+    liveUpdatedAt: "2026-10-04T15:10:00-03:00",
+  });
+  const suma = aplicarMarcasDeJugador(
+    [base],
+    [
+      {
+        ...base,
+        liveLog: [...(base.liveLog ?? []), { id: "lv-2", kind: "gol-rival", at: "2026-10-04T15:20:00-03:00" }],
+        fechaUpdatedAt: "2026-10-04T15:20:00-03:00",
+        resultClosedAt: "2026-10-04T15:21:00-03:00",
+      },
+    ],
+    members,
+  );
+  assert.deepEqual(suma[0]?.liveLog?.map((marca) => marca.id), ["lv-1", "lv-2"]);
+  assert.equal(suma[0]?.resultClosedAt ?? null, null);
+  const viejo = aplicarMarcasDeJugador(suma, [base], members);
+  assert.deepEqual(viejo[0]?.liveLog?.map((marca) => marca.id), ["lv-1", "lv-2"]);
+  const deshace = aplicarMarcasDeJugador(
+    suma,
+    [{ ...suma[0], liveLog: suma[0]?.liveLog?.slice(0, -1), fechaUpdatedAt: "2026-10-04T15:25:00-03:00" }],
+    members,
+  );
+  assert.deepEqual(deshace[0]?.liveLog?.map((marca) => marca.id), ["lv-1"]);
+  const cerrado = partido({
+    liveLog: base.liveLog,
+    fechaUpdatedAt: "2026-10-04T17:00:00-03:00",
+    resultClosedAt: "2026-10-04T17:00:00-03:00",
+  });
+  const no = aplicarMarcasDeJugador(
+    [cerrado],
+    [
+      {
+        ...cerrado,
+        resultClosedAt: null,
+        liveLog: [...(cerrado.liveLog ?? []), { id: "lv-9", kind: "gol", memberId: "tato", at: "2026-10-04T18:00:00-03:00" }],
+        fechaUpdatedAt: "2026-10-04T18:00:00-03:00",
+      },
+    ],
+    members,
+  );
+  assert.equal(no[0]?.resultClosedAt, cerrado.resultClosedAt);
+  assert.equal(no[0]?.liveLog?.length, 1);
+  const vacio = partido({ liveLog: [], fechaUpdatedAt: kick });
+  const conGol = partido({
+    liveLog: [{ id: "lv-1", kind: "gol", memberId: "tato", at: "2026-10-04T15:10:00-03:00" }],
+    fechaUpdatedAt: "2026-10-04T15:10:00-03:00",
+  });
+  const sheets = planillasDeMarcas([], [vacio], [conGol]);
+  assert.equal(sheets[0]?.goalsFor, 1);
+  assert.equal(sheets[0]?.players[0]?.memberId, "tato");
+  const sinGol = planillasDeMarcas(sheets, [conGol], [vacio]);
+  assert.equal(sinGol[0]?.goalsFor, 0);
 });
 
 test("sin pitazo inicial no se inventan minutos", () => {

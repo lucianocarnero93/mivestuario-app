@@ -12,7 +12,7 @@ import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
 import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, saveCrest, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
 import { clearPedirEdad, readMenor } from "./edad";
-import { menorAlGuardar } from "./vivo";
+import { aplicarMarcasDeJugador, menorAlGuardar } from "./vivo";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
@@ -1167,7 +1167,8 @@ export const useFija = create<State>()(
       },
 
       anotarEnCancha: (eventId, kind, memberId, tarjeta) => {
-        if (!isStaffId(get())) return false;
+        const yo = get().members.some((person) => person.id === get().activeId);
+        if (!yo) return false;
         const event = get().events.find((item) => item.id === eventId);
         if (!event || event.kind !== "partido" || !resultIsOpen(event.startsAt) || event.resultClosedAt) return false;
         const tournament = get().tournaments.find((item) => item.id === event.tournamentId);
@@ -1244,7 +1245,8 @@ export const useFija = create<State>()(
       },
 
       deshacerEnCancha: (eventId) => {
-        if (!isStaffId(get())) return;
+        const yo = get().members.some((person) => person.id === get().activeId);
+        if (!yo) return;
         const event = get().events.find((item) => item.id === eventId);
         const marca = event?.liveLog?.[event.liveLog.length - 1];
         const existing = get().matchSheets.find((sheet) => sheet.eventId === eventId);
@@ -2912,9 +2914,15 @@ function unionById<T extends { id: string }>(remote: T[], local: T[]): T[] {
   return [...map.values()];
 }
 
-function mergeEvents(remote: ClubEvent[], local: ClubEvent[], staff: boolean): ClubEvent[] {
+function mergeEvents(
+  remote: ClubEvent[],
+  local: ClubEvent[],
+  staff: boolean,
+  dirty = false,
+  members: { id: string }[] = [],
+): ClubEvent[] {
   if (!remote.length) return local;
-  if (!staff) return remote;
+  if (!staff) return dirty ? aplicarMarcasDeJugador(remote, local, members) : remote;
   const map = new Map(remote.map((event) => [event.id, event]));
   for (const event of local) {
     const previous = map.get(event.id);
@@ -2980,11 +2988,11 @@ function mergeClubBundles(
           (!(remote.droppedIds ?? []).includes(person.id) && !(local.droppedIds ?? []).includes(person.id)),
       ),
     ),
-    events: mergeEvents(remote.events, local.events, who.staff),
+    events: mergeEvents(remote.events, local.events, who.staff, Boolean(who.dirty), remote.members),
     rsvps: mergeRsvps(remote.rsvps, local.rsvps),
     messages: unionById(remote.messages, local.messages),
     charla: unionById(remote.charla, local.charla),
-    matchSheets: mergeSheets(remote.matchSheets, local.matchSheets, who.staff),
+    matchSheets: mergeSheets(remote.matchSheets, local.matchSheets, who.staff || Boolean(who.dirty)),
     figuraVotes: mergeFiguraVotes(remote.figuraVotes, local.figuraVotes),
     invites: unionById(remote.invites, local.invites),
     convocatorias: unionById(
