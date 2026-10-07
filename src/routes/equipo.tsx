@@ -419,13 +419,19 @@ function DesignateDialog() {
           <div className="rounded-lg bg-surface-2 p-3">
             <p className="text-sm">
               ¿{pedido.nombre} pasa a {ROLE_LABEL[pedido.role]}?
-              {pedido.role !== "dt" &&
-              members.find((person) => person.id === pedido.id)?.role === "dt" &&
-              !members.some((person) => person.id !== pedido.id && person.role === "dt")
-                ? " El equipo queda sin DT hasta que designes uno."
-                : pedido.role === "jugador"
-                  ? ""
-                  : " Quien lo era pasa a jugador."}
+              {(() => {
+                const actual = members.find((person) => person.id === pedido.id);
+                const unicoDt =
+                  pedido.role !== "dt" &&
+                  actual?.role === "dt" &&
+                  !members.some((person) => person.id !== pedido.id && person.role === "dt");
+                if (unicoDt && pedido.role === "ayudante" && members.some((person) => person.role === "ayudante")) {
+                  return " Quien es ayudante pasa a DT.";
+                }
+                if (unicoDt) return " El equipo queda sin DT hasta que designes uno.";
+                if (pedido.role === "jugador") return "";
+                return " Quien lo era pasa a jugador.";
+              })()}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button

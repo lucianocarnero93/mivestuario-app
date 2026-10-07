@@ -111,7 +111,10 @@ function userIdOf(context: { userId?: string } | undefined): string {
 
 function memberFor(members: Member[], userId: string): Member | undefined {
   if (!userId) return undefined;
-  return members.find((person) => person.accountId === userId || person.id === userId);
+  const hits = members.filter((person) => person.accountId === userId || person.id === userId);
+  return hits.find((person) => person.role === "dt")
+    ?? hits.find((person) => person.role === "ayudante")
+    ?? hits[0];
 }
 
 function isStaffMember(person: Member | undefined): boolean {
@@ -1415,7 +1418,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
   const previous = new Map(existing.members.map((person) => [person.id, person]));
   const bannedAccounts = nextBannedAccounts(existing, requestedDrops, staff, new Date().toISOString());
   const members = withoutBanned(
-    staff
+    staff || isOwner
       ? unionById(existing.members, incoming.members)
           .filter((person) => !dropped.has(person.id))
           .map((person) => {
@@ -1448,14 +1451,22 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       }),
     bannedAccounts,
   );
-  const seenAccount = new Set<string>();
+  const seenAccount = new Map<string, number>();
   const unique: Member[] = [];
+  const peso = (person: Member) =>
+    person.id === creatorId ? 100 : person.role === "dt" ? 30 : person.role === "ayudante" ? 20 : 10;
   for (const person of members) {
-    if (person.accountId) {
-      if (seenAccount.has(person.accountId)) continue;
-      seenAccount.add(person.accountId);
+    if (!person.accountId) {
+      unique.push(person);
+      continue;
     }
-    unique.push(person);
+    const slot = seenAccount.get(person.accountId);
+    if (slot === undefined) {
+      seenAccount.set(person.accountId, unique.length);
+      unique.push(person);
+      continue;
+    }
+    if (peso(person) > peso(unique[slot])) unique[slot] = person;
   }
   const leaving = existing.members.filter((person) => dropped.has(person.id));
   const alumni = mergeAlumni(

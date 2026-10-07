@@ -1100,14 +1100,19 @@ export const useFija = create<State>()(
       assignRole: (memberId, role) => {
         if (!isCreatorId(get())) return;
         const { members, club } = get();
-        if (!members.some((person) => person.id === memberId)) return;
+        const target = members.find((person) => person.id === memberId);
+        if (!target || !club) return;
+        const unicoDt =
+          target.role === "dt" && !members.some((person) => person.id !== target.id && person.role === "dt");
+        const relevo = unicoDt && role === "ayudante" ? members.find((person) => person.role === "ayudante") : undefined;
         set({
-          club: club ? { ...club, rolesAt: new Date().toISOString() } : club,
+          club: { ...club, rolesAt: new Date().toISOString() },
           members: members.map((person) => {
             if (person.id === memberId) {
               return { ...person, role, juega: role === "jugador" ? true : person.juega };
             }
-            if (role !== "jugador" && person.role === role) {
+            if (relevo && person.id === relevo.id) return { ...person, role: "dt" };
+            if (!relevo && role !== "jugador" && person.role === role) {
               return { ...person, role: "jugador", juega: true };
             }
             return person;
@@ -2172,10 +2177,17 @@ export const useFija = create<State>()(
         const state = get();
         const club = state.club;
         if (!club) return;
-        const linked = state.members.find(
+        const propios = state.members.filter(
           (person) => person.accountId === account.id || person.id === account.id,
         );
-        if (linked && linked.id !== state.activeId) set({ activeId: linked.id });
+        const linked =
+          propios.find((person) => person.id === club.createdBy) ??
+          propios.find((person) => person.role === "dt") ??
+          propios.find((person) => person.role === "ayudante") ??
+          propios[0];
+        if (linked && linked.id !== state.activeId && !propios.some((person) => person.id === state.activeId)) {
+          set({ activeId: linked.id });
+        }
         if (linked) {
           const remote = await loadClubDoc({ data: club.inviteCode });
           const onServer =
