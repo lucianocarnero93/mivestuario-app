@@ -43,6 +43,7 @@ import {
   freshMemberId,
   guardMember,
   pickMemberIdentity,
+  perfilMasNuevo,
   resultIsOpen,
   escudoElegido,
   HARD_BYTES,
@@ -1312,12 +1313,13 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           .map((person) => {
             const old = previous.get(person.id);
             const identity = old ? pickMemberIdentity(old, person, true) : null;
+            const pedidoGana = !old || perfilMasNuevo(old, person, true);
             const next = identity
               ? { ...person, name: identity.name, nick: identity.nick, number: identity.number, profileAt: identity.profileAt }
               : person;
-            const kept = guardMember(old?.accountId ? { ...next, accountId: old.accountId } : next, old);
-            const menor = menorAlGuardar(old?.menor, person.menor);
-            return menor === undefined ? kept : guardMember({ ...kept, menor }, old);
+            const menor = menorAlGuardar(old?.menor, person.menor, pedidoGana);
+            const withMenor = menor === undefined ? next : { ...next, menor };
+            return guardMember(old?.accountId ? { ...withMenor, accountId: old.accountId } : withMenor, old);
           })
       : existing.members.map((person) => {
         if (person.accountId !== userId && person.id !== userId) return person;

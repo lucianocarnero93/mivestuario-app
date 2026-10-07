@@ -234,7 +234,7 @@ export function armarFormacionPublica(
   published: boolean,
 ): { titulares: PuestoPublico[]; banco: string[] } {
   if (!published) return { titulares: [], banco: [] };
-  const publishedPeople = people.filter((person) => !esMenorEnVivo(person));
+  const publishedPeople = people.filter((person) => person.menor === true || !esMenorEnVivo(person));
   const byId = new Map(publishedPeople.map((person) => [person.id, person]));
   const titulares: PuestoPublico[] = [];
   for (const slot of slots) {
@@ -699,8 +699,17 @@ export function cspVivo(): string {
   ].join("; ");
 }
 
-export function menorAlGuardar(anterior: boolean | undefined, pedido: boolean | undefined): boolean | undefined {
-  if (anterior === true || pedido === true) return true;
-  if (pedido === false) return false;
-  return anterior;
+/**
+ * El menor lo decide el perfil más nuevo del DT.
+ * Si el que llega no es el más nuevo, queda el valor que ya estaba.
+ * Si no viene el dato, tampoco se borra.
+ */
+export function menorAlGuardar(
+  anterior: boolean | undefined,
+  pedido: boolean | undefined,
+  pedidoGana = false,
+): boolean | undefined {
+  if (pedidoGana && typeof pedido === "boolean") return pedido;
+  if (typeof anterior === "boolean") return anterior;
+  return pedidoGana ? pedido : anterior;
 }

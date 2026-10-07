@@ -185,7 +185,7 @@ test("dos apodos iguales sin número no muestran el nombre real", () => {
   assert.equal(JSON.stringify(armada).includes("Gómez"), false);
 });
 
-test("un menor no sale en la formación pública", () => {
+test("un menor sale en la formación pública con el apodo, sin el nombre", () => {
   const armada = armarFormacionPublica(
     [{ key: "ARQ", label: "ARQ", x: 50, y: 80 }],
     { ARQ: "nino" },
@@ -196,7 +196,10 @@ test("un menor no sale en la formación pública", () => {
     ],
     true,
   );
-  assert.deepEqual(armada, { titulares: [], banco: [] });
+  assert.deepEqual(armada.titulares, [{ puesto: "ARQ", nick: "Nino", numero: "1", x: 50, y: 80 }]);
+  assert.deepEqual(armada.banco, []);
+  assert.equal(JSON.stringify(armada).includes("Nino Real"), false);
+  assert.equal(JSON.stringify(armada).includes("Grande Real"), false);
 });
 
 test("un jugador sin cuenta y sin dato de edad no aparece en el vivo", () => {

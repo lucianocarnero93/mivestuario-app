@@ -17,7 +17,6 @@ import { Dialog, DialogClose, DialogContent, DialogTrigger } from "@/components/
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABEL, ROLE_TAB, personLabel } from "@/lib/fija/format";
-import { esMenorEnVivo } from "@/lib/fija/vivo";
 import { PanelSponsors } from "@/components/fija/espacio-sponsor";
 import { MAX_BYTES } from "@/lib/fija/club-rules";
 import { leerFotoJugador } from "@/lib/fija/foto-jugador";
@@ -162,8 +161,7 @@ function EquipoPage() {
                     <input
                       type="checkbox"
                       className="size-5 accent-accent"
-                      checked={esMenorEnVivo(m)}
-                      disabled={m.menor === true}
+                      checked={m.menor === true}
                       onChange={(e) => updateMember(m.id, { menor: e.target.checked })}
                     />
                     Es menor de 18
@@ -211,8 +209,7 @@ function EquipoPage() {
                       <input
                         type="checkbox"
                         className="size-5 accent-accent"
-                        checked={esMenorEnVivo(p)}
-                        disabled={p.menor === true}
+                        checked={p.menor === true}
                         onChange={(e) => updateMember(p.id, { menor: e.target.checked })}
                       />
                       Es menor de 18

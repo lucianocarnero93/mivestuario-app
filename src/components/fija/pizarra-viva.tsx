@@ -10,7 +10,18 @@ import { FORMATIONS, MODALITY_SHORT, MODALITIES, puestoDe } from "@/lib/fija/for
 import { personLabel, uid } from "@/lib/fija/format";
 import { loadAudioJugada, saveAudioJugada } from "@/lib/fija/cloud";
 import {
+  ALINEACION_FOTOS_DEFAULT,
+  COMPARTIR_PLAN_ALTERNATIVO,
+  archivoAlineacion,
+  armarAlineacion,
+  coloresValidos,
+  textoAlineacion,
+} from "@/lib/fija/alineacion";
+import { dibujarAlineacion } from "@/lib/fija/alineacion-dibujo";
+import { enviar } from "@/lib/fija/lienzo";
+import {
   editarPlan,
+  formacionDelPlan,
   guardarPasos,
   cambiarEsquema,
   JUGADAS_ABIERTAS,
@@ -27,8 +38,9 @@ import {
   textoDePaso,
   videoLimpio,
 } from "@/lib/fija/pizarra";
+import { vivoUrl } from "@/lib/fija/share";
 import { useFija, useIsStaff } from "@/lib/fija/store";
-import type { ClubEvent, Dibujo, JugadaGuardada, PlanId, Trazo } from "@/lib/fija/types";
+import type { ClubEvent, Dibujo, JugadaGuardada, PlanId, PlanPizarra, Trazo } from "@/lib/fija/types";
 
 type Vista =
   | "puesto"
@@ -56,7 +68,6 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
   const members = useFija((s) => s.members);
   const me = useFija((s) => s.members.find((m) => m.id === s.activeId));
   const code = useFija((s) => s.club?.inviteCode ?? "");
-  const crest = useFija((s) => s.club?.crest);
   const aplicar = useFija((s) => s.aplicarPizarra);
   const pasarAlPlan = useFija((s) => s.pasarAlPlan);
   const guardarEnBiblioteca = useFija((s) => s.guardarEnBiblioteca);
@@ -296,7 +307,7 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
           onMostrar={(id, visible) => mostrarJugada(id, visible)}
         />
       ) : null}
-      {vista === "compartir" ? <Compartir event={event} crest={crest} lineup={plan.lineup} formacionId={plan.formacion || event.formacion} puede={me ? !me.menor : false} /> : null}
+      {vista === "compartir" ? <Compartir event={event} planId={planId} plan={plan} puede={me ? !me.menor : false} /> : null}
 
       {aviso || nota ? <p className="mt-3 text-sm text-accent">{aviso || nota}</p> : null}
       {staff && (vista === "puesto" || vista === "planes") ? (
@@ -774,75 +785,155 @@ function Biblioteca({
   );
 }
 
-function Compartir({ event, crest, lineup, formacionId, puede }: { event: ClubEvent; crest?: string | null; lineup: Record<string, string>; formacionId?: string; puede: boolean }) {
+function Compartir({ event, planId, plan, puede }: { event: ClubEvent; planId: PlanId; plan: PlanPizarra; puede: boolean }) {
   const members = useFija((s) => s.members);
-  const [imagen, setImagen] = useState<string | null>(null);
-  async function armar(story: boolean) {
-    if (!puede) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = story ? 1080 : 1200;
-    canvas.height = story ? 1920 : 630;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#0c5a2a";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#eef6ef";
-    ctx.font = story ? "700 92px sans-serif" : "700 54px sans-serif";
-    ctx.fillText(story ? "Así salimos hoy" : event.title, 64, story ? 180 : 120);
-    ctx.fillStyle = "#b8f25a";
-    ctx.font = story ? "700 64px sans-serif" : "600 36px sans-serif";
-    ctx.fillText(event.title, 64, story ? 270 : 180);
-    const forma = FORMATIONS[event.modality].find((item) => item.id === formacionId) ?? FORMATIONS[event.modality][0];
-    for (const [key, id] of Object.entries(lineup)) {
-      const slot = forma.slots.find((item) => item.key === key);
-      const person = members.find((item) => item.id === id);
-      if (!slot || !person || person.menor) continue;
-      const x = 80 + (slot.x / 100) * (canvas.width - 160);
-      const y = (story ? 420 : 240) + (slot.y / 100) * (story ? 1100 : 280);
-      ctx.beginPath();
-      ctx.fillStyle = "#b8f25a";
-      ctx.arc(x, y, story ? 36 : 22, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#0c1a10";
-      ctx.font = story ? "700 28px sans-serif" : "700 16px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText(String(person.number ?? person.nick.slice(0, 2)), x, y + 8);
-      ctx.fillStyle = "#eef6ef";
-      ctx.font = story ? "600 28px sans-serif" : "600 16px sans-serif";
-      ctx.fillText(person.nick, x, y + (story ? 64 : 40));
-    }
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#eef6ef";
-    ctx.font = "500 28px sans-serif";
-    if (crest?.startsWith("data:image/")) {
-      const img = new Image();
-      img.src = crest;
-      await img.decode().catch(() => undefined);
-      if (img.width > 0) ctx.drawImage(img, 64, canvas.height - 150, 72, 72);
-    }
-    ctx.fillText("Mi Vestuario", crest?.startsWith("data:image/") ? 150 : 64, canvas.height - 80);
-    const url = canvas.toDataURL("image/png");
-    setImagen(url);
-    const blob = await (await fetch(url)).blob();
-    const file = new File([blob], story ? "historia.png" : "formacion.png", { type: "image/png" });
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: event.title }).catch(() => undefined);
-    } else {
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = file.name;
-      link.click();
-    }
+  const club = useFija((s) => s.club);
+  const fotosCard = useFija((s) => s.fotosCard);
+  const sheet = useFija((s) => s.matchSheets.find((item) => item.eventId === event.id) ?? null);
+  const colores = coloresValidos(club?.colores);
+  const [conFotos, setConFotos] = useState(ALINEACION_FOTOS_DEFAULT.whatsapp);
+  const [avisoFotos, setAvisoFotos] = useState(false);
+  const [temaNombre, setTemaNombre] = useState<"neon" | "equipo">("neon");
+  const [preview, setPreview] = useState<string | null>(null);
+  const [armando, setArmando] = useState(true);
+  const [nota, setNota] = useState("");
+  const planCompartido = COMPARTIR_PLAN_ALTERNATIVO ? (planId === plan.id ? plan : planVisible(event, planId)) : planVisible(event, event.planActivo ?? "a");
+
+  function datosDe(formato: "whatsapp" | "story") {
+    const forma = formacionDelPlan(event, planCompartido);
+    return armarAlineacion({
+      formato,
+      event,
+      plan: planCompartido,
+      forma,
+      members,
+      club: club ?? { name: "Equipo" },
+      sheet,
+      fotosCard,
+      conFotos,
+      tema: temaNombre === "equipo" && colores ? "equipo" : "neon",
+      link: event.liveToken ? vivoUrl(event.liveToken) : undefined,
+    });
   }
+
+  const clave = [
+    planCompartido.id,
+    planCompartido.formacion,
+    JSON.stringify(planCompartido.lineup),
+    event.startsAt,
+    event.title,
+    event.place,
+    event.liveToken,
+    JSON.stringify(event.suplentes ?? []),
+    JSON.stringify(event.convocados ?? null),
+    conFotos,
+    temaNombre,
+    club?.name,
+    club?.crest ? "1" : "0",
+    club?.colores?.primary,
+    club?.colores?.secondary,
+    sheet?.opponent,
+    members.map((m) => `${m.id}:${m.nick}:${m.number}:${m.menor ? 1 : 0}:${m.role}:${m.photo ? 1 : 0}`).join("|"),
+    Object.entries(fotosCard ?? {}).map(([id, foto]) => `${id}:${foto?.length ?? 0}`).join(","),
+  ].join("~");
+
+  useEffect(() => {
+    if (!puede || !club) return;
+    let cancel = false;
+    setArmando(true);
+    const datos = datosDe("whatsapp");
+    void dibujarAlineacion(datos)
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        if (cancel) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        setPreview((anterior) => {
+          if (anterior) URL.revokeObjectURL(anterior);
+          return url;
+        });
+        setArmando(false);
+      })
+      .catch(() => {
+        if (!cancel) {
+          setArmando(false);
+          setNota("No se pudo armar la imagen.");
+        }
+      });
+    return () => {
+      cancel = true;
+    };
+    // clave resume todo lo que cambia la imagen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave, puede]);
+
+  async function mandar(formato: "whatsapp" | "story") {
+    if (!puede || !club) return;
+    setNota("");
+    const datos = datosDe(formato);
+    const blob = await dibujarAlineacion(datos);
+    const archivo = archivoAlineacion({ equipo: datos.equipo, rival: datos.rival, startsAt: event.startsAt, formato });
+    const link = event.liveToken ? vivoUrl(event.liveToken) : undefined;
+    const texto = textoAlineacion({ rival: datos.rival, startsAt: event.startsAt, link });
+    const modo = await enviar(blob, archivo, texto, { copiarTexto: true });
+    setNota(modo === "shared" ? "Listo, se mandó." : "La imagen se guardó y el texto quedó copiado.");
+  }
+
   if (!puede) {
     return <p className="mt-4 text-sm text-muted">Esta imagen no se comparte desde una cuenta de menor.</p>;
   }
+
   return (
     <div className="mt-3 grid gap-3">
-      <p className="text-sm text-muted">La imagen lleva la formación de este plan y el escudo. No lleva menores, audios ni indicaciones.</p>
-      <Button className="h-14" onClick={() => void armar(false)}>Compartir en WhatsApp</Button>
-      <Button variant="secondary" className="h-14" onClick={() => void armar(true)}>Historia de Instagram</Button>
-      {imagen ? <img src={imagen} alt="" className="w-full rounded-lg" /> : null}
+      <p className="text-sm text-muted">La imagen lleva la formación, el banco y el DT. No lleva indicaciones, audios ni jugadas.</p>
+      <div className="overflow-hidden rounded-xl bg-black">
+        {armando && !preview ? <p className="px-4 py-16 text-center text-sm text-muted">Armando la imagen…</p> : null}
+        {preview ? <img src={preview} alt="Así salimos" className="w-full" /> : null}
+      </div>
+      <label className="flex items-center justify-between gap-3 rounded-lg bg-surface px-4 py-3 text-sm">
+        <span>Con fotos</span>
+        <input
+          type="checkbox"
+          checked={conFotos}
+          onChange={(e) => {
+            const next = e.target.checked;
+            if (next && !avisoFotos) {
+              setAvisoFotos(true);
+              setNota("La imagen sale con las fotos del plantel.");
+            }
+            setConFotos(next);
+          }}
+        />
+      </label>
+      {colores ? (
+        <label className="grid gap-1 text-sm">
+          Colores
+          <select
+            className="h-12 rounded-md bg-surface px-3"
+            value={temaNombre}
+            onChange={(e) => setTemaNombre(e.target.value === "equipo" ? "equipo" : "neon")}
+          >
+            <option value="neon">Mi Vestuario</option>
+            <option value="equipo">Del equipo</option>
+          </select>
+        </label>
+      ) : null}
+      <Button className="h-14" onClick={() => void mandar("whatsapp")}>Mandar por WhatsApp</Button>
+      <Button variant="secondary" className="h-14" onClick={() => void mandar("story")}>Story de Instagram</Button>
+      {event.liveToken ? (
+        <Button
+          variant="outline"
+          className="h-14"
+          onClick={() => {
+            void navigator.clipboard?.writeText(vivoUrl(event.liveToken || ""));
+            setNota("Link copiado.");
+          }}
+        >
+          Copiar link
+        </Button>
+      ) : null}
+      {nota ? <p className="text-sm text-accent">{nota}</p> : null}
     </div>
   );
 }

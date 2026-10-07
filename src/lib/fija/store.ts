@@ -6,12 +6,13 @@ import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
 import { FORMATIONS } from "./formations";
-import { alertsDue, pickMemberIdentity, preferRsvp, resultIsOpen, escudoElegido } from "./club-rules";
+import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
 import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, saveCrest, savePortrait, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
 import { clearPedirEdad, readMenor } from "./edad";
+import { menorAlGuardar } from "./vivo";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
 import { notifyClub } from "./push";
@@ -868,8 +869,7 @@ export const useFija = create<State>()(
         set({
           members: get().members.map((person) => {
             if (person.id !== memberId) return person;
-            const nextMenor =
-              menor === undefined ? person.menor : person.menor === true || menor ? true : false;
+            const nextMenor = menor === undefined ? person.menor : menor;
             return {
               ...person,
               name: name || person.name,
@@ -2879,7 +2879,7 @@ function mergeMembers(
       photo: own && mine.photo ? mine.photo : person.photo,
       role: trustStaff ? mine.role : person.role,
       juega: trustStaff ? mine.juega : person.juega,
-      menor: person.menor || mine.menor ? true : person.menor,
+      menor: menorAlGuardar(person.menor, mine.menor, trustStaff && perfilMasNuevo(person, mine, true)),
     };
   });
   if (!trustStaff) return merged;

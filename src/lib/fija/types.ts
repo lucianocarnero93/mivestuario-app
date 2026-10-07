@@ -97,6 +97,8 @@ export type Club = {
   createdBy: string;
   inviteCode: string;
   crest: string | null;
+  /** Camiseta. Si falta, la card de la formación usa los colores de Mi Vestuario. */
+  colores?: { primary: string; secondary: string } | null;
   /** Link público del equipo. No vence con el partido. */
   teamLiveToken?: string | null;
   /** Preparado para sponsors. Apagado hasta que SPONSORS_ACTIVO sea true. */

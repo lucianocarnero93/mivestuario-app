@@ -5,10 +5,10 @@ import { TIERS, type Pintura } from "./premios-tokens.ts";
 
 type Ctx = CanvasRenderingContext2D & { letterSpacing?: string };
 
-const MARCO = "M 36 0 H 262 L 290 22 H 430 L 458 0 H 684 Q 720 0 720 36 V 800 Q 720 858 664 886 L 398 992 Q 360 1006 322 992 L 56 886 Q 0 858 0 800 V 36 Q 0 0 36 0 Z";
+export const MARCO = "M 36 0 H 262 L 290 22 H 430 L 458 0 H 684 Q 720 0 720 36 V 800 Q 720 858 664 886 L 398 992 Q 360 1006 322 992 L 56 886 Q 0 858 0 800 V 36 Q 0 0 36 0 Z";
 
-const CUERPO = "M 46 12 H 257 L 285 34 H 435 L 463 12 H 674 Q 708 12 708 46 V 796 Q 708 850 656 876 L 394 980 Q 360 993 326 980 L 64 876 Q 12 850 12 796 V 46 Q 12 12 46 12 Z";
-const INTERIOR = "M 56 24 H 252 L 280 46 H 440 L 468 24 H 664 Q 696 24 696 56 V 792 Q 696 842 648 866 L 390 968 Q 360 980 330 968 L 72 866 Q 24 842 24 792 V 56 Q 24 24 56 24 Z";
+export const CUERPO = "M 46 12 H 257 L 285 34 H 435 L 463 12 H 674 Q 708 12 708 46 V 796 Q 708 850 656 876 L 394 980 Q 360 993 326 980 L 64 876 Q 12 850 12 796 V 46 Q 12 12 46 12 Z";
+export const INTERIOR = "M 56 24 H 252 L 280 46 H 440 L 468 24 H 664 Q 696 24 696 56 V 792 Q 696 842 648 866 L 390 968 Q 360 980 330 968 L 72 866 Q 24 842 24 792 V 56 Q 24 24 56 24 Z";
 const ESCUDO = "M 0 8 Q 0 0 8 0 H 76 Q 84 0 84 8 V 52 Q 84 80 42 96 Q 0 80 0 52 Z";
 
 export async function dibujarPremio(datos: DatosCard): Promise<Blob> {
@@ -118,14 +118,14 @@ export async function compartirPremio(
   return enviar(blob, archivo, texto);
 }
 
-async function prepararFuentes() {
+export async function prepararFuentes() {
   await document.fonts?.ready;
   await document.fonts?.load('800 96px "Barlow Condensed"');
   await document.fonts?.load('700 42px "Barlow Condensed"');
   await document.fonts?.load('600 24px Figtree');
 }
 
-function lienzo(ancho: number, alto: number, escala: number): Ctx {
+export function lienzo(ancho: number, alto: number, escala: number): Ctx {
   const canvas = document.createElement("canvas");
   canvas.width = ancho * escala;
   canvas.height = alto * escala;
@@ -137,7 +137,7 @@ function lienzo(ancho: number, alto: number, escala: number): Ctx {
   return ctx;
 }
 
-function gradiente(ctx: Ctx, w: number, h: number, grados: number, paradas: [number, string][]) {
+export function gradiente(ctx: Ctx, w: number, h: number, grados: number, paradas: [number, string][]) {
   const rad = (grados * Math.PI) / 180;
   const dx = Math.sin(rad);
   const dy = -Math.cos(rad);
@@ -147,7 +147,7 @@ function gradiente(ctx: Ctx, w: number, h: number, grados: number, paradas: [num
   return g;
 }
 
-function rayas(ctx: Ctx, color: string) {
+export function rayas(ctx: Ctx, color: string) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
@@ -198,7 +198,7 @@ function tiza(ctx: Ctx) {
   ctx.restore();
 }
 
-function elipse(ctx: Ctx, x: number, y: number, w: number, h: number, color: string) {
+export function elipse(ctx: Ctx, x: number, y: number, w: number, h: number, color: string) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(w / h, 1);
@@ -214,7 +214,7 @@ function elipse(ctx: Ctx, x: number, y: number, w: number, h: number, color: str
   ctx.restore();
 }
 
-function brillos(ctx: Ctx) {
+export function brillos(ctx: Ctx) {
   ctx.save();
   ctx.globalCompositeOperation = "screen";
   const rad = (112 * Math.PI) / 180;
@@ -544,7 +544,7 @@ function stats(ctx: Ctx, datos: DatosCard, tier: Pintura) {
   });
 }
 
-function marca(ctx: Ctx, anchoLienzo: number, y: number, logoSize: number, texto: string, px: number, tracking: number, color: string) {
+export function marca(ctx: Ctx, anchoLienzo: number, y: number, logoSize: number, texto: string, px: number, tracking: number, color: string) {
   ctx.font = `700 ${px}px "Barlow Condensed", sans-serif`;
   ctx.fillStyle = color;
   ctx.textBaseline = "middle";
@@ -610,7 +610,7 @@ function fraseGrande(ctx: Ctx, frase: string, nombre: string, y: number) {
   ctx.fillText(despues, x, y);
 }
 
-function caber(ctx: Ctx, text: string, max: number, peso: number, familia: string, inicio: number, minimo: number, paso: number, em: number) {
+export function caber(ctx: Ctx, text: string, max: number, peso: number, familia: string, inicio: number, minimo: number, paso: number, em: number) {
   let size = inicio;
   while (size > minimo) {
     ctx.font = `${peso} ${size}px ${familia}`;
@@ -638,7 +638,7 @@ function espaciadoNativo(): boolean {
   return typeof CanvasRenderingContext2D !== "undefined" && "letterSpacing" in CanvasRenderingContext2D.prototype;
 }
 
-function fill(ctx: Ctx, text: string, x: number, y: number, em: number, px: number, align: CanvasTextAlign) {
+export function fill(ctx: Ctx, text: string, x: number, y: number, em: number, px: number, align: CanvasTextAlign) {
   if (!text) return;
   if (em <= 0 || espaciadoNativo()) {
     const previo = ctx.letterSpacing;

@@ -105,6 +105,17 @@ export function png(ctx: CanvasRenderingContext2D): Promise<Blob> {
   });
 }
 
+export function jpeg(ctx: CanvasRenderingContext2D, calidad = 0.85): Promise<Blob> {
+  const canvas = ctx.canvas;
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("No se pudo armar la imagen."))),
+      "image/jpeg",
+      calidad,
+    );
+  });
+}
+
 export async function enviar(
   blob: Blob,
   filename: string,

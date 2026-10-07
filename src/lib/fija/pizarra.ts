@@ -1,4 +1,4 @@
-import { FORMATIONS } from "./formations.ts";
+import { FORMATIONS, type Formation } from "./formations.ts";
 import type {
   ClubBundle,
   ClubEvent,
@@ -43,6 +43,12 @@ export function planVisible(event: ClubEvent, id: PlanId): PlanPizarra {
     dibujos: saved?.dibujos ?? [],
     formacion: saved?.formacion || event.formacion,
   };
+}
+
+export function formacionDelPlan(event: ClubEvent, plan: { formacion?: string }): Formation {
+  const lista = FORMATIONS[event.modality];
+  const id = plan.formacion || event.formacion;
+  return lista.find((item) => item.id === id) ?? lista[0];
 }
 
 function guardarPlan(event: ClubEvent, siguiente: PlanPizarra): ClubEvent {

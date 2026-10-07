@@ -330,6 +330,7 @@ export function mergePlayerAlerts(existing: AlertLog[], incoming: AlertLog[], ev
 export type BannedAccount = { accountId: string; name: string; at: string };
 
 export function guardMember(person: Member, previous?: Member): Member {
+  if (person.menor === false) return person;
   const menor = Boolean(person.menor || previous?.menor);
   if (!menor) return person;
   return { ...person, menor: true, photo: null };
@@ -391,6 +392,13 @@ export function pickMemberIdentity(
     number: incoming.number === undefined ? existing.number : incoming.number,
     profileAt: incomingAt == null ? new Date(now).toISOString() : incoming.profileAt,
   };
+}
+
+/** True si la copia que llega es la que se queda: hora más nueva, o el DT si nadie marcó hora. */
+export function perfilMasNuevo(existing: Member, incoming: Member, staff: boolean, now = Date.now()): boolean {
+  const chosen = pickMemberIdentity(existing, incoming, staff, now);
+  if (incoming.profileAt && chosen.profileAt === incoming.profileAt) return true;
+  return !incoming.profileAt && Boolean(chosen.profileAt) && chosen.profileAt !== existing.profileAt;
 }
 
 /** Una cuenta marcada menor no puede volver a false por un pedido del cliente. */
@@ -507,7 +515,7 @@ export function decideClaim(input: {
           ...current,
           accountId: input.accountId,
           number: current.number ?? input.draft.number,
-          menor: input.draft.menor || current.menor,
+          menor: current.menor === false ? false : input.draft.menor || current.menor,
         }
       : {
           id,
