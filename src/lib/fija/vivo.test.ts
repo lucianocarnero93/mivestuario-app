@@ -213,7 +213,7 @@ test("un menor sale en la formación pública con el apodo, sin el nombre", () =
   assert.equal(JSON.stringify(armada).includes("Grande Real"), false);
 });
 
-test("un jugador sin cuenta y sin dato de edad no aparece en el vivo", () => {
+test("un jugador sin cuenta y sin dato de edad sale con apodo, sin el nombre", () => {
   const gente: PersonaVivo[] = [
     { id: "x", nick: "Sombra", name: "Nombre Real Largo", number: 7 },
     { id: "y", nick: "Tato", name: "Mateo", number: 10, menor: false },
@@ -228,7 +228,7 @@ test("un jugador sin cuenta y sin dato de edad no aparece en el vivo", () => {
     gente,
     true,
   );
-  assert.deepEqual(armada.titulares.map((puesto) => puesto.nick), ["Tato"]);
+  assert.deepEqual(armada.titulares.map((puesto) => puesto.nick), ["Sombra", "Tato"]);
   assert.equal(JSON.stringify(armada).includes("Nombre Real"), false);
 });
 
@@ -344,7 +344,7 @@ test("la card del vivo lleva foto y nombre, y al menor no", () => {
   assert.equal(publico.card.escudo, "data:image/png;base64,AAAA");
   assert.equal(json.includes("Nombre Secreto"), false);
   assert.equal(json.includes("José"), false);
-  assert.equal(json.includes("PepeOculto"), false);
+  assert.equal(publico.card.titulares.some((ficha) => ficha.nombre === "PepeOculto" && ficha.imagen?.tipo !== "foto"), true);
   assert.equal(publico.card.titulares.some((ficha) => ficha.nombre === "Nino" && ficha.imagen?.tipo !== "foto"), true);
   assert.equal(publico.card.titulares.some((ficha) => ficha.nombre === "Mateo Díaz" && ficha.imagen?.tipo === "foto"), true);
   assert.equal(publico.card.banco.some((ficha) => ficha.nombre === "Luis Banco" && ficha.imagen?.tipo === "foto"), true);

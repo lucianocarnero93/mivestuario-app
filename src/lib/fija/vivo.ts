@@ -240,7 +240,7 @@ export function intervaloVivo(input: {
   return POLL_FINAL;
 }
 
-/** Sin dato de edad y sin cuenta: se trata como menor en el link público. */
+/** Sin dato de edad y sin cuenta: en el link no va foto ni nombre real. Sí va el apodo, para que la formación no quede vacía. */
 export function esMenorEnVivo(person: { menor?: boolean; accountId?: string | null }): boolean {
   if (person.menor === true) return true;
   if (person.menor === false) return false;
@@ -288,7 +288,7 @@ export function armarFormacionPublica(
   published: boolean,
 ): { titulares: PuestoPublico[]; banco: string[] } {
   if (!published) return { titulares: [], banco: [] };
-  const publishedPeople = people.filter((person) => person.menor === true || !esMenorEnVivo(person));
+  const publishedPeople = people;
   const byId = new Map(publishedPeople.map((person) => [person.id, person]));
   const titulares: PuestoPublico[] = [];
   for (const slot of slots) {
@@ -676,7 +676,6 @@ function cardDelPartido(
   if (!event.lineupPublishedAt) return null;
   const plan = planVisible(event, event.planActivo ?? "a");
   const forma = formacionDelPlan(event, plan);
-  const visibles = people.filter((person) => person.menor === true || !esMenorEnVivo(person));
   try {
     const datos = armarAlineacion({
       formato: "whatsapp",
@@ -691,11 +690,12 @@ function cardDelPartido(
       },
       plan,
       forma,
-      members: visibles.map((person) => {
-        const menor = person.menor === true;
+      members: people.map((person) => {
+        const menor = esMenorEnVivo(person);
+        const nick = menor ? (person.nick || "").trim().slice(0, 24) : nombreEnCard(person);
         return {
           id: person.id,
-          nick: nombreEnCard(person),
+          nick,
           role: person.role,
           number: person.number,
           menor,
