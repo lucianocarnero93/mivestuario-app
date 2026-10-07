@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { formatDay, plural } from "@/lib/fija/format";
 import { enJuego, rachaVoy } from "@/lib/fija/fecha";
-import { figuraDe, mesDe, votacionAbierta, FIGURA_CIERRE_HORAS } from "@/lib/fija/figura";
-import { FIGURA_MIN_VOTOS, mesAnterior, nombreMes, premiosDelMes, premiosDelPartido } from "@/lib/fija/premios";
+import { mesDe, vecesFigura, votacionAbierta, FIGURA_CIERRE_HORAS } from "@/lib/fija/figura";
+import { mesAnterior, nombreMes, premiosDelMes, premiosDelPartido } from "@/lib/fija/premios";
 import { alumniMember, outcome, playerRows, rankedBy, resultLabel, teamRecord, type PlayerRow } from "@/lib/fija/stats";
 import { frasePuesto, posicionRanking, validarPlanilla, vitrina } from "@/lib/fija/vista";
 import {
@@ -294,17 +294,6 @@ function StatsPage() {
 
 function vecesDe(votes: FiguraVote[], events: ClubEvent[], memberId: string): number {
   return vecesFigura(votes, events).find((row) => row.memberId === memberId)?.veces ?? 0;
-}
-
-function vecesFigura(votes: FiguraVote[], events: ClubEvent[]): { memberId: string; veces: number }[] {
-  const cuenta = new Map<string, number>();
-  for (const event of events) {
-    if (!event.resultClosedAt || votacionAbierta(event, Date.now())) continue;
-    const figura = figuraDe(votes, event.id);
-    if (!figura || figura.votos < FIGURA_MIN_VOTOS) continue;
-    for (const id of figura.ids) cuenta.set(id, (cuenta.get(id) ?? 0) + 1);
-  }
-  return [...cuenta.entries()].map(([memberId, veces]) => ({ memberId, veces }));
 }
 
 function ParaHacer({

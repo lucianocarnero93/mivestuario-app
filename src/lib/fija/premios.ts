@@ -676,7 +676,7 @@ function debutantes(validos: ClubEvent[], sheets: MatchSheet[], eventId: string)
   return [...vistos.entries()].filter(([, primero]) => primero === eventId).map(([memberId]) => memberId);
 }
 
-function golesEnAnio(ctx: ContextoPremios, validos: ClubEvent[], memberId: string, anio: string): number {
+export function golesEnAnio(ctx: ContextoPremios, validos: ClubEvent[], memberId: string, anio: string): number {
   let total = 0;
   for (const event of validos) {
     if (anioDe(event.startsAt) !== anio) continue;

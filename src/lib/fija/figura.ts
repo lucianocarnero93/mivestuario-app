@@ -116,6 +116,21 @@ export function figuraDe(votes: FiguraVote[] | undefined, eventId: string): { id
   };
 }
 
+export function vecesFigura(
+  votes: FiguraVote[],
+  events: ClubEvent[],
+  now = Date.now(),
+): { memberId: string; veces: number }[] {
+  const cuenta = new Map<string, number>();
+  for (const event of events) {
+    if (!event.resultClosedAt || votacionAbierta(event, now)) continue;
+    const figura = figuraDe(votes, event.id);
+    if (!figura || figura.votos < 2) continue;
+    for (const id of figura.ids) cuenta.set(id, (cuenta.get(id) ?? 0) + 1);
+  }
+  return [...cuenta.entries()].map(([memberId, veces]) => ({ memberId, veces }));
+}
+
 export function candidatosFigura(event: ClubEvent, members: Member[]): Member[] {
   const lineup = new Set(Object.values(event.lineup));
   const bench = new Set(event.suplentes ?? []);
