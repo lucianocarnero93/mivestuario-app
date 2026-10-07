@@ -1,6 +1,6 @@
 import { datosCard, estadoFigura, premiosDelPartido, type ContextoPremios } from "./premios.ts";
 import { votacionAbierta, FIGURA_CIERRE_HORAS } from "./figura.ts";
-import { armarAlineacion, type DatosAlineacion } from "./alineacion.ts";
+import { armarAlineacion, type DatosAlineacion, type FichaBanco, type FichaTitular } from "./alineacion.ts";
 import { resultIsOpen } from "./club-rules.ts";
 import { clampStat, emptyStat } from "./stats.ts";
 import type { Club, ClubEvent, FiguraVote, MatchSheet, MarcaVivo } from "./types.ts";
@@ -26,6 +26,7 @@ export type PersonaVivo = {
   accountId?: string | null;
   role?: "dt" | "ayudante" | "jugador";
   juega?: boolean;
+  photo?: string | null;
 };
 
 export type ConteosFamilia = { pelota: number; aplauso: number; fuego: number };
@@ -71,7 +72,7 @@ export type MarcadorOk = {
   escudo: boolean;
   reaccion: string;
   sponsors: { nombre: string; logoUrl: string; link?: string }[];
-  /** La misma card de la pizarra, sin fotos ni nombres. */
+  /** La misma card de la pizarra: foto y nombre. Un menor va con apodo y sin foto. */
   card: DatosAlineacion | null;
 };
 
@@ -564,6 +565,16 @@ function figuraPublica(
   return { estado: "lista", apodo: apodos.join(" y ") };
 }
 
+function fotoDe(valor: string | null | undefined): string | null {
+  if (!valor || !valor.startsWith("data:image/") || valor.length < 16 || valor.length > 170_000) return null;
+  return valor;
+}
+
+function nombreEnCard(person: PersonaVivo): string {
+  if (person.menor === true) return (person.nick || "").trim().slice(0, 24);
+  return ((person.name || "").trim() || (person.nick || "").trim()).slice(0, 24);
+}
+
 function cardDelPartido(
   event: ClubEvent,
   people: PersonaVivo[],
@@ -585,17 +596,21 @@ function cardDelPartido(
         formacion: event.formacion,
       },
       plan: { id: "a", lineup: event.lineup ?? {}, formacion: event.formacion },
-      members: visibles.map((person) => ({
-        id: person.id,
-        nick: person.nick,
-        role: person.role,
-        number: person.number,
-        menor: person.menor === true,
-        juega: person.juega,
-      })),
+      members: visibles.map((person) => {
+        const menor = person.menor === true;
+        return {
+          id: person.id,
+          nick: nombreEnCard(person),
+          role: person.role,
+          number: person.number,
+          menor,
+          juega: person.juega,
+          photo: menor ? null : fotoDe(person.photo),
+        };
+      }),
       club: { name: club },
       sheet,
-      conFotos: false,
+      conFotos: true,
       tema: "neon",
     });
     if (datos.titulares.length === 0 && datos.dt.length === 0) return null;
@@ -622,7 +637,8 @@ export function marcadorDeDatos(input: {
   token: string;
 }): MarcadorPublico {
   const now = input.now ?? Date.now();
-  const people = input.people.map((person) => ({ ...person, name: "" }));
+  const gente = input.people;
+  const people = gente.map((person) => ({ ...person, name: "" }));
   const event = input.event && input.event.kind === "partido" ? input.event : null;
   const resultados = input.modo === "equipo" ? ultimosResultados(input.events, input.sheets, now, event?.id ?? "") : [];
   const proximo = input.modo === "equipo" ? proximoPartido(input.events, now, event?.id ?? "") : null;
@@ -713,7 +729,7 @@ export function marcadorDeDatos(input: {
     escudo: Boolean(input.crest?.startsWith("data:image/")),
     reaccion: reaccionId(input.modo, input.token, event.id),
     sponsors,
-    card: cardDelPartido(event, people, club, input.sheet),
+    card: cardDelPartido(event, gente, club, input.sheet),
   };
 }
 
@@ -841,6 +857,65 @@ export function planillasDeMarcas(sheets: MatchSheet[], antes: ClubEvent[], desp
   return [...map.values()];
 }
 
+function imagenSinBytes(imagen: FichaTitular["imagen"]): FichaTitular["imagen"] {
+  if (imagen?.tipo === "foto") return { tipo: "foto", src: "" };
+  return imagen;
+}
+
+function fichaSinBytes<T extends { imagen: FichaBanco["imagen"] }>(ficha: T): T {
+  return { ...ficha, imagen: imagenSinBytes(ficha.imagen) };
+}
+
+/** El poll siguiente no vuelve a bajar las fotos. El celular reusa las que ya tiene. */
+export function marcadorSinFotos(marcador: MarcadorPublico): MarcadorPublico {
+  if (!marcador.ok || !marcador.card) return marcador;
+  const card = marcador.card;
+  return {
+    ...marcador,
+    card: {
+      ...card,
+      titulares: card.titulares.map(fichaSinBytes),
+      banco: card.banco.map(fichaSinBytes),
+      dt: card.dt.map(fichaSinBytes),
+    },
+  };
+}
+
+function reponerFoto<T extends { imagen: FichaTitular["imagen"]; nombre: string; numero?: number | null }>(
+  ficha: T,
+  previa: T | undefined,
+): { ficha: T; falta: boolean } {
+  if (ficha.imagen?.tipo !== "foto" || ficha.imagen.src) return { ficha, falta: false };
+  const misma = previa && previa.nombre === ficha.nombre && previa.numero === ficha.numero;
+  const src = misma && previa.imagen?.tipo === "foto" ? previa.imagen.src : "";
+  if (!src) return { ficha, falta: true };
+  return { ficha: { ...ficha, imagen: { tipo: "foto", src } }, falta: false };
+}
+
+/** Pega las fotos ya descargadas sobre un marcador liviano. `falta` pide una bajada completa. */
+export function conservarFotos(
+  nueva: DatosAlineacion,
+  anterior: DatosAlineacion | null,
+): { card: DatosAlineacion; falta: boolean } {
+  let falta = false;
+  const titulares = nueva.titulares.map((ficha) => {
+    const puesta = reponerFoto(ficha, anterior?.titulares.find((item) => item.key === ficha.key));
+    falta = falta || puesta.falta;
+    return puesta.ficha;
+  });
+  const banco = nueva.banco.map((ficha) => {
+    const puesta = reponerFoto(ficha, anterior?.banco.find((item) => item.id === ficha.id));
+    falta = falta || puesta.falta;
+    return puesta.ficha;
+  });
+  const dt = nueva.dt.map((ficha) => {
+    const puesta = reponerFoto(ficha, anterior?.dt.find((item) => item.id === ficha.id));
+    falta = falta || puesta.falta;
+    return puesta.ficha;
+  });
+  return { card: { ...nueva, titulares, banco, dt }, falta };
+}
+
 export function tituloCompartido(
   m: Pick<MarcadorOk, "estado" | "club" | "rival" | "startsAt" | "goalsFor" | "goalsAgainst">,
   now = Date.now(),
@@ -862,7 +937,7 @@ export function tituloCompartido(
 }
 
 export function descripcionCompartida(): string {
-  return "Resultado y formación con apodos. Sin fotos ni nombres.";
+  return "Resultado y formación, con fotos y nombres.";
 }
 
 export function escaparXml(value: string): string {

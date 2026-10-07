@@ -16,7 +16,9 @@ import {
   intervaloVivo,
   invalidarCache,
   JUEGO_TOPE_MS,
+  conservarFotos,
   marcadorDeDatos,
+  marcadorSinFotos,
   marcaTiempo,
   minutoAproximado,
   planillasDeMarcas,
@@ -285,18 +287,19 @@ test("un jugador suma un gol y no puede borrar uno del medio", () => {
   assert.deepEqual(deshace.map((marca) => marca.id), ["lv-1"]);
 });
 
-test("la card del vivo no lleva el nombre real", () => {
+test("la card del vivo lleva foto y nombre, y al menor no", () => {
+  const foto = "data:image/jpeg;base64,AAAA";
   const event = partido({
     lineupPublishedAt: kick,
     lineup: { DC: "nino", MC: "tato", ARQ: "pepe" },
     suplentes: ["banco"],
   });
   const people: PersonaVivo[] = [
-    { id: "nino", nick: "Nino", name: "Nombre Secreto", number: 9, menor: true, role: "jugador" },
-    { id: "tato", nick: "Tato", name: "Mateo Díaz", number: 10, menor: false, role: "jugador" },
-    { id: "pepe", nick: "PepeOculto", name: "José Gómez", number: 1 },
-    { id: "banco", nick: "Banco", name: "Luis Banco", number: 7, menor: false, role: "jugador" },
-    { id: "profe", nick: "Profe", name: "Carlos Gómez", number: null, menor: false, role: "dt" },
+    { id: "nino", nick: "Nino", name: "Nombre Secreto", number: 9, menor: true, role: "jugador", photo: foto },
+    { id: "tato", nick: "Tato", name: "Mateo Díaz", number: 10, menor: false, role: "jugador", photo: foto },
+    { id: "pepe", nick: "PepeOculto", name: "José Gómez", number: 1, photo: foto },
+    { id: "banco", nick: "Banco", name: "Luis Banco", number: 7, menor: false, role: "jugador", photo: foto },
+    { id: "profe", nick: "Profe", name: "Carlos Gómez", number: null, menor: false, role: "dt", photo: foto },
   ];
   const publico = marcadorDeDatos({
     modo: "partido",
@@ -322,17 +325,17 @@ test("la card del vivo no lleva el nombre real", () => {
   assert.equal(publico.card.formato, "whatsapp");
   assert.equal(publico.card.escudo, null);
   assert.equal(json.includes("Nombre Secreto"), false);
-  assert.equal(json.includes("Mateo"), false);
   assert.equal(json.includes("José"), false);
-  assert.equal(json.includes("Carlos"), false);
-  assert.equal(json.includes("Luis"), false);
   assert.equal(json.includes("PepeOculto"), false);
-  assert.equal(json.includes("data:image"), false);
-  assert.equal(publico.card.titulares.some((ficha) => ficha.nombre === "Nino"), true);
-  assert.equal(publico.card.titulares.some((ficha) => ficha.nombre === "Tato"), true);
-  assert.equal(publico.card.banco.some((ficha) => ficha.nombre === "Banco"), true);
-  assert.equal(publico.card.dt.some((ficha) => ficha.nombre === "Profe"), true);
-  assert.equal(publico.card.titulares.every((ficha) => ficha.imagen?.tipo !== "foto"), true);
+  assert.equal(publico.card.titulares.some((ficha) => ficha.nombre === "Nino" && ficha.imagen?.tipo !== "foto"), true);
+  assert.equal(publico.card.titulares.some((ficha) => ficha.nombre === "Mateo Díaz" && ficha.imagen?.tipo === "foto"), true);
+  assert.equal(publico.card.banco.some((ficha) => ficha.nombre === "Luis Banco" && ficha.imagen?.tipo === "foto"), true);
+  assert.equal(publico.card.dt.some((ficha) => ficha.nombre === "Carlos Gómez" && ficha.imagen?.tipo === "foto"), true);
+  const liviano = marcadorSinFotos(publico);
+  assert.equal(liviano.ok && liviano.card?.titulares.some((ficha) => ficha.imagen?.tipo === "foto" && ficha.imagen.src === ""), true);
+  const pegada = liviano.ok && liviano.card ? conservarFotos(liviano.card, publico.card) : null;
+  assert.equal(pegada?.falta, false);
+  assert.equal(pegada?.card.titulares.some((ficha) => ficha.nombre === "Mateo Díaz" && ficha.imagen?.tipo === "foto" && ficha.imagen.src === foto), true);
   const sinPublicar = marcadorDeDatos({
     modo: "partido",
     clubName: "Los Pibes FC",

@@ -13,6 +13,7 @@ import {
   guardarCache,
   invalidarCache,
   marcadorDeDatos,
+  marcadorSinFotos,
   menorAlGuardar,
   aplicarMarcasDeJugador,
   planillasDeMarcas,
@@ -426,6 +427,34 @@ async function barrerVivo() {
   }
 }
 
+async function fotosParaVivo(members: { id: string; accountId?: string | null; menor?: boolean }[]): Promise<Map<string, string>> {
+  const cuentas = members.filter((person) => person.accountId && person.menor !== true);
+  const map = new Map<string, string>();
+  if (cuentas.length === 0) return map;
+  try {
+    const { getSql } = await import("@/lib/db");
+    const sql = await getSql();
+    const rows = await sql.query<{ id: string; data: { photo?: string; photoCard?: string } | string }>(
+      "select id, data from vestuario_docs where collection = $1 and id = any($2::text[])",
+      [PORTRAITS, [...new Set(cuentas.map((person) => person.accountId as string))]],
+    );
+    const porCuenta = new Map(rows.map((row) => [row.id, parseRetrato(row.data)]));
+    for (const person of cuentas) {
+      const retrato = porCuenta.get(person.accountId as string);
+      const foto = retrato?.photoCard || retrato?.photo;
+      if (foto) map.set(person.id, foto);
+    }
+  } catch {
+    return map;
+  }
+  return map;
+}
+
+function fotoDeMiembro(valor: string | null | undefined): string | null {
+  if (!valor || !valor.startsWith("data:image/") || valor.length < 16 || valor.length > 40_000) return null;
+  return valor;
+}
+
 async function armarDesde(code: string, modo: "partido" | "equipo", token: string, eventId = ""): Promise<MarcadorPublico> {
   const bundle = await readClub(code);
   if (!bundle) return { ok: false, reason: "missing" };
@@ -439,6 +468,7 @@ async function armarDesde(code: string, modo: "partido" | "equipo", token: strin
   const crest = await escudoDe(code, bundle.club.crest);
   const reaccion = event ? (modo === "partido" ? token : `eq:${token}:${event.id}`) : "";
   const familia = reaccion ? await contarDetalle(reaccion) : { pelota: 0, aplauso: 0, fuego: 0 };
+  const fotos = await fotosParaVivo(bundle.members);
   return marcadorDeDatos({
     modo,
     clubName: bundle.club.name,
@@ -449,12 +479,13 @@ async function armarDesde(code: string, modo: "partido" | "equipo", token: strin
     people: bundle.members.map((person) => ({
       id: person.id,
       nick: person.nick,
-      name: "",
+      name: person.name ?? "",
       number: person.number,
       menor: person.menor,
       accountId: person.accountId,
       role: person.role,
       juega: person.juega,
+      photo: person.menor === true ? null : fotos.get(person.id) || fotoDeMiembro(person.photo),
     })),
     votes: bundle.figuraVotes ?? [],
     events: bundle.events,
@@ -623,11 +654,18 @@ export const cerrarEquipo = createServerFn({ method: "POST" })
   });
 
 export const leerMarcador = createServerFn({ method: "POST" })
-  .validator((input: { t?: string; e?: string } | string) => {
-    if (typeof input === "string") return { t: sanitizeLiveToken(input), e: "" };
-    return { t: sanitizeLiveToken(input?.t), e: sanitizeLiveToken(input?.e) };
+  .validator((input: { t?: string; e?: string; ligero?: boolean } | string) => {
+    if (typeof input === "string") return { t: sanitizeLiveToken(input), e: "", ligero: false };
+    return {
+      t: sanitizeLiveToken(input?.t),
+      e: sanitizeLiveToken(input?.e),
+      ligero: input?.ligero === true,
+    };
   })
-  .handler(async ({ data }): Promise<MarcadorPublico> => resolverMarcador(data, await agenteDe()));
+  .handler(async ({ data }): Promise<MarcadorPublico> => {
+    const marcador = await resolverMarcador(data, await agenteDe());
+    return data.ligero ? marcadorSinFotos(marcador) : marcador;
+  });
 
 export const listMyClubs = createServerFn({ method: "POST" })
   .middleware([authMiddleware])

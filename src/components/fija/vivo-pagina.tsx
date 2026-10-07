@@ -6,6 +6,7 @@ import { LogoMark } from "@/components/fija/logo";
 import { EspacioSponsor } from "@/components/fija/espacio-sponsor";
 import {
   cercaDelSaque,
+  conservarFotos,
   diaVolver,
   intervaloVivo,
   textoActualizado,
@@ -32,6 +33,7 @@ export function VivoPantalla({
   const [grito, setGrito] = useState("");
   const [pop, setPop] = useState(false);
   const previo = useRef<{ gf: number; gc: number } | null>(null);
+  const cardRef = useRef(inicial?.ok ? inicial.card : null);
 
   useEffect(() => {
     if (!t && !e) return;
@@ -47,7 +49,16 @@ export function VivoPantalla({
       let next: MarcadorPublico | null = null;
       let fallo = false;
       try {
-        next = await leerMarcador({ data: { t, e } });
+        next = await leerMarcador({ data: { t, e, ligero: Boolean(cardRef.current) } });
+        if (next?.ok && next.card && cardRef.current) {
+          const conservada = conservarFotos(next.card, cardRef.current);
+          if (conservada.falta) {
+            const completo = await leerMarcador({ data: { t, e } });
+            if (completo) next = completo;
+          } else {
+            next = { ...next, card: conservada.card };
+          }
+        }
       } catch {
         fallo = true;
       }
@@ -63,6 +74,7 @@ export function VivoPantalla({
         setMarcador((anterior) => (anterior?.ok ? anterior : recibido));
       } else {
         setMarcador(recibido);
+        if (recibido.ok) cardRef.current = recibido.card;
       }
       setAhora(Date.now());
       const limited = !recibido.ok && recibido.reason === "limited";
@@ -281,7 +293,7 @@ export function VivoPantalla({
             ¿Tu equipo no lo tiene? Armalo gratis en mivestuario.com.ar
           </a>
         </p>
-        <p>Se ven el resultado y la formación con apodos. No hay fotos ni nombres.</p>
+        <p>Se ven el resultado y la formación, con foto y nombre.</p>
       </footer>
     </main>
   );
@@ -293,9 +305,9 @@ function FormacionCard({ datos }: { datos: DatosAlineacion }) {
     datos.rival,
     datos.esquema,
     datos.fecha,
-    datos.titulares.map((ficha) => `${ficha.key}:${ficha.nombre}:${ficha.numero ?? ""}`).join("|"),
-    datos.banco.map((ficha) => `${ficha.id}:${ficha.nombre}:${ficha.numero ?? ""}`).join("|"),
-    datos.dt.map((ficha) => `${ficha.id}:${ficha.nombre}`).join("|"),
+    datos.titulares.map((ficha) => `${ficha.key}:${ficha.nombre}:${ficha.numero ?? ""}:${ficha.imagen?.tipo === "foto" ? (ficha.imagen.src ? "f" : "0") : "i"}`).join("|"),
+    datos.banco.map((ficha) => `${ficha.id}:${ficha.nombre}:${ficha.numero ?? ""}:${ficha.imagen?.tipo === "foto" ? (ficha.imagen.src ? "f" : "0") : "i"}`).join("|"),
+    datos.dt.map((ficha) => `${ficha.id}:${ficha.nombre}:${ficha.imagen?.tipo === "foto" ? (ficha.imagen.src ? "f" : "0") : "i"}`).join("|"),
   ].join("~");
   useEffect(() => {
     let cancel = false;
