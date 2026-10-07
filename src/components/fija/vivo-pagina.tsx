@@ -42,22 +42,33 @@ export function VivoPantalla({
         timer = window.setTimeout(tick, 30_000);
         return;
       }
-      let next: MarcadorPublico;
+      let next: MarcadorPublico | null = null;
+      let fallo = false;
       try {
         next = await leerMarcador({ data: { t, e } });
       } catch {
-        next = { ok: false, reason: "missing" };
+        fallo = true;
       }
       if (cancel) return;
-      setMarcador(next);
+      if (fallo || !next) {
+        setMarcador((anterior) => anterior ?? { ok: false, reason: "missing" });
+        timer = window.setTimeout(tick, 12_000);
+        return;
+      }
+      const recibido = next;
+      if (!recibido.ok && recibido.reason === "limited") {
+        setMarcador((anterior) => (anterior?.ok ? anterior : recibido));
+      } else {
+        setMarcador(recibido);
+      }
       setAhora(Date.now());
-      const limited = !next.ok && next.reason === "limited";
+      const limited = !recibido.ok && recibido.reason === "limited";
       intento = limited ? intento + 1 : 0;
       const espera = intervaloVivo({
-        estado: limited ? "limited" : next.ok ? next.estado : "espera",
+        estado: limited ? "limited" : recibido.ok ? recibido.estado : "espera",
         ahora: Date.now(),
-        cerrado: next.ok ? next.cerrado : null,
-        figuraLista: next.ok && next.estado === "final" && next.figura.estado !== "abierta",
+        cerrado: recibido.ok ? recibido.cerrado : null,
+        figuraLista: recibido.ok && recibido.estado === "final" && recibido.figura.estado !== "abierta",
         intentoLimited: intento,
       });
       if (espera <= 0) return;
