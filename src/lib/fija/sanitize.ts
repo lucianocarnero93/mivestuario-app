@@ -3,6 +3,9 @@ const TAGS = /<\/?[^>]+>/g;
 /** Indicación del DT a un puesto. No recorta el espacio del final: si no, no se puede seguir escribiendo. */
 export const NOTA_JUGADOR_MAX = 80;
 
+/** Charla para todo el equipo, debajo de la pizarra. Más larga que la de un puesto, con tope. */
+export const TACTICA_EQUIPO_MAX = 420;
+
 export function notaDeJugador(raw: string, max = NOTA_JUGADOR_MAX): string {
   return raw
     .replace(TAGS, "")

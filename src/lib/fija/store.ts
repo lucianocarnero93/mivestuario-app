@@ -4,7 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { formatWhen, uid } from "./format";
 import { notifyApp, notifyReminder } from "./notify";
 import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
-import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText } from "./sanitize";
+import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText, TACTICA_EQUIPO_MAX } from "./sanitize";
 import { coloresDelEquipo } from "./alineacion";
 import { FORMATIONS } from "./formations";
 import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, marcaMasNueva, valorConMarca } from "./club-rules";
@@ -635,7 +635,7 @@ export const useFija = create<State>()(
         set({
           events: get().events.map((event) =>
             event.id === eventId
-              ? { ...event, tactics, lineupUpdatedAt: new Date().toISOString() }
+              ? { ...event, tactics: tactics.slice(0, TACTICA_EQUIPO_MAX), lineupUpdatedAt: new Date().toISOString() }
               : event,
           ),
         });

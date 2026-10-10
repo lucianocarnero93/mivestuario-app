@@ -8,7 +8,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FORMATIONS, MODALITY_SHORT, MODALITIES, puestoDe } from "@/lib/fija/formations";
 import { personLabel, uid } from "@/lib/fija/format";
-import { NOTA_JUGADOR_MAX } from "@/lib/fija/sanitize";
+import { NOTA_JUGADOR_MAX, TACTICA_EQUIPO_MAX } from "@/lib/fija/sanitize";
 import { loadAudioJugada, saveAudioJugada } from "@/lib/fija/cloud";
 import {
   ALINEACION_FOTOS_DEFAULT,
@@ -258,9 +258,9 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
           <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-accent">Para todo el equipo</p>
           {staff ? (
             <Textarea
-              className="mt-2 min-h-28 border-line/30 bg-transparent text-base text-line"
-              rows={4}
-              maxLength={180}
+              className="mt-2 min-h-48 border-line/30 bg-transparent text-base text-line"
+              rows={8}
+              maxLength={TACTICA_EQUIPO_MAX}
               value={event.tactics}
               onChange={(e) => setTactics(event.id, e.target.value)}
               placeholder="Lo que se dice antes de salir."
