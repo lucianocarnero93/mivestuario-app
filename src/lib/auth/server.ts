@@ -105,6 +105,9 @@ export const auth = betterAuth({
     accountLinking: {
       enabled: true,
       trustedProviders: ["google"],
+      // El alta por mail no pide verificación. Sin esto, Google ve la cuenta
+      // y vuelve al login con "account not linked".
+      requireLocalEmailVerified: false,
     },
     // WhatsApp no reenvía la cookie al volver de Google. El state viaja en el
     // link y queda guardado en la base; sin esto la app muestra el inicio.

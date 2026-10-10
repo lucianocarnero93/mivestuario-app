@@ -256,7 +256,7 @@ const tabOn = "h-11 rounded-lg bg-accent text-sm font-semibold text-accent-fg";
 const tabOff = "h-11 rounded-lg bg-surface text-sm font-semibold text-muted";
 
 function googleError(code: string): string {
-  if (code === "unable_to_link_account" || code === "account_already_linked_to_different_user" || code === "email_doesn't_match") {
+  if (code === "unable_to_link_account" || code === "account_not_linked" || code === "account_already_linked_to_different_user" || code === "email_doesn't_match") {
     return "Ese mail ya tiene cuenta. Entrá con la contraseña, no con Google.";
   }
   if (code === "state_mismatch" || code === "state_not_found") {
