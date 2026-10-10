@@ -106,6 +106,9 @@ export const auth = betterAuth({
       enabled: true,
       trustedProviders: ["google"],
     },
+    // WhatsApp no reenvía la cookie al volver de Google. El state viaja en el
+    // link y queda guardado en la base; sin esto la app muestra el inicio.
+    skipStateCookieCheck: true,
   },
   trustedOrigins: [
     "http://localhost:8080",
