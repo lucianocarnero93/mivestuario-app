@@ -29,6 +29,10 @@ export const authClient = createAuthClient({
     }),
   ],
   fetchOptions: {
+    onSuccess: (ctx) => {
+      const token = ctx.response.headers.get("set-auth-token");
+      if (token) rememberSessionToken(token);
+    },
     auth: {
       type: "Bearer",
       token: () => getBearerToken() ?? undefined,

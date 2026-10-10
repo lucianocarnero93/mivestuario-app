@@ -94,8 +94,11 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, amp).replace(/</g, lt).replace(/>/g, gt).replace(/"/g, quot);
 }
 
+const baseURL = env("BETTER_AUTH_URL") ?? "http://localhost:8080";
+const comparteDominio = baseURL.includes("mivestuario.com.ar");
+
 export const auth = betterAuth({
-  baseURL: env("BETTER_AUTH_URL") ?? "http://localhost:8080",
+  baseURL,
   secret: env("BETTER_AUTH_SECRET") ?? "dev-secret-change-me-32-chars-minimum",
   database: database!,
   account: {
@@ -198,6 +201,11 @@ export const auth = betterAuth({
   advanced: {
     useSecureCookies: false,
     defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },
+    // www y el dominio pelado son el mismo sitio. Si la cookie queda en uno solo,
+    // Google devuelve al otro y la app muestra el inicio como si no hubiera entrado.
+    ...(comparteDominio
+      ? { crossSubDomainCookies: { enabled: true, domain: "mivestuario.com.ar" } }
+      : {}),
     ipAddress: {
       ipAddressHeaders: ["x-real-ip", "x-forwarded-for"],
     },
