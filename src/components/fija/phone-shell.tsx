@@ -14,7 +14,6 @@ import { BrandLockup } from "./logo";
 import { PushBanner, AvisosPrompt } from "./push-banner";
 import { PwaRegister } from "./pwa-register";
 import { SignInPanel } from "./sign-in-panel";
-import { Portada } from "./portada";
 import { EdadGate } from "./edad-gate";
 import { traerImagenesEquipo } from "@/lib/fija/fotos-card";
 import { TeamCrest } from "./team-crest";
@@ -159,7 +158,6 @@ function AuthFrame({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
   const club = useFija((s) => s.club);
   const hydrated = useFija((s) => s.hydrated);
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [pedirEdad, setPedirEdad] = useState(false);
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
 
@@ -178,7 +176,6 @@ function AuthFrame({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (pathname === "/" && !user) return <Portada />;
   if (isPending && !user) {
     return <p className="grid min-h-dvh place-items-center px-6 text-center text-sm text-muted">Abriendo el vestuario…</p>;
   }
