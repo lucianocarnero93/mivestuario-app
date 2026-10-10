@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getResponseHeaders } from "@tanstack/react-start/server";
+import { parseSetCookieHeader } from "better-auth/cookies";
 import { auth } from "@/lib/auth/server";
 
 const SESSION_TOKEN_KEY = "mv-session";
@@ -13,9 +15,9 @@ export const Route = createFileRoute("/api/auth/$")({
 });
 
 /**
- * El mail guarda el token al responder el fetch. Google vuelve con una
- * redirección y esa respuesta no llega al celular. Si hay sesión, la
- * dejamos en la página y recién ahí abrimos el inicio.
+ * Google vuelve con una redirección. El mail, en cambio, guarda el token
+ * porque la respuesta le llega al celular. Acá lo copiamos antes de abrir
+ * el inicio, si no la app muestra el login otra vez.
  */
 function conEntrada(request: Request, response: Response): Response {
   const url = new URL(request.url);
@@ -30,39 +32,61 @@ function conEntrada(request: Request, response: Response): Response {
     return response;
   }
   if (destino.origin !== url.origin || destino.searchParams.has("error")) return response;
-  const cookies = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
-  const token = tokenDeSesion(cookies) || response.headers.get("set-auth-token") || "";
+
+  const deRespuesta = leerCookies(response.headers);
+  const deEvento = leerCookies(headersDelEvento());
+  const cookies = deRespuesta.length > 0 ? deRespuesta : deEvento;
+  const token =
+    response.headers.get("set-auth-token") ||
+    tokenDeSesion(deRespuesta) ||
+    tokenDeSesion(deEvento);
   if (!token) return response;
+
   const headers = new Headers();
   headers.set("content-type", "text/html; charset=utf-8");
   headers.set("cache-control", "no-store");
   headers.set("referrer-policy", "no-referrer");
-  for (const cookie of cookies) headers.append("set-cookie", cookie);
+  const vistas = new Set<string>();
+  for (const cookie of cookies) {
+    if (vistas.has(cookie)) continue;
+    vistas.add(cookie);
+    headers.append("set-cookie", cookie);
+  }
   const path = `${destino.pathname}${destino.search}${destino.hash}` || "/";
   return new Response(paginaDeEntrada(path, token), { status: 200, headers });
 }
 
+function headersDelEvento(): Headers | null {
+  try {
+    return getResponseHeaders() as Headers;
+  } catch {
+    return null;
+  }
+}
+
+function leerCookies(headers: Headers | null): string[] {
+  if (!headers) return [];
+  if (typeof headers.getSetCookie === "function") {
+    const list = headers.getSetCookie();
+    if (list.length > 0) return list;
+  }
+  const raw = headers.get("set-cookie");
+  if (!raw) return [];
+  return parseSetCookieHeader(raw).size > 0 ? [raw] : [];
+}
+
 function tokenDeSesion(cookies: string[]): string {
-  for (const cookie of cookies) {
-    const semi = cookie.indexOf(";");
-    const pair = semi === -1 ? cookie : cookie.slice(0, semi);
-    const eq = pair.indexOf("=");
-    if (eq < 0) continue;
-    const name = pair.slice(0, eq).trim();
+  const parsed = parseSetCookieHeader(cookies.join(", "));
+  for (const [name, cookie] of parsed) {
     if (!name.endsWith("session_token")) continue;
-    if (/max-age=0/i.test(cookie)) continue;
-    const value = pair.slice(eq + 1).trim();
-    if (!value) continue;
-    try {
-      return value.includes("%") ? decodeURIComponent(value) : value;
-    } catch {
-      return value;
-    }
+    if (cookie["max-age"] === 0) continue;
+    if (!cookie.value) continue;
+    return cookie.value;
   }
   return "";
 }
 
 function paginaDeEntrada(destino: string, token: string): string {
   const data = JSON.stringify({ destino, token, key: SESSION_TOKEN_KEY }).replace(/</g, "\\u003c");
-  return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Entrando</title><p style="font-family:sans-serif;padding:24px">Entrando al vestuario…</p><script>try{var p=${data};if(p.token)localStorage.setItem(p.key,p.token);location.replace(p.destino||"/");}catch(e){location.replace("/");}</script>`;
+  return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Entrando</title><p style="font-family:sans-serif;padding:24px">Entrando al vestuario…</p><script>(async function(){try{var p=${data};if(p.token)localStorage.setItem(p.key,p.token);if(navigator.serviceWorker){var regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(function(r){return r.unregister();}));}if(window.caches){var keys=await caches.keys();await Promise.all(keys.map(function(k){return caches.delete(k);}));}}catch(e){}location.replace((p&&p.destino)||"/");})();</script>`;
 }
