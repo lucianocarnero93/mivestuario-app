@@ -31,6 +31,12 @@ export function SignInPanel({ opening = false }: { opening?: boolean }) {
       .catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    const error = new URLSearchParams(window.location.search).get("error");
+    if (!error) return;
+    setErrorText(googleError(error));
+  }, []);
+
   async function submitAccount(event: FormEvent) {
     event.preventDefault();
     setErrorText("");
@@ -248,6 +254,16 @@ const field =
   "mt-1 flex h-12 w-full rounded-md border border-border bg-bg px-3 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 const tabOn = "h-11 rounded-lg bg-accent text-sm font-semibold text-accent-fg";
 const tabOff = "h-11 rounded-lg bg-surface text-sm font-semibold text-muted";
+
+function googleError(code: string): string {
+  if (code === "unable_to_link_account" || code === "account_already_linked_to_different_user" || code === "email_doesn't_match") {
+    return "Ese mail ya tiene cuenta. Entrá con la contraseña, no con Google.";
+  }
+  if (code === "state_mismatch" || code === "state_not_found") {
+    return "Google no pudo confirmar la entrada. Cerrá esta pantalla y tocá el link de nuevo.";
+  }
+  return "Google no completó la entrada. Probá de nuevo o entrá con mail y contraseña.";
+}
 
 function hoyIso() {
   const now = new Date();
