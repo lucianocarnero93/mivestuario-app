@@ -10,7 +10,8 @@ import { formatWhen, plural } from "@/lib/fija/format";
 import { FIGURA_CIERRE_HORAS, mesDe, votacionAbierta } from "@/lib/fija/figura";
 import { etiquetaPremio, mesAnterior, nombreMes, premiosDelMes, premiosDelPartido } from "@/lib/fija/premios";
 import { resumenSemana, validarPlanilla } from "@/lib/fija/vista";
-import { caja, logo, png, recortar } from "@/lib/fija/lienzo";
+import { dibujarResumen } from "@/lib/fija/resumen-dibujo";
+import { enviar } from "@/lib/fija/lienzo";
 import { PremioMini } from "@/components/fija/premio-card";
 import { alumniMember } from "@/lib/fija/stats";
 import { resultIsOpen } from "@/lib/fija/club-rules";
@@ -42,7 +43,10 @@ function FechaPage() {
   const elegido = events.find((event) => event.id === partido && event.kind === "partido");
   const actual = elegido ?? fechaVisible(events, undefined, staff);
   const momento = momentoFecha(events.filter((event) => !event.fechaOculta || staff));
-  const resumen = resumenSemana(events, sheets, (id) => members.find((person) => person.id === id)?.nick ?? "Alguien");
+  const resumen = resumenSemana(events, sheets, (id) => {
+    const person = members.find((item) => item.id === id);
+    return { nombre: person?.nick || "Alguien", menor: person?.menor === true, foto: person?.menor ? null : person?.photo };
+  });
   const ctx = useContextoPremios();
   const mes = mesAnterior(mesDe(new Date().toISOString()));
   const delMes = premiosDelMes(mes, ctx).filter((premio) => premio.memberId === me.id);
@@ -290,58 +294,52 @@ function Historial({ actualId, staff }: { actualId?: string; staff: boolean }) {
 }
 
 function Resumen({ resumen, staff }: { resumen: ReturnType<typeof resumenSemana>; staff: boolean }) {
+  const club = useFija((s) => s.club);
   const [nota, setNota] = useState("");
   async function compartir() {
-    const canvas = document.createElement("canvas");
-    canvas.width = 1080;
-    canvas.height = 1920;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#0b1c12";
-    ctx.fillRect(0, 0, 1080, 1920);
-    logo(ctx, 80, 120, 72);
-    ctx.fillStyle = "#b8f25a";
-    ctx.font = "700 64px sans-serif";
-    ctx.fillText(recortar(ctx, resumen.titulo, 860), 180, 175);
-    ctx.fillStyle = "#eef6ef";
-    ctx.font = "600 42px sans-serif";
-    resumen.partidos.slice(0, 8).forEach((partido, index) => {
-      caja(ctx, 80, 280 + index * 140, 920, 120, 24);
-      ctx.fillStyle = "#123222";
-      ctx.fill();
-      ctx.fillStyle = "#eef6ef";
-      ctx.fillText(recortar(ctx, partido.resultado, 860), 110, 355 + index * 140);
-    });
-    ctx.fillStyle = "#b8f25a";
-    ctx.font = "600 32px sans-serif";
-    ctx.fillText("¿Tu equipo no tiene cards? mivestuario.com.ar", 80, 1800);
-    const blob = await png(ctx);
-    const file = new File([blob], "resumen.png", { type: "image/png" });
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: resumen.titulo }).catch(() => undefined);
-      return;
+    try {
+      const blob = await dibujarResumen({
+        titulo: resumen.titulo,
+        club: club.name,
+        escudo: club.crest,
+        partidos: resumen.partidos,
+      });
+      const texto = [resumen.titulo, ...resumen.partidos.map((partido) => partido.resultado)].join(". ");
+      const modo = await enviar(blob, "resumen.png", texto);
+      if (modo === "saved") setNota("Imagen guardada.");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setNota("No se pudo armar la imagen.");
     }
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "resumen.png";
-    link.click();
-    URL.revokeObjectURL(url);
-    setNota("Imagen guardada.");
   }
   return (
     <section className="mt-8 rounded-xl bg-surface p-4 shadow-card">
       <h2 className="text-xs font-semibold uppercase tracking-widest text-muted">{resumen.titulo}</h2>
       {resumen.partidos.length === 0 ? <p className="mt-2 text-sm text-muted">Esta semana no hubo partidos cerrados.</p> : null}
-      <ul className="mt-2 space-y-2 text-sm">
+      <ul className="mt-3 space-y-2">
         {resumen.partidos.map((partido) => (
-          <li key={partido.id}>
-            {partido.resultado}
-            {partido.goleador ? ` · gol de ${partido.goleador}` : ""}
+          <li key={partido.id} className="rounded-xl bg-bg px-3 py-3">
+            <p className="text-base font-semibold">
+              {partido.verbo} {partido.goalsFor}–{partido.goalsAgainst}
+              {partido.rival ? ` vs ${partido.rival}` : ""}
+            </p>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted">{partido.esquema}</p>
+            {partido.goles.length > 0 ? (
+              <p className="mt-1 text-sm">Goles: {partido.goles.map((gol) => (gol.n > 1 ? `${gol.nombre} ${gol.n}` : gol.nombre)).join(", ")}</p>
+            ) : null}
+            {partido.asistencias.length > 0 ? (
+              <p className="text-sm text-muted">
+                Asistencias: {partido.asistencias.map((item) => (item.n > 1 ? `${item.nombre} ${item.n}` : item.nombre)).join(", ")}
+              </p>
+            ) : null}
           </li>
         ))}
       </ul>
-      {staff ? <Button variant="outline" className="mt-3 h-12 w-full" onClick={() => void compartir()}>Compartir resumen</Button> : null}
+      {staff ? (
+        <Button variant="outline" className="mt-3 h-12 w-full" onClick={() => void compartir()}>
+          Compartir en la historia
+        </Button>
+      ) : null}
       {nota ? <p className="mt-2 text-sm text-accent">{nota}</p> : null}
     </section>
   );

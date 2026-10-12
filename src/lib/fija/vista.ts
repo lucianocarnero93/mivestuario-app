@@ -1,6 +1,7 @@
 import type { ClubEvent, FiguraVote, MatchSheet } from "./types.ts";
 import { FIGURA_CIERRE_HORAS, figuraDe, votacionAbierta } from "./figura.ts";
 import { CAPITAN_ACTIVO, FIGURA_MIN_VOTOS, type TipoPremio } from "./premios.ts";
+import { formacionDelPlan, planVisible } from "./pizarra.ts";
 
 const TZ = "America/Argentina/Buenos_Aires";
 const DIA = 24 * 3_600_000;
@@ -98,17 +99,47 @@ export function rangoSemana(now = Date.now()): { desde: number; hasta: number; p
   return { desde: lunes, hasta: lunes + 7 * DIA, pasada: false };
 }
 
+export type AporteSemana = { nombre: string; n: number; oculto: boolean };
+
+export type TitularSemana = {
+  puesto: string;
+  nombre: string;
+  oculto: boolean;
+  foto: string | null;
+  x: number;
+  y: number;
+};
+
 export type PartidoSemana = {
   id: string;
   titulo: string;
   resultado: string;
   goleador: string | null;
+  rival: string;
+  goalsFor: number;
+  goalsAgainst: number;
+  verbo: "Ganado" | "Empate" | "Perdido" | "Sin cargar";
+  esquema: string;
+  titulares: TitularSemana[];
+  goles: AporteSemana[];
+  asistencias: AporteSemana[];
+  amarillas: number;
+  rojas: number;
 };
+
+type Quien = string | { nombre: string; menor?: boolean; foto?: string | null };
+
+function fichaDe(nombre: (id: string) => Quien, id: string): { nombre: string; menor: boolean; foto: string | null } {
+  const valor = nombre(id);
+  if (typeof valor === "string") return { nombre: valor, menor: false, foto: null };
+  const foto = typeof valor.foto === "string" && valor.foto.startsWith("data:image/") ? valor.foto : null;
+  return { nombre: valor.nombre, menor: valor.menor === true, foto: valor.menor ? null : foto };
+}
 
 export function resumenSemana(
   events: ClubEvent[],
   sheets: MatchSheet[],
-  nombre: (id: string) => string,
+  nombre: (id: string) => Quien,
   now = Date.now(),
 ): { titulo: string; partidos: PartidoSemana[] } {
   const rango = rangoSemana(now);
@@ -126,11 +157,44 @@ export function resumenSemana(
       const crudo = (sheet?.opponent?.trim() || event.title).trim();
       const sinVs = crudo.replace(/^\s*vs\.?\s+/i, "").trim();
       const rival = sinVs || crudo;
+      const goalsFor = sheet?.goalsFor ?? 0;
+      const goalsAgainst = sheet?.goalsAgainst ?? 0;
+      const plan = planVisible(event, event.planActivo ?? "a");
+      const forma = formacionDelPlan(event, plan);
+      const aportes = (campo: "goals" | "assists") =>
+        (sheet?.players ?? [])
+          .filter((fila) => fila[campo] > 0)
+          .map((fila) => {
+            const ficha = fichaDe(nombre, fila.memberId);
+            return { nombre: ficha.nombre, n: fila[campo], oculto: ficha.menor };
+          })
+          .sort((a, b) => b.n - a.n || a.nombre.localeCompare(b.nombre));
       return {
         id: event.id,
         titulo: event.title,
         resultado: `${marca} vs ${rival}`,
-        goleador: goleador && goleador.goals > 0 ? nombre(goleador.memberId) : null,
+        goleador: goleador && goleador.goals > 0 ? fichaDe(nombre, goleador.memberId).nombre : null,
+        rival,
+        goalsFor,
+        goalsAgainst,
+        verbo: !sheet ? "Sin cargar" : goalsFor > goalsAgainst ? "Ganado" : goalsFor < goalsAgainst ? "Perdido" : "Empate",
+        esquema: forma.name,
+        titulares: forma.slots.map((slot) => {
+          const id = plan.lineup[slot.key];
+          const ficha = id ? fichaDe(nombre, id) : null;
+          return {
+            puesto: slot.label,
+            nombre: ficha?.nombre ?? "",
+            oculto: ficha?.menor === true,
+            foto: ficha?.foto ?? null,
+            x: slot.x,
+            y: slot.y,
+          };
+        }),
+        goles: aportes("goals"),
+        asistencias: aportes("assists"),
+        amarillas: (sheet?.players ?? []).reduce((suma, fila) => suma + Math.max(0, fila.yellow), 0),
+        rojas: (sheet?.players ?? []).reduce((suma, fila) => suma + Math.max(0, fila.red), 0),
       };
     });
   return { titulo: rango.pasada ? "Resumen de la semana pasada" : "Resumen de la semana", partidos };
