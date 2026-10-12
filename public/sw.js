@@ -1,7 +1,7 @@
 /* Mi Vestuario App service worker
  * Offline shell, network intercept, push, background sync.
  */
-const CACHE = "mi-vestuario-v12";
+const CACHE = "mi-vestuario-v13";
 const PRECACHE = [
   "/",
   "/offline.html",
@@ -50,6 +50,12 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+function fetchConTope(request, ms) {
+  const control = new AbortController();
+  const timer = setTimeout(() => control.abort(), ms);
+  return fetch(request, { signal: control.signal }).finally(() => clearTimeout(timer));
+}
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;
@@ -63,7 +69,7 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     const esVivo = url.pathname === "/vivo" || url.pathname.startsWith("/vivo/");
     event.respondWith(
-      fetch(request)
+      fetchConTope(request, 8000)
         .then((response) => response)
         .catch(async () => {
           if (esVivo) {

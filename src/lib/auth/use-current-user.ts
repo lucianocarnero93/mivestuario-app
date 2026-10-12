@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { authClient, authEnabled } from "./client";
 
 /** Normalized user shape used across the app, auth on or off. */
@@ -88,6 +89,20 @@ export function useCurrentUserState(): CurrentUserState {
       : null,
     isPending,
   };
+}
+
+/** Si la sesión no contesta, no dejar la pantalla de "Abriendo" para siempre. */
+export function useSessionLista(isPending: boolean, hasUser: boolean, ms = 6000): boolean {
+  const [cedio, setCedio] = useState(false);
+  useEffect(() => {
+    if (!isPending || hasUser) {
+      setCedio(false);
+      return;
+    }
+    const id = window.setTimeout(() => setCedio(true), ms);
+    return () => window.clearTimeout(id);
+  }, [isPending, hasUser, ms]);
+  return isPending && !hasUser && !cedio;
 }
 
 /**

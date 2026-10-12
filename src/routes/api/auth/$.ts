@@ -88,5 +88,5 @@ function tokenDeSesion(cookies: string[]): string {
 
 function paginaDeEntrada(destino: string, token: string): string {
   const data = JSON.stringify({ destino, token, key: SESSION_TOKEN_KEY }).replace(/</g, "\\u003c");
-  return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Entrando</title><p style="font-family:sans-serif;padding:24px">Entrando al vestuario…</p><script>(async function(){try{var p=${data};if(p.token)localStorage.setItem(p.key,p.token);if(navigator.serviceWorker){var regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(function(r){return r.unregister();}));}if(window.caches){var keys=await caches.keys();await Promise.all(keys.map(function(k){return caches.delete(k);}));}}catch(e){}location.replace((p&&p.destino)||"/");})();</script>`;
+  return `<!doctype html><html lang="es"><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Entrando</title><p style="font-family:sans-serif;padding:24px">Entrando al vestuario…</p><script>(function(){var destino="/";try{var p=${data};if(p&&p.token)localStorage.setItem(p.key,p.token);if(p&&p.destino)destino=p.destino;}catch(e){}location.replace(destino);})();</script>`;
 }

@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SignInPanel } from "@/components/fija/sign-in-panel";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { useCurrentUserState, useSessionLista } from "@/lib/auth/use-current-user";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
   const { user, isPending } = useCurrentUserState();
-  if (isPending) {
+  const esperando = useSessionLista(isPending, user !== null);
+  if (esperando) {
     return <p className="grid min-h-dvh place-items-center text-sm text-muted">Abriendo el vestuario…</p>;
   }
   if (user) {

@@ -7,7 +7,7 @@ import { rememberInvite } from "@/lib/fija/share";
 import { registerTeamPush } from "@/lib/fija/push-client";
 import { useFija, useIsStaff, useMe, currentAccount, wipeLocalTeamData } from "@/lib/fija/store";
 import { cn } from "@/lib/utils";
-import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { useCurrentUserState, useSessionLista } from "@/lib/auth/use-current-user";
 import { ClubGate } from "./club-gate";
 import { InboxBell } from "./inbox-bell";
 import { BrandLockup } from "./logo";
@@ -156,6 +156,7 @@ export function PhoneShell() {
 
 function AuthFrame({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
+  const esperando = useSessionLista(isPending, user !== null);
   const club = useFija((s) => s.club);
   const hydrated = useFija((s) => s.hydrated);
   const [pedirEdad, setPedirEdad] = useState(false);
@@ -176,7 +177,7 @@ function AuthFrame({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  if (isPending && !user) {
+  if (esperando) {
     return <p className="grid min-h-dvh place-items-center px-6 text-center text-sm text-muted">Abriendo el vestuario…</p>;
   }
   if (user && pedirEdad) return <EdadGate />;
