@@ -86,14 +86,14 @@ test("la figura empatada da una card por jugador, y un solo voto no", () => {
   assert.equal(uno.length, 0);
 });
 
-test("la figura cierra al terminar el día siguiente al partido", () => {
+test("la figura cierra al día siguiente a las 17", () => {
   const event = evento({ id: "p1", startsAt: "2026-10-01T20:00:00-03:00", resultClosedAt: CIERRE });
   const sheet = planilla("p1", [{ memberId: "a", goals: 1, assists: 0, yellow: 0, red: 0 }]);
   const votes = [
     { eventId: "p1", voterId: "c", pickId: "a", at: CIERRE },
     { eventId: "p1", voterId: "d", pickId: "a", at: CIERRE },
   ];
-  const cierre = Date.parse("2026-10-03T00:00:00-03:00");
+  const cierre = Date.parse("2026-10-02T17:00:00-03:00");
   const abierto = cierre - 60_000;
   assert.equal(estadoFigura(event, votes, abierto), "abierta");
   assert.equal(

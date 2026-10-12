@@ -3,7 +3,7 @@ import type { ClubEvent, FiguraVote, MatchSheet, Member } from "./types.ts";
 
 const TZ = "America/Argentina/Buenos_Aires";
 
-/** Medianoche del día posterior al siguiente, hora de Buenos Aires. Argentina no cambia el reloj. */
+/** El día siguiente al partido, a las 17, hora de Buenos Aires. Ahí ya se puede compartir la historia. */
 export function cierreFigura(event: { startsAt: string }): number | null {
   const inicio = Date.parse(event.startsAt);
   if (!Number.isFinite(inicio)) return null;
@@ -18,7 +18,7 @@ export function cierreFigura(event: { startsAt: string }): number | null {
   const m = leer("month");
   const d = leer("day");
   if (!y || !m || !d) return null;
-  return Date.UTC(y, m - 1, d + 2, 3, 0, 0);
+  return Date.UTC(y, m - 1, d + 1, 20, 0, 0);
 }
 
 export function votacionAbierta(event: ClubEvent, now: number): boolean {
