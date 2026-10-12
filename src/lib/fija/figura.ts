@@ -2,19 +2,35 @@ import { resultIsOpen } from "./club-rules.ts";
 import type { ClubEvent, FiguraVote, MatchSheet, Member } from "./types.ts";
 
 const TZ = "America/Argentina/Buenos_Aires";
-export const FIGURA_CIERRE_HORAS = 48;
-const CIERRE_FIGURA_MS = FIGURA_CIERRE_HORAS * 3_600_000;
+
+/** Medianoche del día posterior al siguiente, hora de Buenos Aires. Argentina no cambia el reloj. */
+export function cierreFigura(event: { startsAt: string }): number | null {
+  const inicio = Date.parse(event.startsAt);
+  if (!Number.isFinite(inicio)) return null;
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(inicio));
+  const leer = (tipo: string) => Number(partes.find((parte) => parte.type === tipo)?.value);
+  const y = leer("year");
+  const m = leer("month");
+  const d = leer("day");
+  if (!y || !m || !d) return null;
+  return Date.UTC(y, m - 1, d + 2, 3, 0, 0);
+}
+
+export function votacionAbierta(event: ClubEvent, now: number): boolean {
+  if (!event.resultClosedAt) return true;
+  const cierre = cierreFigura(event);
+  return cierre != null && now < cierre;
+}
 
 export function mesDe(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit" }).format(date);
-}
-
-export function votacionAbierta(event: ClubEvent, now: number): boolean {
-  if (!event.resultClosedAt) return true;
-  const base = Date.parse(event.resultClosedAt);
-  return Number.isFinite(base) && now < base + CIERRE_FIGURA_MS;
 }
 
 export function votosAceptables(

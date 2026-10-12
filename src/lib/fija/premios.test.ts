@@ -86,14 +86,15 @@ test("la figura empatada da una card por jugador, y un solo voto no", () => {
   assert.equal(uno.length, 0);
 });
 
-test("a las 47 horas la figura sigue abierta y a las 48 ya hay card", () => {
+test("la figura cierra al terminar el día siguiente al partido", () => {
   const event = evento({ id: "p1", startsAt: "2026-10-01T20:00:00-03:00", resultClosedAt: CIERRE });
   const sheet = planilla("p1", [{ memberId: "a", goals: 1, assists: 0, yellow: 0, red: 0 }]);
   const votes = [
     { eventId: "p1", voterId: "c", pickId: "a", at: CIERRE },
     { eventId: "p1", voterId: "d", pickId: "a", at: CIERRE },
   ];
-  const abierto = BASE + 47 * 3_600_000;
+  const cierre = Date.parse("2026-10-03T00:00:00-03:00");
+  const abierto = cierre - 60_000;
   assert.equal(estadoFigura(event, votes, abierto), "abierta");
   assert.equal(
     premiosDelPartido("p1", ctx({ events: [event], sheets: [sheet], members: [jugador("a")], votes, now: abierto })).filter(
@@ -101,10 +102,9 @@ test("a las 47 horas la figura sigue abierta y a las 48 ya hay card", () => {
     ).length,
     0,
   );
-  const justo = BASE + 48 * 3_600_000;
-  assert.equal(estadoFigura(event, votes, justo), "cerrada");
+  assert.equal(estadoFigura(event, votes, cierre), "cerrada");
   assert.equal(
-    premiosDelPartido("p1", ctx({ events: [event], sheets: [sheet], members: [jugador("a")], votes, now: justo })).filter(
+    premiosDelPartido("p1", ctx({ events: [event], sheets: [sheet], members: [jugador("a")], votes, now: cierre })).filter(
       (premio) => premio.tipo === "figura",
     ).length,
     1,

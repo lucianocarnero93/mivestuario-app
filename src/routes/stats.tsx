@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { formatDay, plural } from "@/lib/fija/format";
 import { enJuego, rachaVoy } from "@/lib/fija/fecha";
-import { figuraDe, mesDe, votacionAbierta, FIGURA_CIERRE_HORAS } from "@/lib/fija/figura";
+import { cierreFigura, figuraDe, mesDe, votacionAbierta } from "@/lib/fija/figura";
 import { FIGURA_MIN_VOTOS, mesAnterior, nombreMes, premiosDelMes, premiosDelPartido } from "@/lib/fija/premios";
 import { alumniMember, outcome, playerRows, rankedBy, resultLabel, teamRecord, type PlayerRow } from "@/lib/fija/stats";
 import { frasePuesto, posicionRanking, validarPlanilla, vitrina } from "@/lib/fija/vista";
@@ -354,7 +354,7 @@ function ParaHacer({
           );
         })}
         {abiertas.map((event) => {
-          const cierra = Date.parse(event.resultClosedAt ?? "") + FIGURA_CIERRE_HORAS * 3_600_000;
+          const cierra = cierreFigura(event) ?? Date.now();
           const horas = Math.max(1, Math.ceil((cierra - Date.now()) / 3_600_000));
           return (
             <li key={`voto-${event.id}`} className="rounded-lg bg-bg p-3">

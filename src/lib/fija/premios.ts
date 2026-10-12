@@ -1,5 +1,5 @@
 import { estaJugado } from "./fecha.ts";
-import { figuraDe, liderDelMes, mesDe, votacionAbierta, FIGURA_CIERRE_HORAS } from "./figura.ts";
+import { cierreFigura, figuraDe, liderDelMes, mesDe, votacionAbierta } from "./figura.ts";
 import { inicialesDe, imagenDe, type ImagenPersona } from "./imagen.ts";
 import { alumniMember, teamRecord } from "./stats.ts";
 import { nombreEnTarjeta, puestoEnTarjeta } from "./tarjeta.ts";
@@ -8,9 +8,7 @@ import type { AvatarPersona } from "./avatar.ts";
 import type { Club, ClubEvent, FiguraVote, MatchSheet, Member, Rsvp, Tournament } from "./types.ts";
 
 const TZ = "America/Argentina/Buenos_Aires";
-const HORA = 3_600_000;
 
-export { FIGURA_CIERRE_HORAS };
 export const TRATO_DEFAULT = "neutro";
 export const FIGURA_MIN_VOTOS = 2;
 export const CAPITAN_ACTIVO = false;
@@ -371,7 +369,8 @@ export function nombreMes(mes: string): string {
 }
 
 export function textoVotacionAbierta(event: ClubEvent): string {
-  const cierre = Date.parse(event.resultClosedAt ?? event.startsAt) + FIGURA_CIERRE_HORAS * HORA;
+  const cierre = cierreFigura(event);
+  if (!cierre) return "Figura: votación abierta";
   return `Figura: votación abierta hasta ${diaHora(cierre)}`;
 }
 

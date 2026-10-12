@@ -7,7 +7,7 @@ import { PlayerAvatar } from "@/components/fija/stat-blocks";
 import { Button } from "@/components/ui/button";
 import { enJuego, estaJugado, fechaVisible, momentoFecha, rachaInvicto, rachaVoy } from "@/lib/fija/fecha";
 import { formatWhen, plural } from "@/lib/fija/format";
-import { FIGURA_CIERRE_HORAS, mesDe, votacionAbierta } from "@/lib/fija/figura";
+import { cierreFigura, mesDe, votacionAbierta } from "@/lib/fija/figura";
 import { etiquetaPremio, mesAnterior, nombreMes, premiosDelMes, premiosDelPartido } from "@/lib/fija/premios";
 import { resumenSemana, validarPlanilla } from "@/lib/fija/vista";
 import { dibujarResumen } from "@/lib/fija/resumen-dibujo";
@@ -102,9 +102,8 @@ function FechaViva({ event }: { event: ClubEvent }) {
   const racha = rachaVoy(useFija.getState().events, rsvps, me.id, sheets);
   const votacion = cerrado && votacionAbierta(event, Date.now());
   const yaVote = (votes ?? []).some((row) => row.eventId === event.id && row.voterId === me.id);
-  const cierraEn = event.resultClosedAt
-    ? Math.max(0, Math.ceil((Date.parse(event.resultClosedAt) + FIGURA_CIERRE_HORAS * 3_600_000 - Date.now()) / 3_600_000))
-    : 0;
+  const cierre = cierreFigura(event);
+  const cierraEn = cierre ? Math.max(0, Math.ceil((cierre - Date.now()) / 3_600_000)) : 0;
   const confirmados = rsvps.filter((row) => row.eventId === event.id && row.status === "voy").length;
   const duda = rsvps.filter((row) => row.eventId === event.id && row.status !== "voy" && row.status !== "no").length;
   const premiosMios = premiosDelPartido(event.id, ctx).filter((premio) => premio.memberId === me.id && premio.tipo === "figura");

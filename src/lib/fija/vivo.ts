@@ -1,5 +1,5 @@
 import { datosCard, estadoFigura, premiosDelPartido, type ContextoPremios } from "./premios.ts";
-import { votacionAbierta, FIGURA_CIERRE_HORAS } from "./figura.ts";
+import { cierreFigura, votacionAbierta } from "./figura.ts";
 import { armarAlineacion, type DatosAlineacion, type FichaBanco, type FichaTitular } from "./alineacion.ts";
 import { formacionDelPlan, planVisible } from "./pizarra.ts";
 import { clampStat, emptyStat } from "./stats.ts";
@@ -605,7 +605,7 @@ function figuraPublica(
   clubName: string,
   now: number,
 ): FiguraPublica {
-  const hasta = new Date(Date.parse(event.resultClosedAt || event.startsAt) + FIGURA_CIERRE_HORAS * 3_600_000).toISOString();
+  const hasta = new Date(cierreFigura(event) ?? Date.parse(event.startsAt)).toISOString();
   if (votacionAbierta(event, now)) return { estado: "abierta", hasta };
   const club = { id: "publico", name: clubName, createdBy: "", inviteCode: "", crest: null } satisfies Club;
   const members = people.map((person) => ({
