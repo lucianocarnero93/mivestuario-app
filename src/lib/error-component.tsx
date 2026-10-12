@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { TriangleAlert } from "lucide-react";
 
@@ -16,17 +15,6 @@ function esVersionVieja(error: unknown): boolean {
 }
 
 export function AppErrorComponent({ error }: ErrorComponentProps) {
-  useEffect(() => {
-    if (!esVersionVieja(error)) return;
-    try {
-      if (sessionStorage.getItem("vestuario-reload") === "1") return;
-      sessionStorage.setItem("vestuario-reload", "1");
-    } catch {
-      return;
-    }
-    window.location.reload();
-  }, [error]);
-
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-bg px-6 text-center text-fg">
       <span className="text-danger" aria-hidden="true">
@@ -34,17 +22,41 @@ export function AppErrorComponent({ error }: ErrorComponentProps) {
       </span>
       <h1 className="text-lg font-semibold">Se trabó el partido</h1>
       <p className="max-w-md text-sm break-words text-muted">
-        {esVersionVieja(error) ? "Había una versión vieja abierta. Recargá la página." : errorMessage(error)}
+        {esVersionVieja(error) ? "Había una copia vieja en el celular." : errorMessage(error)}
       </p>
       <button
         type="button"
         className="h-12 rounded-lg bg-accent px-5 font-semibold text-accent-fg"
-        onClick={() => window.location.reload()}
+        onClick={() => {
+          void entrarLimpio();
+        }}
       >
-        Recargar
+        Entrar de nuevo
       </button>
     </main>
   );
+}
+
+async function entrarLimpio() {
+  try {
+    sessionStorage.removeItem("vestuario-reload");
+  } catch {
+    /* ignore */
+  }
+  try {
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((reg) => reg.unregister()));
+    }
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    }
+  } catch {
+    /* igual hay que entrar */
+  }
+  const extra = location.search ? "&" : "?";
+  location.replace(`${location.pathname}${location.search}${extra}nuevo=${Date.now()}`);
 }
 
 export function NotFoundPage() {

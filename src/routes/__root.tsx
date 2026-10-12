@@ -33,13 +33,79 @@ export const Route = createRootRoute({
   component: RootDocument,
 });
 
+const recuperarVersion = `(function(){
+  var KEY="vestuario-reload";
+  function modulo(message){
+    return message.indexOf("dynamically imported module")!==-1||message.indexOf("module script failed")!==-1||message.indexOf("Importing a module script failed")!==-1;
+  }
+  function limpiar(){
+    var trabajos=[];
+    try{
+      if(navigator.serviceWorker){
+        trabajos.push(navigator.serviceWorker.getRegistrations().then(function(regs){
+          return Promise.all(regs.map(function(reg){return reg.unregister()}));
+        }));
+      }
+      if(window.caches){
+        trabajos.push(caches.keys().then(function(keys){
+          return Promise.all(keys.map(function(key){return caches.delete(key)}));
+        }));
+      }
+    }catch(e){}
+    return Promise.race([
+      Promise.all(trabajos).catch(function(){}),
+      new Promise(function(resolve){setTimeout(resolve,1200)})
+    ]);
+  }
+  function entrar(){
+    var url=location.pathname+location.search;
+    url+=(url.indexOf("?")===-1?"?":"&")+"nuevo="+Date.now();
+    location.replace(url);
+  }
+  function aviso(){
+    if(document.getElementById("vestuario-roto"))return;
+    var caja=document.createElement("div");
+    caja.id="vestuario-roto";
+    caja.setAttribute("style","position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;background:#0b1c12;color:#eef6ef;text-align:center;font:16px/1.4 sans-serif");
+    var texto=document.createElement("p");
+    texto.textContent="La página se quedó con una copia vieja.";
+    var boton=document.createElement("button");
+    boton.type="button";
+    boton.textContent="Entrar de nuevo";
+    boton.setAttribute("style","height:48px;padding:0 20px;border:0;border-radius:12px;background:#b8f25a;color:#0b1c12;font:600 16px sans-serif");
+    boton.onclick=function(){
+      try{sessionStorage.removeItem(KEY)}catch(e){}
+      limpiar().then(entrar,entrar);
+    };
+    caja.appendChild(texto);
+    caja.appendChild(boton);
+    (document.body||document.documentElement).appendChild(caja);
+  }
+  function recuperar(){
+    var ahora=Date.now();
+    var previo=0;
+    try{previo=Number(sessionStorage.getItem(KEY)||"0")}catch(e){}
+    if(previo&&ahora-previo<20000){aviso();return}
+    try{sessionStorage.setItem(KEY,String(ahora))}catch(e){}
+    limpiar().then(entrar,entrar);
+  }
+  window.addEventListener("vite:preloadError",function(event){event.preventDefault();recuperar()});
+  window.addEventListener("unhandledrejection",function(event){
+    var reason=event.reason;
+    var message=reason&&(reason.message||String(reason))||"";
+    if(!modulo(message))return;
+    event.preventDefault();
+    recuperar();
+  });
+})();`;
+
 function RootDocument() {
   return (
     <html lang="es" className="antialiased" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){function recargar(){try{if(sessionStorage.getItem("vestuario-reload")==="1"){aviso();return}sessionStorage.setItem("vestuario-reload","1")}catch(e){}location.reload()}function aviso(){if(document.getElementById("vestuario-roto"))return;var nodo=document.createElement("p");nodo.id="vestuario-roto";nodo.textContent="La página quedó en una versión vieja. Recargá con el botón del navegador.";nodo.setAttribute("style","position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:24px;background:#0b1c12;color:#eef6ef;text-align:center;font:16px/1.4 sans-serif");(document.body||document.documentElement).appendChild(nodo)}window.addEventListener("vite:preloadError",function(event){event.preventDefault();recargar()});window.addEventListener("unhandledrejection",function(event){var reason=event.reason;var message=reason&&(reason.message||String(reason))||"";if(message.indexOf("dynamically imported module")===-1&&message.indexOf("module script failed")===-1)return;event.preventDefault();recargar()})})();`,
+            __html: recuperarVersion,
           }}
         />
         <HeadContent />

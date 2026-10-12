@@ -1,9 +1,8 @@
 /* Mi Vestuario App service worker
  * Offline shell, network intercept, push, background sync.
  */
-const CACHE = "mi-vestuario-v13";
+const CACHE = "mi-vestuario-v14";
 const PRECACHE = [
-  "/",
   "/offline.html",
   "/manifest.json",
   "/favicon.svg",
@@ -78,8 +77,6 @@ self.addEventListener("fetch", (event) => {
               headers: { "Content-Type": "text/plain; charset=utf-8" },
             });
           }
-          const cached = await caches.match("/");
-          if (cached) return cached;
           const offline = await caches.match("/offline.html");
           return (
             offline ||
@@ -93,29 +90,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/assets/") || url.pathname.endsWith(".js")) {
-    event.respondWith(networkFirst(request));
-    return;
-  }
   const staticAsset =
     PRECACHE.includes(url.pathname) ||
     ["image", "font", "manifest"].includes(request.destination);
   if (staticAsset) event.respondWith(staleWhileRevalidate(request));
 });
-
-async function networkFirst(request) {
-  try {
-    const fresh = await fetch(request);
-    if (!fresh.ok) return fresh;
-    const cache = await caches.open(CACHE);
-    cache.put(request, fresh.clone());
-    return fresh;
-  } catch {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    return new Response("", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } });
-  }
-}
 
 async function staleWhileRevalidate(request) {
   const cache = await caches.open(CACHE);
