@@ -404,25 +404,61 @@ function marca(value: string | undefined): number {
   return Number.isFinite(time) ? time : 0;
 }
 
-function elegirCampo<T>(newer: T | null | undefined, older: T | null | undefined): T | null | undefined {
-  if (newer === null) return null;
-  if (newer !== undefined) return newer;
-  return older === null ? null : older;
+function horasDe(
+  propiaPrev: string | undefined,
+  propiaNext: string | undefined,
+  generalPrev: string | undefined,
+  generalNext: string | undefined,
+): { prev: number; next: number } {
+  const prevPropia = marca(propiaPrev);
+  const nextPropia = marca(propiaNext);
+  if (prevPropia || nextPropia) {
+    return { prev: prevPropia, next: nextPropia ? nextPropia : 0 };
+  }
+  return { prev: marca(generalPrev), next: marca(generalNext) };
 }
 
-/** La jugada y la pelota se mezclan aparte de la formación. null borra y no vuelve. */
-export function camposDePizarra(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, "pasos" | "pelotaParada" | "jugadaVisible" | "pelotaVisible" | "videoUrl" | "notas" | "tactics" | "audioDe"> {
-  const newer = marca(incoming.pizarraUpdatedAt) >= marca(previous.pizarraUpdatedAt) ? incoming : previous;
-  const older = newer === incoming ? previous : incoming;
+function mezclarCampo<T>(
+  prev: T | null | undefined,
+  next: T | null | undefined,
+  prevMs: number,
+  nextMs: number,
+): T | null | undefined {
+  if (nextMs > prevMs) return next === undefined ? prev : next;
+  if (prevMs > nextMs) return prev === undefined ? next : prev;
+  if (prev === null || next === null) return null;
+  if (next !== undefined) return next;
+  return prev;
+}
+
+/** La jugada y la pelota se mezclan aparte. null borra y una copia vieja no lo revive. */
+export function camposDePizarra(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, "pasos" | "pelotaParada" | "jugadaVisible" | "pelotaVisible" | "videoUrl" | "notas" | "tactics" | "audioDe" | "jugadaAt" | "pelotaAt" | "videoAt" | "notasAt" | "tacticaAt" | "audioAt" | "pizarraUpdatedAt"> {
+  const jugada = horasDe(previous.jugadaAt, incoming.jugadaAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
+  const pelota = horasDe(previous.pelotaAt, incoming.pelotaAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
+  const video = horasDe(previous.videoAt, incoming.videoAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
+  const notas = horasDe(previous.notasAt, incoming.notasAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
+  const tactica = horasDe(previous.tacticaAt, incoming.tacticaAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
+  const audio = horasDe(previous.audioAt, incoming.audioAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
+  const videoElegido = mezclarCampo(previous.videoUrl ?? undefined, incoming.videoUrl ?? undefined, video.prev, video.next);
   return {
-    pasos: elegirCampo(newer.pasos, older.pasos),
-    pelotaParada: elegirCampo(newer.pelotaParada, older.pelotaParada),
-    jugadaVisible: newer.jugadaVisible !== undefined ? newer.jugadaVisible : older.jugadaVisible,
-    pelotaVisible: newer.pelotaVisible !== undefined ? newer.pelotaVisible : older.pelotaVisible,
-    videoUrl: elegirCampo(newer.videoUrl, older.videoUrl),
-    notas: newer.notas ?? older.notas,
-    tactics: newer.tactics ?? older.tactics,
-    audioDe: newer.audioDe ?? older.audioDe,
+    pasos: mezclarCampo(previous.pasos, incoming.pasos, jugada.prev, jugada.next),
+    pelotaParada: mezclarCampo(previous.pelotaParada, incoming.pelotaParada, pelota.prev, pelota.next),
+    jugadaVisible: mezclarCampo(previous.jugadaVisible, incoming.jugadaVisible, jugada.prev, jugada.next) ?? undefined,
+    pelotaVisible: mezclarCampo(previous.pelotaVisible, incoming.pelotaVisible, pelota.prev, pelota.next) ?? undefined,
+    videoUrl: videoElegido === null ? "" : videoElegido,
+    notas: mezclarCampo(previous.notas, incoming.notas, notas.prev, notas.next) ?? undefined,
+    tactics: mezclarCampo(previous.tactics, incoming.tactics, tactica.prev, tactica.next) ?? previous.tactics,
+    audioDe: mezclarCampo(previous.audioDe, incoming.audioDe, audio.prev, audio.next) ?? undefined,
+    jugadaAt: jugada.next > jugada.prev ? incoming.jugadaAt : previous.jugadaAt,
+    pelotaAt: pelota.next > pelota.prev ? incoming.pelotaAt : previous.pelotaAt,
+    videoAt: video.next > video.prev ? incoming.videoAt : previous.videoAt,
+    notasAt: notas.next > notas.prev ? incoming.notasAt : previous.notasAt,
+    tacticaAt: tactica.next > tactica.prev ? incoming.tacticaAt : previous.tacticaAt,
+    audioAt: audio.next > audio.prev ? incoming.audioAt : previous.audioAt,
+    pizarraUpdatedAt:
+      marca(incoming.pizarraUpdatedAt) >= marca(previous.pizarraUpdatedAt)
+        ? incoming.pizarraUpdatedAt ?? previous.pizarraUpdatedAt
+        : previous.pizarraUpdatedAt ?? incoming.pizarraUpdatedAt,
   };
 }
 

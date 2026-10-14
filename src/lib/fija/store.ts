@@ -674,7 +674,7 @@ export const useFija = create<State>()(
             const notas = { ...(event.notas ?? {}) };
             if (!clean.trim()) delete notas[memberId];
             else notas[memberId] = clean;
-            return { ...event, notas, lineupUpdatedAt: now, pizarraUpdatedAt: now };
+            return { ...event, notas, lineupUpdatedAt: now, pizarraUpdatedAt: now, notasAt: now };
           }),
         });
       },
@@ -693,6 +693,12 @@ export const useFija = create<State>()(
                   ...patch,
                   lineupUpdatedAt: tocaCancha ? now : event.lineupUpdatedAt,
                   pizarraUpdatedAt: tocaPizarra ? now : event.pizarraUpdatedAt,
+                  jugadaAt: "pasos" in patch || "jugadaVisible" in patch ? now : event.jugadaAt,
+                  pelotaAt: "pelotaParada" in patch || "pelotaVisible" in patch ? now : event.pelotaAt,
+                  videoAt: "videoUrl" in patch ? now : event.videoAt,
+                  notasAt: "notas" in patch ? now : event.notasAt,
+                  tacticaAt: "tactics" in patch ? now : event.tacticaAt,
+                  audioAt: "audioDe" in patch ? now : event.audioAt,
                 }
               : event,
           ),

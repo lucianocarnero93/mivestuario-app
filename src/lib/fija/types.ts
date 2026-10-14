@@ -195,6 +195,13 @@ export type ClubEvent = {
   lineupUpdatedAt?: string;
   /** Cuándo se cambió la jugada, la pelota parada, el video o las indicaciones. */
   pizarraUpdatedAt?: string;
+  /** Hora de cada parte. Un borrado con hora más nueva no vuelve si el otro edita otra cosa. */
+  jugadaAt?: string;
+  pelotaAt?: string;
+  videoAt?: string;
+  notasAt?: string;
+  tacticaAt?: string;
+  audioAt?: string;
   /** Cuándo el DT confirmó que la planilla está completa. */
   resultClosedAt?: string | null;
   /** La planilla se guardó, pero el DT dijo que todavía falta. */

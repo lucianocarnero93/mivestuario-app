@@ -100,6 +100,21 @@ test("borrar la jugada no la revive y el jugador no recibe lo oculto", () => {
   const nueva = { ...base, pasos: null, pizarraUpdatedAt: "2026-10-02T00:00:00Z", notas: { mati: "Quedate", fran: "Subí" } };
   assert.equal(camposDePizarra(vieja, nueva).pasos, null);
   assert.equal(camposDePizarra(nueva, vieja).pasos, null);
+  const borrada = { ...nueva, jugadaAt: "2026-10-02T00:00:00Z", pelotaVisible: true, pelotaAt: "2026-10-02T00:00:00Z" };
+  const ayuda = {
+    ...vieja,
+    pizarraUpdatedAt: "2026-10-03T00:00:00Z",
+    notas: { mati: "Indicación nueva" },
+    notasAt: "2026-10-03T00:00:00Z",
+    pelotaVisible: false,
+  };
+  const mezcla = camposDePizarra(borrada, ayuda);
+  assert.equal(mezcla.pasos, null);
+  assert.equal(mezcla.pelotaVisible, true);
+  assert.equal(mezcla.notas?.mati, "Indicación nueva");
+  const alReves = camposDePizarra(ayuda, borrada);
+  assert.equal(alReves.pasos, null);
+  assert.equal(alReves.pelotaVisible, true);
   const recortado = recortarParaJugador(
     {
       club: { id: "c", name: "A", createdBy: "dt", inviteCode: "ABC123", crest: null },
