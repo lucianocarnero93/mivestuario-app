@@ -5,6 +5,8 @@ import {
   canAssignRoles,
   repairCreatedBy,
   allowedDrops,
+  relevoDelUltimoDt,
+  rolesConDt,
   patchKeepsMenor,
   pushCopy,
   memberGetsPush,
@@ -213,6 +215,56 @@ test("el ayudante no saca ni banea a un DT", () => {
   ];
   assert.deepEqual(allowedDrops(members, "crea", ["otro", "ayu", "pibe", "crea"], false), ["pibe"]);
   assert.deepEqual(allowedDrops(members, "crea", ["otro", "ayu", "pibe", "crea"], true), ["otro", "ayu", "pibe"]);
+});
+
+test("un guardado sin DT no deja el equipo sin DT", () => {
+  const previo = [
+    person({ id: "crea", name: "Lucho", role: "dt" }),
+    person({ id: "ayu", name: "Nico", role: "ayudante" }),
+    person({ id: "pibe", name: "Enzo", role: "jugador" }),
+  ];
+  const pedido = [
+    { ...previo[0], role: "ayudante" as const },
+    { ...previo[1], role: "jugador" as const },
+    { ...previo[2], nick: "Nuevo" },
+  ];
+  const guardado = rolesConDt(previo, pedido, "crea");
+  assert.equal(guardado.some((item) => item.role === "dt"), true);
+  assert.equal(guardado.find((item) => item.id === "crea")?.role, "dt");
+  assert.equal(guardado.find((item) => item.id === "ayu")?.role, "ayudante");
+  assert.equal(guardado.find((item) => item.id === "pibe")?.nick, "Nuevo");
+
+  const nuevo = rolesConDt(
+    [],
+    previo.map((item) => ({ ...item, role: "ayudante" as const })),
+    "ayu",
+  );
+  assert.equal(nuevo.find((item) => item.id === "ayu")?.role, "dt");
+  assert.equal(nuevo.filter((item) => item.role === "dt").length, 1);
+});
+
+test("el último DT no se baja si no elige relevo", () => {
+  const members = [
+    person({ id: "crea", name: "Lucho", role: "dt" }),
+    person({ id: "nico", name: "Nico", role: "ayudante" }),
+    person({ id: "ale", name: "Ale", role: "ayudante" }),
+  ];
+  const rechazado = relevoDelUltimoDt(members, "crea", "ayudante");
+  assert.equal(rechazado.aplica, true);
+  if (!rechazado.aplica) return;
+  assert.equal(rechazado.ok, false);
+  const solo = relevoDelUltimoDt([members[0]], "crea", "jugador");
+  assert.equal(solo.aplica, true);
+  if (!solo.aplica) return;
+  assert.equal(solo.ok, false);
+
+  const elegido = relevoDelUltimoDt(members, "crea", "ayudante", "ale");
+  assert.equal(elegido.aplica && elegido.ok, true);
+  if (!elegido.aplica || !elegido.ok) return;
+  assert.equal(elegido.members.find((item) => item.id === "crea")?.role, "ayudante");
+  assert.equal(elegido.members.find((item) => item.id === "ale")?.role, "dt");
+  assert.equal(elegido.members.find((item) => item.id === "nico")?.role, "ayudante");
+  assert.equal(elegido.members.some((item) => item.role === "dt"), true);
 });
 
 test("una cuenta menor no puede pasar a mayor por API", () => {

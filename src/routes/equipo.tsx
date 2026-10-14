@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ROLE_LABEL, ROLE_TAB, personLabel } from "@/lib/fija/format";
 import { PanelSponsors } from "@/components/fija/espacio-sponsor";
-import { MAX_BYTES } from "@/lib/fija/club-rules";
+import { MAX_BYTES, relevoDelUltimoDt } from "@/lib/fija/club-rules";
 import { leerFotoJugador } from "@/lib/fija/foto-jugador";
 import { alumniMember, playerRows, rankedBy, teamRecord } from "@/lib/fija/stats";
 import { sheetsForScope, useFija, useIsCreator, useIsStaff, useMe } from "@/lib/fija/store";
@@ -395,15 +395,23 @@ function DesignateDialog() {
   const assignRole = useFija((s) => s.assignRole);
   const [open, setOpen] = useState(false);
   const [pedido, setPedido] = useState<{ id: string; role: Role; nombre: string } | null>(null);
+  const [relevoId, setRelevoId] = useState<string | null>(null);
   const yo = members.find((person) => person.id === me.id);
   const lista = yo ? [yo, ...members.filter((person) => person.id !== yo.id)] : members;
+  const cerrarPedido = () => {
+    setPedido(null);
+    setRelevoId(null);
+  };
+  const ultimo = Boolean(pedido && relevoDelUltimoDt(members, pedido.id, pedido.role).aplica);
+  const otros = pedido ? members.filter((person) => person.id !== pedido.id) : [];
+  const relevo = otros.find((person) => person.id === relevoId) ?? null;
 
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setPedido(null);
+        if (!next) cerrarPedido();
       }}
     >
       <DialogTrigger asChild>
@@ -415,36 +423,59 @@ function DesignateDialog() {
         <p className="mb-3 text-sm text-muted">
           También podés cambiarte vos. Si le das DT o ayudante a alguien, quien lo tenía pasa a jugador.
         </p>
-        {pedido ? (
+        {pedido && ultimo && otros.length === 0 ? (
+          <div className="rounded-lg bg-surface-2 p-3">
+            <p className="text-sm">El equipo necesita un DT.</p>
+            <Button variant="ghost" className="mt-3 h-11 w-full" onClick={cerrarPedido}>
+              Volver
+            </Button>
+          </div>
+        ) : pedido && ultimo && !relevo ? (
+          <div className="rounded-lg bg-surface-2 p-3">
+            <p className="text-sm">
+              {pedido.id === me.id
+                ? "Antes de bajarte, elegí quién queda de DT."
+                : `Antes de bajar a ${pedido.nombre}, elegí quién queda de DT.`}
+            </p>
+            <ul className="mt-3 max-h-56 space-y-2 overflow-auto">
+              {otros.map((person) => (
+                <li key={person.id}>
+                  <button
+                    type="button"
+                    className="h-11 w-full rounded-md bg-bg px-3 text-left text-sm font-semibold"
+                    onClick={() => setRelevoId(person.id)}
+                  >
+                    {etiqueta(person, members)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <Button variant="ghost" className="mt-3 h-11 w-full" onClick={cerrarPedido}>
+              Cancelar
+            </Button>
+          </div>
+        ) : pedido ? (
           <div className="rounded-lg bg-surface-2 p-3">
             <p className="text-sm">
               ¿{pedido.nombre} pasa a {ROLE_LABEL[pedido.role]}?
-              {(() => {
-                const actual = members.find((person) => person.id === pedido.id);
-                const unicoDt =
-                  pedido.role !== "dt" &&
-                  actual?.role === "dt" &&
-                  !members.some((person) => person.id !== pedido.id && person.role === "dt");
-                if (unicoDt && pedido.role === "ayudante" && members.some((person) => person.role === "ayudante")) {
-                  return " Quien es ayudante pasa a DT.";
-                }
-                if (unicoDt) return " El equipo queda sin DT hasta que designes uno.";
-                if (pedido.role === "jugador") return "";
-                return " Quien lo era pasa a jugador.";
-              })()}
+              {relevo
+                ? ` ${etiqueta(relevo, members)} queda de DT.`
+                : pedido.role === "jugador"
+                  ? ""
+                  : " Quien lo era pasa a jugador."}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button
                 className="h-11"
                 onClick={() => {
-                  assignRole(pedido.id, pedido.role);
-                  setPedido(null);
+                  assignRole(pedido.id, pedido.role, relevo?.id);
+                  cerrarPedido();
                   setOpen(false);
                 }}
               >
                 Confirmar
               </Button>
-              <Button variant="ghost" className="h-11" onClick={() => setPedido(null)}>
+              <Button variant="ghost" className="h-11" onClick={cerrarPedido}>
                 Cancelar
               </Button>
             </div>
@@ -466,7 +497,10 @@ function DesignateDialog() {
                         type="button"
                         disabled={m.role === role}
                         className="h-11 flex-1 rounded-md bg-surface-2 text-xs font-semibold disabled:opacity-40"
-                        onClick={() => setPedido({ id: m.id, role, nombre })}
+                        onClick={() => {
+                          setRelevoId(null);
+                          setPedido({ id: m.id, role, nombre });
+                        }}
                       >
                         {ROLE_LABEL[role]}
                       </button>

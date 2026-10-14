@@ -7,7 +7,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText, TACTICA_EQUIPO_MAX } from "./sanitize";
 import { coloresDelEquipo } from "./alineacion";
 import { FORMATIONS } from "./formations";
-import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, marcaMasNueva, valorConMarca } from "./club-rules";
+import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, marcaMasNueva, valorConMarca, relevoDelUltimoDt } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
@@ -131,7 +131,7 @@ type State = ReturnType<typeof createSeed> & {
   setClubCrest: (crest: string | null) => void;
   invitePlayer: (input: { name: string; nick: string; number: number | null }) => string | null;
   removeMember: (memberId: string) => void;
-  assignRole: (memberId: string, role: Role) => void;
+  assignRole: (memberId: string, role: Role, relevoId?: string) => void;
     setJuega: (memberId: string, juega: boolean) => void;
     saveMatchSheet: (sheet: Omit<MatchSheet, "recordedAt">, options?: { confirmClosed?: boolean }) => void;
   anotarEnCancha: (
@@ -1095,24 +1095,30 @@ export const useFija = create<State>()(
         void get().flushCloud();
       },
 
-      // Cambia el puesto de una persona. Si el puesto nuevo es DT o ayudante,
-      // quien lo tenía pasa a jugador. Solo hay un DT y un ayudante.
-      assignRole: (memberId, role) => {
+      // Cambia el puesto de una persona. El último DT elige a quién le deja el puesto.
+      assignRole: (memberId, role, relevoId) => {
         if (!isCreatorId(get())) return;
         const { members, club } = get();
+        if (!club) return;
+        const relevo = relevoDelUltimoDt(members, memberId, role, relevoId);
+        if (relevo.aplica) {
+          if (!relevo.ok) return;
+          set({
+            club: { ...club, rolesAt: new Date().toISOString() },
+            members: relevo.members,
+          });
+          void get().flushCloud();
+          return;
+        }
         const target = members.find((person) => person.id === memberId);
-        if (!target || !club) return;
-        const unicoDt =
-          target.role === "dt" && !members.some((person) => person.id !== target.id && person.role === "dt");
-        const relevo = unicoDt && role === "ayudante" ? members.find((person) => person.role === "ayudante") : undefined;
+        if (!target) return;
         set({
           club: { ...club, rolesAt: new Date().toISOString() },
           members: members.map((person) => {
             if (person.id === memberId) {
               return { ...person, role, juega: role === "jugador" ? true : person.juega };
             }
-            if (relevo && person.id === relevo.id) return { ...person, role: "dt" };
-            if (!relevo && role !== "jugador" && person.role === role) {
+            if (role !== "jugador" && person.role === role) {
               return { ...person, role: "jugador", juega: true };
             }
             return person;

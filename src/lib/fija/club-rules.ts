@@ -1,4 +1,4 @@
-import type { AlertLog, Alumni, ClubBundle, ClubEvent, InboxItem, MatchSheet, Member, Rsvp, Tournament } from "./types.ts";
+import type { AlertLog, Alumni, ClubBundle, ClubEvent, InboxItem, MatchSheet, Member, Role, Rsvp, Tournament } from "./types.ts";
 import { clampStat } from "./stats.ts";
 
 export const MAX_BYTES = 350_000;
@@ -450,6 +450,59 @@ export function patchKeepsMenor<T extends { menor?: boolean }>(currentMenor: boo
   if (!currentMenor) return patch;
   return { ...patch, menor: true };
 }
+
+export type RelevoDt =
+  | { aplica: false }
+  | { aplica: true; ok: false }
+  | { aplica: true; ok: true; members: Member[] };
+
+/** El último DT no se baja solo ni le pasa el puesto al primer ayudante de la lista. */
+export function relevoDelUltimoDt(
+  members: Member[],
+  memberId: string,
+  role: Role,
+  relevoId?: string,
+): RelevoDt {
+  const target = members.find((person) => person.id === memberId);
+  const ultimo =
+    !!target &&
+    target.role === "dt" &&
+    role !== "dt" &&
+    !members.some((person) => person.id !== memberId && person.role === "dt");
+  if (!ultimo) return { aplica: false };
+  const relevo = members.find((person) => person.id === relevoId && person.id !== memberId);
+  if (!relevo) return { aplica: true, ok: false };
+  return {
+    aplica: true,
+    ok: true,
+    members: members.map((person) => {
+      if (person.id === memberId) {
+        return { ...person, role, juega: role === "jugador" ? true : person.juega };
+      }
+      if (person.id === relevo.id) return { ...person, role: "dt" };
+      return person;
+    }),
+  };
+}
+
+/**
+ * El server no guarda un plantel sin DT.
+ * Si el pedido deja a todos sin ese puesto, vuelven los puestos de antes.
+ * Si antes tampoco había, queda DT quien creó el equipo.
+ */
+export function rolesConDt(previous: Member[], next: Member[], creatorId: string): Member[] {
+  if (next.some((person) => person.role === "dt")) return next;
+  const previos = new Map(previous.map((person) => [person.id, person.role]));
+  const restored = next.map((person) => {
+    const role = previos.get(person.id);
+    return role ? { ...person, role } : person;
+  });
+  if (restored.some((person) => person.role === "dt")) return restored;
+  const ancla = restored.find((person) => person.id === creatorId)?.id ?? restored[0]?.id;
+  if (!ancla) return restored;
+  return restored.map((person) => (person.id === ancla ? { ...person, role: "dt" } : person));
+}
+
 export function canAssignRoles(members: Member[], createdBy: string, userId: string): boolean {
   if (!userId) return false;
   const creator = members.find((person) => person.id === createdBy);

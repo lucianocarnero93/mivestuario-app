@@ -47,6 +47,7 @@ import {
   repairCreatedBy,
   allowedDrops,
   capRoster,
+  rolesConDt,
   clipInbox,
   clipTextList,
   decideClaim,
@@ -1370,7 +1371,11 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
       lightenClosedMatches(
         withoutDroppedEvents(
           { ...incoming,
-          members: capRoster([], capOversizedPhotos([], incoming.members)),
+          members: rolesConDt(
+            [],
+            capRoster([], capOversizedPhotos([], incoming.members)),
+            incoming.club.createdBy,
+          ),
           messages: clipTextList(
             (incoming.messages ?? []).filter((item) => {
               const author = incoming.members.find((person) => person.id === item.memberId);
@@ -1477,7 +1482,11 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     staff ? incoming.alumni : [],
   );
   const capped = capRoster(existing.members, capOversizedPhotos(existing.members, unique));
-  const listed = lockStaffRoles(existing, incoming.club.rolesAt, capped, userId);
+  const listed = rolesConDt(
+    existing.members,
+    lockStaffRoles(existing, incoming.club.rolesAt, capped, userId),
+    creatorId,
+  );
   const eventIds = new Set(existing.events.map((event) => event.id));
   const ownRsvps = incoming.rsvps.filter((row) => row.memberId === me?.id);
   const reacciones = staff
