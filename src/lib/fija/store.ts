@@ -1649,6 +1649,7 @@ export const useFija = create<State>()(
                   resultClosedAt: done ? now : null,
                   resultPending: !done,
                   resultUpdatedAt: now,
+                  reabrir: !done,
                 }
               : item,
           ),

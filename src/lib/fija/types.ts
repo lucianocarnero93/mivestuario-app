@@ -197,6 +197,8 @@ export type ClubEvent = {
   resultPending?: boolean;
   /** Para que al mezclar gane la respuesta más nueva. */
   resultUpdatedAt?: string;
+  /** El DT volvió a abrir un partido ya terminado. Una copia vieja no lo manda. */
+  reabrir?: boolean;
   /** Link público del marcador. No muestra el plantel. */
   liveToken?: string | null;
   /** Cuándo se abrió o se cerró ese link. Gana el más nuevo. */

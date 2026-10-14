@@ -534,6 +534,19 @@ test("dos marcas distintas se suman y una hora futura no reabre", () => {
   assert.equal(elegirResultado(cerrado, copia, ahora).resultClosedAt, cerrado.resultClosedAt);
   const reabre = { resultClosedAt: null as string | null, resultPending: true, resultUpdatedAt: "2026-10-04T16:05:00-03:00" };
   assert.equal(elegirResultado(cerrado, reabre, Date.parse("2026-10-04T16:05:00-03:00")).resultClosedAt, null);
+  const vieja = { resultClosedAt: null as string | null, resultPending: true, resultUpdatedAt: "2026-10-04T15:00:00-03:00" };
+  assert.equal(elegirResultado(cerrado, vieja, ahora).resultClosedAt, cerrado.resultClosedAt);
+  const sinHora = { resultClosedAt: null as string | null, resultPending: true };
+  assert.equal(elegirResultado(cerrado, sinHora, ahora).resultClosedAt, cerrado.resultClosedAt);
+  const atrasada = {
+    resultClosedAt: null as string | null,
+    resultPending: true,
+    resultUpdatedAt: "2026-10-04T16:10:00-03:00",
+    liveUpdatedAt: "2026-10-04T16:10:00-03:00",
+  };
+  assert.equal(elegirResultado(cerrado, atrasada, Date.parse("2026-10-04T16:10:00-03:00")).resultClosedAt, cerrado.resultClosedAt);
+  const pedido = { ...atrasada, reabrir: true };
+  assert.equal(elegirResultado(cerrado, pedido, Date.parse("2026-10-04T16:10:00-03:00")).resultClosedAt, null);
 });
 
 test("apagar el link no lo revive una copia vieja", () => {

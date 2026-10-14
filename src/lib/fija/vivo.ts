@@ -541,15 +541,29 @@ export function elegirTokenEquipo(
   return { teamLiveToken: prev, teamLiveAt: existing.teamLiveAt ?? undefined };
 }
 
-/** En un empate de hora, un partido cerrado no se vuelve a abrir. */
-export function elegirResultado<T extends { resultClosedAt?: string | null; resultPending?: boolean; resultUpdatedAt?: string }>(
+/** Una vez cerrado, solo se abre de nuevo si el DT lo pide. Una copia vieja o un gol atrasado no lo reabre. */
+export function elegirResultado<T extends {
+  resultClosedAt?: string | null;
+  resultPending?: boolean;
+  resultUpdatedAt?: string;
+  reabrir?: boolean;
+  liveUpdatedAt?: string;
+}>(
   previous: T,
   incoming: T,
   now = Date.now(),
 ): T {
   const prevTime = instanteConfiable(previous.resultUpdatedAt, now);
   const nextTime = instanteConfiable(incoming.resultUpdatedAt, now);
-  if (nextTime > prevTime) return incoming;
+  if (nextTime > prevTime) {
+    if (previous.resultClosedAt && !incoming.resultClosedAt) {
+      const liveNuevo =
+        instanteConfiable(incoming.liveUpdatedAt, now) > instanteConfiable(previous.liveUpdatedAt, now);
+      if (incoming.reabrir === true || !liveNuevo) return incoming;
+      return previous;
+    }
+    return incoming;
+  }
   if (nextTime < prevTime) return previous;
   if (previous.resultClosedAt && !incoming.resultClosedAt) return previous;
   if (incoming.resultClosedAt || incoming.resultPending) return incoming;
