@@ -354,6 +354,36 @@ export function escudoElegido(
   return null;
 }
 
+export type DecisionEscudo = {
+  crest: string | null;
+  crestAt?: string;
+  crestOff: boolean;
+  escribir: "imagen" | "borrar" | "nada";
+};
+
+/** El escudo gana por su hora. Un null con hora más nueva lo borra. Una copia vieja no lo revive. */
+export function decisionEscudo(
+  anteriorAt: string | undefined,
+  pedido: string | null | undefined,
+  pedidoAt: string | undefined,
+  now = Date.now(),
+  pedidoOff?: boolean,
+): DecisionEscudo {
+  const imagen =
+    pedido && pedido.startsWith("data:image/") && pedido.length >= 16 && pedido.length < 120_000 ? pedido : null;
+  const prev = millisDeMarca(anteriorAt, now);
+  const next = millisDeMarca(pedidoAt, now);
+  if (next > prev) {
+    if (pedidoOff) return { crest: null, crestAt: pedidoAt, crestOff: true, escribir: "borrar" };
+    if (imagen) return { crest: imagen, crestAt: pedidoAt, crestOff: false, escribir: "imagen" };
+    return { crest: null, crestAt: anteriorAt, crestOff: false, escribir: "nada" };
+  }
+  if (prev === 0 && next === 0 && imagen && !pedidoOff) {
+    return { crest: imagen, crestAt: new Date(now).toISOString(), crestOff: false, escribir: "imagen" };
+  }
+  return { crest: null, crestAt: anteriorAt, crestOff: false, escribir: "nada" };
+}
+
 const FUTURE_SKEW_MS = 2 * 60 * 1000;
 
 /** Sin hora en el servidor, la biblioteca que llega es la primera. Una hora inválida no pisa. */

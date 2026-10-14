@@ -29,6 +29,7 @@ import {
   pickMemberIdentity,
   resultIsOpen,
   escudoElegido,
+  decisionEscudo,
   playerNoticeAllowed,
   removeMemberEverywhere,
   sanitizeSheet,
@@ -686,6 +687,24 @@ test("el ayudante cambia el escudo y quitarlo lo borra", () => {
   assert.equal(escudoElegido(null, foto, true), foto);
   assert.equal(escudoElegido(foto, null, true), null);
   assert.equal(escudoElegido(foto, "data:image/jpeg;base64,nueva", false), foto);
+});
+
+test("un celular viejo no revive el escudo que se sacó", () => {
+  const foto = "data:image/jpeg;base64,abc";
+  const ahora = Date.parse("2026-10-14T18:00:00-03:00");
+  const sacado = decisionEscudo("2026-10-14T17:00:00-03:00", null, "2026-10-14T18:00:00-03:00", ahora, true);
+  assert.equal(sacado.escribir, "borrar");
+  assert.equal(sacado.crestOff, true);
+  const viejo = decisionEscudo(sacado.crestAt, foto, undefined, ahora);
+  assert.equal(viejo.escribir, "nada");
+  assert.equal(viejo.crestAt, sacado.crestAt);
+  const conHoraVieja = decisionEscudo("2026-10-14T18:00:00-03:00", foto, "2026-10-14T17:00:00-03:00", ahora);
+  assert.equal(conHoraVieja.escribir, "nada");
+  const queda = decisionEscudo("2026-10-14T18:00:00-03:00", null, undefined, ahora);
+  assert.equal(queda.escribir, "nada");
+  const nuevo = decisionEscudo("2026-10-14T17:00:00-03:00", foto, "2026-10-14T19:00:00-03:00", ahora);
+  assert.equal(nuevo.escribir, "imagen");
+  assert.equal(nuevo.crest, foto);
 });
 
 test("el apodo del DT no lo pisa el celular del jugador", () => {

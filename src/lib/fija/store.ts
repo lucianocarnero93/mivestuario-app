@@ -7,7 +7,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText, TACTICA_EQUIPO_MAX } from "./sanitize";
 import { coloresDelEquipo } from "./alineacion";
 import { FORMATIONS } from "./formations";
-import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, marcaMasNueva, valorConMarca, cambiarRol } from "./club-rules";
+import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, bibliotecaMasNueva, marcaMasNueva, valorConMarca, cambiarRol } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
@@ -1016,9 +1016,10 @@ export const useFija = create<State>()(
         if (!isStaffId(get())) return;
         const club = get().club;
         if (!club) return;
+        const now = new Date().toISOString();
         const safe =
           crest && crest.startsWith("data:image/") && crest.length < 120_000 ? crest : null;
-        set({ club: { ...club, crest: safe } });
+        set({ club: { ...club, crest: safe, crestAt: now, crestOff: safe == null } });
         const code = club.inviteCode;
         if (code) void saveCrest({ data: { code, crest: safe } }).catch(() => undefined);
         void get().flushCloud();
@@ -3008,9 +3009,25 @@ function mergeClubBundles(
   const club = trustLocal ? { ...remote.club, ...local.club } : { ...local.club, ...remote.club };
   club.inviteCode = remote.club.inviteCode || local.club.inviteCode;
   club.createdBy = trustLocal ? local.club.createdBy || remote.club.createdBy : remote.club.createdBy;
-  club.crest = trustLocal
-    ? escudoElegido(remote.club.crest, local.club.crest, true)
-    : escudoElegido(local.club.crest, remote.club.crest, true);
+  const localMasNuevo = Boolean(trustLocal && marcaMasNueva(remote.club.crestAt, local.club.crestAt));
+  if (localMasNuevo) {
+    club.crest = local.club.crest;
+    club.crestAt = local.club.crestAt;
+    club.crestOff = local.club.crestOff;
+  } else if (remote.club.crestOff) {
+    club.crest = null;
+    club.crestAt = remote.club.crestAt ?? local.club.crestAt;
+    club.crestOff = true;
+  } else {
+    const foto = local.club.crest?.startsWith("data:image/")
+      ? local.club.crest
+      : remote.club.crest?.startsWith("data:image/")
+        ? remote.club.crest
+        : null;
+    club.crest = foto;
+    club.crestAt = remote.club.crestAt || local.club.crestAt;
+    club.crestOff = false;
+  }
   club.colores = coloresDelEquipo(trustLocal ? colores.value : remote.club.colores, remote.club.colores);
   club.coloresAt = trustLocal ? colores.at : remote.club.coloresAt;
   club.rolesAt = rolesLocales || trustLocal ? local.club.rolesAt || remote.club.rolesAt : remote.club.rolesAt;

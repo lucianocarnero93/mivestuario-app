@@ -57,7 +57,7 @@ import {
   perfilMasNuevo,
   resultIsOpen,
   bibliotecaMasNueva,
-  escudoElegido,
+  decisionEscudo,
   marcaMasNueva,
   valorConMarca,
   HARD_BYTES,
@@ -905,12 +905,25 @@ export const saveCrest = createServerFn({ method: "POST" })
     if (!bundle || !isStaffMember(me)) return { ok: false };
     const { getSql } = await import("@/lib/db");
     const sql = await getSql();
+    const ahora = new Date().toISOString();
+    const apagado = data.crest == null;
     await sql.query(
       `insert into vestuario_docs (collection, id, data, updated_at)
        values ($1, $2, $3::jsonb, now())
        on conflict (collection, id)
        do update set data = excluded.data, updated_at = now()`,
       [ESCUDOS, data.code, JSON.stringify({ crest: data.crest })],
+    );
+    await sql.query(
+      `update vestuario_docs
+         set data = jsonb_set(
+           jsonb_set(data::jsonb, '{club,crestAt}', to_jsonb($2::text), true),
+           '{club,crestOff}', to_jsonb($3::boolean),
+           true
+         ),
+         updated_at = now()
+       where collection = $4 and id = $1`,
+      [data.code, ahora, apagado, COLLECTION],
     );
     return { ok: true };
   });
@@ -1513,6 +1526,13 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     existing.reminderAt,
     incoming.reminderAt,
   );
+  const escudo = decisionEscudo(
+    existing.club.crestAt,
+    incoming.club.crest,
+    incoming.club.crestAt,
+    Date.now(),
+    incoming.club.crestOff,
+  );
   return withoutDroppedCharla(
     pruneBundle(
     lightenClosedMatches(
@@ -1530,7 +1550,9 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
           rolesAt: callerIsCreator(existing, userId) && marcaMasNueva(existing.club.rolesAt, incoming.club.rolesAt)
             ? incoming.club.rolesAt
             : existing.club.rolesAt,
-          crest: escudoElegido(existing.club.crest, incoming.club.crest, staff),
+          crest: escudo.escribir === "nada" ? existing.club.crest : escudo.crest,
+          crestAt: escudo.escribir === "nada" ? existing.club.crestAt : escudo.crestAt,
+          crestOff: escudo.escribir === "nada" ? existing.club.crestOff : escudo.crestOff,
           colores: coloresConMarca
             ? coloresDelEquipo(coloresElegidos.value, existing.club.colores)
             : coloresDelEquipo(incoming.club.colores, existing.club.colores),
@@ -1627,7 +1649,10 @@ export const saveClubDoc = createServerFn({ method: "POST" })
         const before = existing ? Buffer.byteLength(JSON.stringify(existing), "utf8") : 0;
         const next = clubSinImagenes(mergeForSave(existing, data.bundle, userId));
         const staff = isStaffMember(memberFor((existing ?? data.bundle).members, userId));
-        const pedido = staff ? escudoData(data.bundle.club?.crest) : null;
+        const decision = staff
+          ? decisionEscudo(existing?.club.crestAt, data.bundle.club?.crest, data.bundle.club?.crestAt, Date.now(), data.bundle.club?.crestOff)
+          : null;
+        const pedido = decision?.escribir === "imagen" ? decision.crest : null;
         const viejo = escudoData(existing?.club.crest);
         if (pedido) {
           await query(
@@ -1636,6 +1661,14 @@ export const saveClubDoc = createServerFn({ method: "POST" })
              on conflict (collection, id)
              do update set data = excluded.data, updated_at = now()`,
             [data.code, JSON.stringify({ crest: pedido })],
+          );
+        } else if (decision?.escribir === "borrar") {
+          await query(
+            `insert into vestuario_docs (collection, id, data, updated_at)
+             values ('escudos', $1, $2::jsonb, now())
+             on conflict (collection, id)
+             do update set data = excluded.data, updated_at = now()`,
+            [data.code, JSON.stringify({ crest: null })],
           );
         } else if (viejo) {
           await query(

@@ -97,6 +97,10 @@ export type Club = {
   createdBy: string;
   inviteCode: string;
   crest: string | null;
+  /** Cuándo se puso o se sacó el escudo. Una copia vieja no lo revive. */
+  crestAt?: string;
+  /** True si el último cambio lo sacó. El archivo del equipo no guarda la foto. */
+  crestOff?: boolean;
   /** Camiseta. Si falta, la card de la formación usa los colores de Mi Vestuario. */
   colores?: { primary: string; secondary: string } | null;
   /** Cuándo se cambiaron los colores. Una copia vieja no los pisa. */
