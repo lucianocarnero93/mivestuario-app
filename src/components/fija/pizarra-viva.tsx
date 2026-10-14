@@ -96,6 +96,14 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
     if (!staff && event.planActivo) setPlanId(event.planActivo);
   }, [staff, event.planActivo]);
 
+  if (!staff && !event.lineupPublishedAt) {
+    return (
+      <p className="mt-4 rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">
+        El DT todavía no publicó la formación.
+      </p>
+    );
+  }
+
   function aplicarEvento(next: ClubEvent) {
     aplicar(event.id, {
       lineup: next.lineup,

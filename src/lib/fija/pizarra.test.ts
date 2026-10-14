@@ -104,7 +104,7 @@ test("borrar la jugada no la revive y el jugador no recibe lo oculto", () => {
     {
       club: { id: "c", name: "A", createdBy: "dt", inviteCode: "ABC123", crest: null },
       members: [],
-      events: [{ ...vieja, jugadaVisible: false }],
+      events: [{ ...vieja, jugadaVisible: false, lineupPublishedAt: "2026-10-02T12:00:00Z" }],
       rsvps: [],
       messages: [],
       charla: [],
@@ -122,6 +122,62 @@ test("borrar la jugada no la revive y el jugador no recibe lo oculto", () => {
   assert.equal(recortado.events[0]?.pasos, null);
   assert.deepEqual(recortado.events[0]?.notas, { mati: "Quedate" });
   assert.deepEqual(recortado.biblioteca, []);
+});
+
+test("sin publicar el jugador no recibe la pizarra", () => {
+  const base = partido();
+  const armada = {
+    ...base,
+    tactics: "Presioná arriba",
+    formacion: "clasica",
+    planActivo: "b" as const,
+    rival: "Salen de contra",
+    notas: { mati: "Quedate", fran: "Subí" },
+    planes: [{ id: "b" as const, idea: "Si van abajo", cambio: "", lineup: { mc: "fran" }, dibujos: [] }],
+    pasos: plantillaPelota("jugada", []),
+    pelotaParada: plantillaPelota("tiro", []),
+    videoUrl: "https://youtube.com/watch?v=1",
+    audioDe: ["mati"],
+  };
+  const club = {
+    club: { id: "c", name: "A", createdBy: "dt", inviteCode: "ABC123", crest: null },
+    members: [],
+    rsvps: [],
+    messages: [],
+    charla: [],
+    matchSheets: [],
+    invites: [],
+    convocatorias: [],
+    inbox: [],
+    alertLog: [],
+    reminderPolicy: { firstHours: 24, secondHours: 48 },
+    tournaments: [],
+    biblioteca: [],
+  };
+  const oculto = recortarParaJugador({ ...club, events: [armada] }, "mati");
+  const event = oculto.events[0];
+  assert.deepEqual(event?.lineup, {});
+  assert.equal(event?.tactics, "");
+  assert.deepEqual(event?.planes, []);
+  assert.equal(event?.formacion, undefined);
+  assert.equal(event?.planActivo, undefined);
+  assert.equal(event?.pasos, null);
+  assert.equal(event?.pelotaParada, null);
+  assert.equal(event?.videoUrl, "");
+  assert.equal(event?.notas, undefined);
+  assert.equal(event?.rival, undefined);
+  assert.equal(event?.jugada, undefined);
+  const publicado = recortarParaJugador(
+    { ...club, events: [{ ...armada, lineupPublishedAt: "2026-10-08T18:00:00-03:00" }] },
+    "mati",
+  );
+  assert.equal(publicado.events[0]?.tactics, "Presioná arriba");
+  assert.equal(publicado.events[0]?.lineup.mc, "mati");
+  assert.equal(publicado.events[0]?.notas?.mati, "Quedate");
+  assert.equal(publicado.events[0]?.notas?.fran, undefined);
+  assert.ok(publicado.events[0]?.pasos);
+  assert.equal(publicado.events[0]?.videoUrl, "https://youtube.com/watch?v=1");
+  assert.equal(publicado.events[0]?.planes?.[0]?.lineup.mc, "fran");
 });
 
 test("duplicar deja la original", () => {

@@ -426,20 +426,45 @@ export function camposDePizarra(previous: ClubEvent, incoming: ClubEvent): Pick<
   };
 }
 
-/** Lo que puede llegar al teléfono de un jugador. Sin archivo del DT ni indicaciones ajenas. */
+/** Lo que puede llegar al teléfono de un jugador. Sin archivo del DT ni indicaciones ajenas.
+ *  Hasta que se publica, la pizarra de ese partido no sale. */
+function pizarraParaJugador(event: ClubEvent, memberId: string): ClubEvent {
+  if (!event.lineupPublishedAt) {
+    return {
+      ...event,
+      lineup: {},
+      tactics: "",
+      planes: [],
+      formacion: undefined,
+      jugada: undefined,
+      planActivo: undefined,
+      notas: undefined,
+      audioDe: undefined,
+      rival: undefined,
+      pasos: null,
+      pelotaParada: null,
+      videoUrl: "",
+      jugadaVisible: false,
+      pelotaVisible: false,
+      vistos: undefined,
+    };
+  }
+  return {
+    ...event,
+    notas: event.notas?.[memberId] ? { [memberId]: event.notas[memberId] } : undefined,
+    pasos: event.jugadaVisible === false ? null : event.pasos,
+    pelotaParada: event.pelotaVisible === false ? null : event.pelotaParada,
+    vistos: undefined,
+  };
+}
+
 export function recortarParaJugador(bundle: ClubBundle, memberId: string): ClubBundle {
   return {
     ...bundle,
     bannedAccounts: undefined,
     biblioteca: [],
     bibliotecaAt: undefined,
-    events: bundle.events.map((event) => ({
-      ...event,
-      notas: event.notas?.[memberId] ? { [memberId]: event.notas[memberId] } : undefined,
-      pasos: event.jugadaVisible === false ? null : event.pasos,
-      pelotaParada: event.pelotaVisible === false ? null : event.pelotaParada,
-      vistos: undefined,
-    })),
+    events: bundle.events.map((event) => pizarraParaJugador(event, memberId)),
   };
 }
 
