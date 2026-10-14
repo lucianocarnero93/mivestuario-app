@@ -165,6 +165,20 @@ export function vivoBotKey(token: string): string {
   return `vivo-bot:${sanitizeLiveToken(token) || "sueltos"}`;
 }
 
+/** La IP la pone el proxy. No se usa la primera de x-forwarded-for, que la manda el cliente. */
+export function ipDelProxy(headers: { get(name: string): string | null }): string {
+  const limpio = (value: string | null | undefined) => String(value ?? "").split(",")[0]?.trim() ?? "";
+  const vercel = limpio(headers.get("x-vercel-forwarded-for"));
+  if (vercel) return vercel.slice(0, 80);
+  const real = headers.get("x-real-ip")?.trim() ?? "";
+  if (real) return real.slice(0, 80);
+  const cadena = String(headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((parte) => parte.trim())
+    .filter(Boolean);
+  return (cadena[cadena.length - 1] ?? "").slice(0, 80);
+}
+
 export function vivoReactKey(bucket: string | null | undefined, token: string): string {
   const raw = String(bucket ?? "").trim();
   const ip = raw.startsWith("peek:") ? raw.slice(5) : raw;

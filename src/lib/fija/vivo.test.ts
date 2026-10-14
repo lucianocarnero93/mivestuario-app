@@ -38,6 +38,7 @@ import {
   VIVO_READ_LIMIT,
   vivoAttemptKey,
   vivoBotKey,
+  ipDelProxy,
   vivoPointerAllows,
   vivoReadLimited,
   type PersonaVivo,
@@ -105,6 +106,15 @@ test("el cupo del marcador es por IP y por token", () => {
   assert.equal(vivoBotKey(token), `vivo-bot:${token}`);
   assert.equal(vivoReadLimited(VIVO_READ_LIMIT), false);
   assert.equal(vivoReadLimited(VIVO_READ_LIMIT + 1), true);
+  const cabeceras = (mapa: Record<string, string>) => ({
+    get: (name: string) => mapa[name] ?? null,
+  });
+  assert.equal(ipDelProxy(cabeceras({ "x-forwarded-for": "1.1.1.1, 8.8.8.8" })), "8.8.8.8");
+  assert.equal(
+    ipDelProxy(cabeceras({ "x-forwarded-for": "1.1.1.1", "x-vercel-forwarded-for": "9.9.9.9" })),
+    "9.9.9.9",
+  );
+  assert.equal(ipDelProxy(cabeceras({ "x-real-ip": "7.7.7.7", "x-forwarded-for": "1.1.1.1" })), "7.7.7.7");
 });
 
 test("veinte celulares en la misma red siguen el partido sin caer en limited", () => {

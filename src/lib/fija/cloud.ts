@@ -21,7 +21,6 @@ import {
   sanitizeLiveToken,
   tomarCache,
   vivoAttemptKey,
-  vivoBotKey,
   vivoPointerAllows,
   vivoReadLimited,
   logSiEnJuego,
@@ -30,7 +29,7 @@ import {
   instanteConfiable,
   sellarInstante,
   sellarEvento,
-  VIVO_BOT_LIMIT,
+  ipDelProxy,
   VIVO_CACHE_MS,
   VIVO_READ_LIMIT,
   type MarcadorPublico,
@@ -313,9 +312,7 @@ async function peekBucket(): Promise<string | null> {
   try {
     const { getRequest } = await import("@tanstack/react-start/server");
     const request = getRequest();
-    const real = request?.headers?.get("x-real-ip")?.trim() ?? "";
-    const forwarded = request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
-    const ip = (real || forwarded).slice(0, 80);
+    const ip = ipDelProxy({ get: (name) => request?.headers?.get(name) ?? null });
     return ip ? `peek:${ip}` : "peek:comun";
   } catch {
     return "peek:comun";
@@ -576,9 +573,14 @@ export async function resolverMarcador(input: { t?: string; e?: string }, ua = "
   const clave = `${modo === "equipo" ? "e" : "t"}:${token}`;
   const bucket = (await peekBucket()) ?? "peek:comun";
   const bot = esCrawler(ua);
-  const limitado = await cupoVivo(bot ? vivoBotKey(token) : vivoAttemptKey(bucket, token), bot ? VIVO_BOT_LIMIT : VIVO_READ_LIMIT);
-  if (limitado) return { ok: false, reason: "limited" };
   const ahora = Date.now();
+  if (bot) {
+    const previa = tomarCache(cacheMarcador, `bot:${clave}`, ahora, 15 * 60 * 1000);
+    if (previa) return previa;
+  } else {
+    const limitado = await cupoVivo(vivoAttemptKey(bucket, token), VIVO_READ_LIMIT);
+    if (limitado) return { ok: false, reason: "limited" };
+  }
   const cacheado = tomarCache(cacheMarcador, clave, ahora, VIVO_CACHE_MS);
   if (cacheado) return cacheado;
   const { getSql } = await import("@/lib/db");
@@ -588,7 +590,10 @@ export async function resolverMarcador(input: { t?: string; e?: string }, ua = "
     const code = await vivoCodeOf(sql, token, VIVO_EQUIPO);
     if (!code) return { ok: false, reason: "missing" };
     const armado = await armarDesde(code, "equipo", token);
-    if (armado.ok) guardarCache(cacheMarcador, clave, armado, Date.now());
+    if (armado.ok) {
+      guardarCache(cacheMarcador, clave, armado, Date.now());
+      guardarCache(cacheMarcador, `bot:${clave}`, armado, Date.now());
+    }
     return armado;
   }
   const rows = await sql.query<{ data: unknown }>(
@@ -601,7 +606,10 @@ export async function resolverMarcador(input: { t?: string; e?: string }, ua = "
   const eventId = String(pointer?.eventId ?? "");
   if (!code || !eventId) return { ok: false, reason: "missing" };
   const armado = await armarDesde(code, "partido", token, eventId);
-  if (armado.ok) guardarCache(cacheMarcador, clave, armado, Date.now());
+  if (armado.ok) {
+    guardarCache(cacheMarcador, clave, armado, Date.now());
+    guardarCache(cacheMarcador, `bot:${clave}`, armado, Date.now());
+  }
   return armado;
 }
 

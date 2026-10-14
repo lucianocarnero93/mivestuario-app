@@ -6,6 +6,7 @@ import {
   elegirPartidoEquipo,
   vivoReactKey,
   vivoReadLimited,
+  ipDelProxy,
   VIVO_REACT_LIMIT,
   type ConteosFamilia,
   type DocFamilia,
@@ -78,9 +79,8 @@ async function ipDe(): Promise<string> {
   try {
     const { getRequest } = await import("@tanstack/react-start/server");
     const request = getRequest();
-    const real = request?.headers?.get("x-real-ip")?.trim() ?? "";
-    const forwarded = request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
-    return (real || forwarded || "comun").slice(0, 80);
+    const ip = ipDelProxy({ get: (name) => request?.headers?.get(name) ?? null });
+    return (ip || "comun").slice(0, 80);
   } catch {
     return "comun";
   }
