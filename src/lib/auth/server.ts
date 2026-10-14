@@ -11,6 +11,7 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { Pool } from "pg";
 import { Resend } from "resend";
 import { vestuarioLog } from "@/lib/vestuario-log";
+import { cortarClaveAlVincularGoogle, type AdaptadorCuentas } from "@/lib/auth/vincular-google";
 
 const env = (key: string): string | undefined => {
   const value = process.env[key]?.trim();
@@ -96,6 +97,8 @@ function escapeHtml(value: string): string {
 
 const baseURL = env("BETTER_AUTH_URL") ?? "http://localhost:8080";
 const comparteDominio = baseURL.includes("mivestuario.com.ar");
+
+const authListo: { actual: { $context: Promise<{ internalAdapter: AdaptadorCuentas }> } | null } = { actual: null };
 
 export const auth = betterAuth({
   baseURL,
@@ -202,6 +205,16 @@ export const auth = betterAuth({
         },
       },
     },
+    account: {
+      create: {
+        after: async (acc) => {
+          const vivo = authListo.actual;
+          if (!vivo) return;
+          const ctx = await vivo.$context;
+          await cortarClaveAlVincularGoogle(acc, ctx.internalAdapter);
+        },
+      },
+    },
   },
 
   advanced: {
@@ -219,3 +232,5 @@ export const auth = betterAuth({
 
   plugins: [bearer(), tanstackStartCookies()],
 });
+
+authListo.actual = auth;
