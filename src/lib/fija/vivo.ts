@@ -848,12 +848,16 @@ function marcaLimpia(marca: MarcaVivo): MarcaVivo {
   return limpia;
 }
 
+/** Un jugador suma como mucho estas marcas nuevas en un solo guardado. */
+export const MARCAS_JUGADOR_TOPE = 2;
+
 /** El plantel puede sumar una marca o deshacer la última. No reescribe el resto. */
 export function combinarMarcasVivo(
   base: MarcaVivo[],
   pedido: MarcaVivo[] | undefined,
   roster: Set<string>,
   deshacer = true,
+  tope = 40,
 ): MarcaVivo[] {
   if (!Array.isArray(pedido)) return base;
   const validas = pedido.filter((marca) => marcaVivaValida(marca, roster));
@@ -866,7 +870,7 @@ export function combinarMarcasVivo(
     return base.slice(0, -1);
   }
   const ids = new Set(base.map((marca) => marca.id));
-  const nuevas = validas.filter((marca) => !ids.has(marca.id)).slice(0, 8).map(marcaLimpia);
+  const nuevas = validas.filter((marca) => !ids.has(marca.id)).slice(0, tope).map(marcaLimpia);
   if (nuevas.length === 0) return base;
   return [...base, ...nuevas].slice(-40);
 }
@@ -931,7 +935,7 @@ export function aplicarMarcasDeJugador<T extends ClubEvent>(
     const pedidoAt = instanteConfiable(pedido.liveUpdatedAt, now);
     const baseAt = instanteConfiable(event.liveUpdatedAt, now);
     const deshacer = pedidoAt > baseAt;
-    const liveLog = combinarMarcasVivo(event.liveLog ?? [], pedido.liveLog, roster, deshacer);
+    const liveLog = combinarMarcasVivo(event.liveLog ?? [], pedido.liveLog, roster, deshacer, MARCAS_JUGADOR_TOPE);
     const igual =
       liveLog.length === (event.liveLog ?? []).length &&
       liveLog.every((marca, index) => marca.id === event.liveLog?.[index]?.id);

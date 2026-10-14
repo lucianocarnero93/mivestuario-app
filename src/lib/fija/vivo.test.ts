@@ -22,6 +22,7 @@ import {
   marcadorDeDatos,
   marcadorSinFotos,
   marcaTiempo,
+  MARCAS_JUGADOR_TOPE,
   minutoAproximado,
   planillasDeMarcas,
   POLL_ESPERA,
@@ -474,6 +475,22 @@ test("un jugador suma un gol y un guardado viejo no borra el último", () => {
     tarde,
   );
   assert.equal(partidoViejo[0]?.liveLog?.length, 1);
+  const diez = Array.from({ length: 10 }, (_, index) => ({
+    id: `lv-g${index + 1}`,
+    kind: "gol" as const,
+    memberId: "tato",
+    at: "2026-10-04T15:20:00-03:00",
+  }));
+  const rafaga = aplicarMarcasDeJugador(
+    [base],
+    [{ ...base, liveLog: [...(base.liveLog ?? []), ...diez], liveUpdatedAt: "2026-10-04T15:31:00-03:00" }],
+    members,
+    durante,
+  );
+  assert.equal(rafaga[0]?.liveLog?.length, 1 + MARCAS_JUGADOR_TOPE);
+  assert.deepEqual(rafaga[0]?.liveLog?.map((marca) => marca.id), ["lv-1", "lv-g1", "lv-g2"]);
+  const planilla = planillasDeMarcas([], [base], rafaga, durante);
+  assert.equal(planilla[0]?.goalsFor, MARCAS_JUGADOR_TOPE);
   const vacio = partido({ liveLog: [], fechaUpdatedAt: kick });
   const conGol = partido({
     liveLog: [{ id: "lv-1", kind: "gol", memberId: "tato", at: "2026-10-04T15:10:00-03:00" }],
@@ -504,6 +521,14 @@ test("dos marcas distintas se suman y una hora futura no reabre", () => {
     ahora,
   );
   assert.deepEqual(dos.map((marca) => marca.id), ["lv-1", "lv-2", "lv-3"]);
+  const varias = Array.from({ length: 10 }, (_, index) => ({
+    id: `lv-s${index + 1}`,
+    kind: "gol" as const,
+    memberId: "tato",
+    at: "2026-10-04T15:20:00-03:00",
+  }));
+  const staff = unirLogsVivo([], varias, undefined, "2026-10-04T15:31:00-03:00", ahora);
+  assert.equal(staff.length, varias.length);
   const cerrado = { resultClosedAt: "2026-10-04T16:00:00-03:00" as string | null, resultPending: false, resultUpdatedAt: "2026-10-04T16:00:00-03:00" };
   const copia = { resultClosedAt: null as string | null, resultPending: true, resultUpdatedAt: "2099-01-01T00:00:00-03:00" };
   assert.equal(elegirResultado(cerrado, copia, ahora).resultClosedAt, cerrado.resultClosedAt);
