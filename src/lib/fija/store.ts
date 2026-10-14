@@ -11,7 +11,7 @@ import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
-import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, saveCrest, savePortrait, traeEquipo, useMyName, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
+import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, saveCrest, savePortrait, traeEquipo, useMyName as reclamarMiNombre, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
 import { clearPedirEdad, readMenor } from "./edad";
 import { aplicarMarcasDeJugador, menorAlGuardar, partidoMarcable, elegirTokenEquipo } from "./vivo";
 import { noteQuiet } from "@/lib/note";
@@ -2242,7 +2242,7 @@ export const useFija = create<State>()(
         const state = get();
         const club = state.club;
         if (!club || !memberId) return false;
-        const result = await useMyName({ data: { code: club.inviteCode, memberId } });
+        const result = await reclamarMiNombre({ data: { code: club.inviteCode, memberId } });
         if (!result.ok || !result.members) return false;
         applyingCloud = true;
         set({
@@ -2504,11 +2504,12 @@ export const useFija = create<State>()(
           if (!quiet && stillHere()) set({ cloudStatus: "off" });
         } finally {
           if (generation === syncGeneration) syncingNow = false;
-          if (!stillHere()) return;
-          const after = get();
-          const last = after.lastFlushErrorAt;
-          const waited = last == null || Date.now() - last > flushRetryWait();
-          if ((after.dirty || mineUnsaved(after)) && after.club && waited) void get().flushCloud();
+          if (stillHere()) {
+            const after = get();
+            const last = after.lastFlushErrorAt;
+            const waited = last == null || Date.now() - last > flushRetryWait();
+            if ((after.dirty || mineUnsaved(after)) && after.club && waited) void get().flushCloud();
+          }
         }
       },
 
