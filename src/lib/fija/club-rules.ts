@@ -751,6 +751,26 @@ export function clipTextList<T extends { text?: string }>(list: T[], max = 400):
   return list.map((item) => ({ ...item, text: String(item.text ?? "").slice(0, max) }));
 }
 
+/** Un mensaje que ya existe no se pisa. Solo se suman mensajes nuevos del mismo autor. */
+export function sumarMensajes<T extends { id: string; memberId: string; text?: string; at: string }>(
+  existing: T[] | undefined,
+  incoming: T[] | undefined,
+  memberId: string | undefined,
+  now?: string,
+): T[] {
+  const base = existing ?? [];
+  if (!memberId) return base;
+  const ids = new Set(base.map((item) => item.id));
+  const nuevos: T[] = [];
+  for (const item of incoming ?? []) {
+    if (!item?.id || ids.has(item.id) || item.memberId !== memberId) continue;
+    ids.add(item.id);
+    const texto = String(item.text ?? "").slice(0, 400);
+    nuevos.push(now ? { ...item, memberId, text: texto, at: now } : { ...item, memberId, text: texto });
+  }
+  return [...base, ...nuevos];
+}
+
 export function clipInbox(list: InboxItem[]): InboxItem[] {
   return list.map((item) => ({
     ...item,

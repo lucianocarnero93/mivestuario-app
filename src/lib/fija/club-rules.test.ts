@@ -30,6 +30,7 @@ import {
   resultIsOpen,
   escudoElegido,
   decisionEscudo,
+  sumarMensajes,
   playerNoticeAllowed,
   removeMemberEverywhere,
   sanitizeSheet,
@@ -705,6 +706,20 @@ test("un celular viejo no revive el escudo que se sacó", () => {
   const nuevo = decisionEscudo("2026-10-14T17:00:00-03:00", foto, "2026-10-14T19:00:00-03:00", ahora);
   assert.equal(nuevo.escribir, "imagen");
   assert.equal(nuevo.crest, foto);
+});
+
+test("reusar el id de un mensaje ajeno no lo reemplaza", () => {
+  const original = { id: "m-dt", memberId: "dt", text: "Salimos a las 9", at: "2026-10-14T18:00:00-03:00" };
+  const copia = { id: "m-dt", memberId: "j1", text: "Texto cambiado", at: "2026-10-14T19:00:00-03:00" };
+  const propio = { id: "m-j1", memberId: "j1", text: "Llego", at: "2026-10-14T19:01:00-03:00" };
+  const ahora = "2026-10-14T19:05:00-03:00";
+  const mensajes = sumarMensajes([original], [copia, propio], "j1", ahora);
+  assert.equal(mensajes.length, 2);
+  assert.equal(mensajes[0]?.text, "Salimos a las 9");
+  assert.equal(mensajes[0]?.memberId, "dt");
+  assert.equal(mensajes[1]?.id, "m-j1");
+  assert.equal(mensajes[1]?.at, ahora);
+  assert.equal(mensajes[1]?.memberId, "j1");
 });
 
 test("el apodo del DT no lo pisa el celular del jugador", () => {

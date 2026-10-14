@@ -7,7 +7,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText, TACTICA_EQUIPO_MAX } from "./sanitize";
 import { coloresDelEquipo } from "./alineacion";
 import { FORMATIONS } from "./formations";
-import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, bibliotecaMasNueva, marcaMasNueva, valorConMarca, cambiarRol } from "./club-rules";
+import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, bibliotecaMasNueva, marcaMasNueva, valorConMarca, cambiarRol, sumarMensajes } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
@@ -3074,7 +3074,7 @@ function mergeClubBundles(
     ),
     events: mergeEvents(remote.events, local.events, who.staff, Boolean(who.dirty), remote.members),
     rsvps: mergeRsvps(remote.rsvps, local.rsvps),
-    messages: unionById(remote.messages, local.messages),
+    messages: sumarMensajes(remote.messages, local.messages, who.activeId),
     charla: unionById(remote.charla, local.charla),
     matchSheets: mergeSheets(remote.matchSheets, local.matchSheets, who.staff || Boolean(who.dirty)),
     figuraVotes: mergeFiguraVotes(remote.figuraVotes, local.figuraVotes),

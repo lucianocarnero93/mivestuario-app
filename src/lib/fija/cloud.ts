@@ -50,6 +50,7 @@ import {
   rolesConDt,
   clipInbox,
   clipTextList,
+  sumarMensajes,
   decideClaim,
   freshMemberId,
   guardMember,
@@ -1390,10 +1391,12 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
             incoming.club.createdBy,
           ),
           messages: clipTextList(
-            (incoming.messages ?? []).filter((item) => {
-              const author = incoming.members.find((person) => person.id === item.memberId);
-              return Boolean(author && (author.accountId === userId || author.id === userId));
-            }),
+            sumarMensajes(
+              [],
+              incoming.messages,
+              incoming.members.find((person) => person.accountId === userId || person.id === userId)?.id,
+              new Date().toISOString(),
+            ),
           ),
           charla: clipTextList(incoming.charla ?? []),
           inbox: clipInbox(incoming.inbox ?? []),
@@ -1563,12 +1566,7 @@ function mergeForSave(existing: ClubBundle | null, incoming: ClubBundle, userId:
     members: listed,
     events: mergedEvents.map((event) => sellarEvento(event)),
     rsvps: mergeRsvps(existing.rsvps, staff ? incoming.rsvps : ownRsvps).filter((row) => listed.some((person) => person.id === row.memberId)),
-    messages: clipTextList(
-      unionById(
-        existing.messages,
-        (incoming.messages ?? []).filter((item) => Boolean(me?.id) && item.memberId === me?.id),
-      ),
-    ),
+    messages: clipTextList(sumarMensajes(existing.messages, incoming.messages, me?.id, new Date().toISOString())),
     charla: clipTextList(staff ? unionById(existing.charla, incoming.charla) : existing.charla),
     matchSheets: staff
       ? hojasConLog(mergeSheetsByTime(existing.matchSheets, incoming.matchSheets, mergedEvents), existing.matchSheets, existing.events, mergedEvents)
