@@ -703,7 +703,7 @@ test("un celular viejo no revive el escudo que se sacó", () => {
   assert.equal(conHoraVieja.escribir, "nada");
   const queda = decisionEscudo("2026-10-14T18:00:00-03:00", null, undefined, ahora);
   assert.equal(queda.escribir, "nada");
-  const nuevo = decisionEscudo("2026-10-14T17:00:00-03:00", foto, "2026-10-14T19:00:00-03:00", ahora);
+  const nuevo = decisionEscudo("2026-10-14T17:00:00-03:00", foto, "2026-10-14T19:00:00-03:00", Date.parse("2026-10-14T19:00:00-03:00"));
   assert.equal(nuevo.escribir, "imagen");
   assert.equal(nuevo.crest, foto);
 });
