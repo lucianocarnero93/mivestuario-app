@@ -7,7 +7,7 @@ import { createSeed, emptyClubState, GUEST_ID, openClubs } from "./seed";
 import { notaDeJugador, sanitizeCode, sanitizeName, sanitizeText, TACTICA_EQUIPO_MAX } from "./sanitize";
 import { coloresDelEquipo } from "./alineacion";
 import { FORMATIONS } from "./formations";
-import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, marcaMasNueva, valorConMarca, relevoDelUltimoDt } from "./club-rules";
+import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen, escudoElegido, bibliotecaMasNueva, marcaMasNueva, valorConMarca, cambiarRol } from "./club-rules";
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
@@ -1095,34 +1095,16 @@ export const useFija = create<State>()(
         void get().flushCloud();
       },
 
-      // Cambia el puesto de una persona. El último DT elige a quién le deja el puesto.
+      // Cambia el puesto de una persona. No modifica el de las demás, salvo el relevo elegido.
       assignRole: (memberId, role, relevoId) => {
         if (!isCreatorId(get())) return;
         const { members, club } = get();
         if (!club) return;
-        const relevo = relevoDelUltimoDt(members, memberId, role, relevoId);
-        if (relevo.aplica) {
-          if (!relevo.ok) return;
-          set({
-            club: { ...club, rolesAt: new Date().toISOString() },
-            members: relevo.members,
-          });
-          void get().flushCloud();
-          return;
-        }
-        const target = members.find((person) => person.id === memberId);
-        if (!target) return;
+        const cambio = cambiarRol(members, memberId, role, relevoId);
+        if (!cambio.ok) return;
         set({
           club: { ...club, rolesAt: new Date().toISOString() },
-          members: members.map((person) => {
-            if (person.id === memberId) {
-              return { ...person, role, juega: role === "jugador" ? true : person.juega };
-            }
-            if (role !== "jugador" && person.role === role) {
-              return { ...person, role: "jugador", juega: true };
-            }
-            return person;
-          }),
+          members: cambio.members,
         });
         void get().flushCloud();
       },

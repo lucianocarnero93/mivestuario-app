@@ -485,6 +485,27 @@ export function relevoDelUltimoDt(
   };
 }
 
+/** Cambia un solo puesto. El resto sigue igual, salvo el relevo que se eligió. */
+export function cambiarRol(
+  members: Member[],
+  memberId: string,
+  role: Role,
+  relevoId?: string,
+): { ok: true; members: Member[] } | { ok: false } {
+  const relevo = relevoDelUltimoDt(members, memberId, role, relevoId);
+  if (relevo.aplica) {
+    if (!relevo.ok) return { ok: false };
+    return { ok: true, members: relevo.members };
+  }
+  if (!members.some((person) => person.id === memberId)) return { ok: false };
+  return {
+    ok: true,
+    members: members.map((person) =>
+      person.id === memberId ? { ...person, role, juega: role === "jugador" ? true : person.juega } : person,
+    ),
+  };
+}
+
 /**
  * El server no guarda un plantel sin DT.
  * Si el pedido deja a todos sin ese puesto, vuelven los puestos de antes.

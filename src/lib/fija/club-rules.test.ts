@@ -7,6 +7,7 @@ import {
   allowedDrops,
   relevoDelUltimoDt,
   rolesConDt,
+  cambiarRol,
   patchKeepsMenor,
   pushCopy,
   memberGetsPush,
@@ -265,6 +266,36 @@ test("el último DT no se baja si no elige relevo", () => {
   assert.equal(elegido.members.find((item) => item.id === "ale")?.role, "dt");
   assert.equal(elegido.members.find((item) => item.id === "nico")?.role, "ayudante");
   assert.equal(elegido.members.some((item) => item.role === "dt"), true);
+});
+
+test("cambiarse de rol no desarma al resto del cuerpo técnico", () => {
+  const members = [
+    person({ id: "crea", name: "Lucho", role: "dt" }),
+    person({ id: "codt", name: "Nico", role: "dt" }),
+    person({ id: "a1", name: "Ale", role: "ayudante" }),
+    person({ id: "a2", name: "Enzo", role: "ayudante" }),
+  ];
+  const aAyudante = cambiarRol(members, "crea", "ayudante");
+  assert.equal(aAyudante.ok, true);
+  if (!aAyudante.ok) return;
+  assert.deepEqual(
+    aAyudante.members.map((item) => item.role),
+    ["ayudante", "dt", "ayudante", "ayudante"],
+  );
+  const vuelta = cambiarRol(aAyudante.members, "crea", "dt");
+  assert.equal(vuelta.ok, true);
+  if (!vuelta.ok) return;
+  assert.deepEqual(
+    vuelta.members.map((item) => item.role),
+    ["dt", "dt", "ayudante", "ayudante"],
+  );
+  const aOtro = cambiarRol(members, "a2", "dt");
+  assert.equal(aOtro.ok, true);
+  if (!aOtro.ok) return;
+  assert.equal(aOtro.members.find((item) => item.id === "a2")?.role, "dt");
+  assert.equal(aOtro.members.find((item) => item.id === "crea")?.role, "dt");
+  assert.equal(aOtro.members.find((item) => item.id === "codt")?.role, "dt");
+  assert.equal(aOtro.members.find((item) => item.id === "a1")?.role, "ayudante");
 });
 
 test("una cuenta menor no puede pasar a mayor por API", () => {

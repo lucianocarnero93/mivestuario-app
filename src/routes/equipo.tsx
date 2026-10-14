@@ -421,7 +421,7 @@ function DesignateDialog() {
       </DialogTrigger>
       <DialogContent title="Designar roles">
         <p className="mb-3 text-sm text-muted">
-          También podés cambiarte vos. Si le das DT o ayudante a alguien, quien lo tenía pasa a jugador.
+          Cambiar un puesto no modifica el de los demás. Si el único DT se baja, elegís quién queda.
         </p>
         {pedido && ultimo && otros.length === 0 ? (
           <div className="rounded-lg bg-surface-2 p-3">
@@ -457,12 +457,10 @@ function DesignateDialog() {
         ) : pedido ? (
           <div className="rounded-lg bg-surface-2 p-3">
             <p className="text-sm">
-              ¿{pedido.nombre} pasa a {ROLE_LABEL[pedido.role]}?
-              {relevo
-                ? ` ${etiqueta(relevo, members)} queda de DT.`
-                : pedido.role === "jugador"
-                  ? ""
-                  : " Quien lo era pasa a jugador."}
+              {pedido.id === me.id
+                ? `¿Pasás a ${ROLE_LABEL[pedido.role]}?`
+                : `¿${pedido.nombre} pasa a ${ROLE_LABEL[pedido.role]}?`}
+              {relevo ? ` ${etiqueta(relevo, members)} queda de DT.` : ""}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Button
