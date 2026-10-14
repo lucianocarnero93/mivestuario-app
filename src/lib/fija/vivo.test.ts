@@ -34,6 +34,7 @@ import {
   tituloCompartido,
   tomarCache,
   unirLogsVivo,
+  logSiEnJuego,
   VIVO_READ_LIMIT,
   vivoAttemptKey,
   vivoBotKey,
@@ -529,6 +530,21 @@ test("dos marcas distintas se suman y una hora futura no reabre", () => {
   }));
   const staff = unirLogsVivo([], varias, undefined, "2026-10-04T15:31:00-03:00", ahora);
   assert.equal(staff.length, varias.length);
+  const ayer = Date.parse("2026-10-05T18:00:00-03:00");
+  const viejoPartido = partido({
+    startsAt: "2026-10-01T15:00:00-03:00",
+    liveLog: [{ id: "lv-1", kind: "gol", memberId: "tato", at: "2026-10-01T15:10:00-03:00" }],
+    liveUpdatedAt: "2026-10-01T15:10:00-03:00",
+  });
+  const marcado = logSiEnJuego(
+    viejoPartido,
+    {
+      liveLog: [...(viejoPartido.liveLog ?? []), { id: "lv-tarde", kind: "gol", memberId: "tato", at: "2026-10-05T18:00:00-03:00" }],
+      liveUpdatedAt: "2026-10-05T18:00:00-03:00",
+    },
+    ayer,
+  );
+  assert.deepEqual(marcado.map((marca) => marca.id), ["lv-1"]);
   const cerrado = { resultClosedAt: "2026-10-04T16:00:00-03:00" as string | null, resultPending: false, resultUpdatedAt: "2026-10-04T16:00:00-03:00" };
   const copia = { resultClosedAt: null as string | null, resultPending: true, resultUpdatedAt: "2099-01-01T00:00:00-03:00" };
   assert.equal(elegirResultado(cerrado, copia, ahora).resultClosedAt, cerrado.resultClosedAt);

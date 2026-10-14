@@ -24,7 +24,7 @@ import {
   vivoBotKey,
   vivoPointerAllows,
   vivoReadLimited,
-  unirLogsVivo,
+  logSiEnJuego,
   elegirResultado,
   elegirTokenEquipo,
   instanteConfiable,
@@ -1248,7 +1248,7 @@ function datosDeFecha(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent,
 function camposFecha(previous: ClubEvent, incoming: ClubEvent, now = Date.now()): Pick<ClubEvent, "liveLog" | "reacciones" | "fechaOculta" | "encuesta" | "fechaUpdatedAt"> {
   const prev = instanteConfiable(previous.fechaUpdatedAt, now);
   const next = instanteConfiable(incoming.fechaUpdatedAt, now);
-  const liveLog = unirLogsVivo(previous.liveLog, incoming.liveLog, previous.liveUpdatedAt, incoming.liveUpdatedAt, now);
+  const liveLog = logSiEnJuego(previous, incoming, now);
   if (prev === 0 && next === 0) {
     return {
       liveLog,

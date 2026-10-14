@@ -908,6 +908,16 @@ export function unirLogsVivo(
   return combinarMarcasVivo(base, pedido, roster, deshacer);
 }
 
+/** Fuera de las 3 h de juego, o con el partido cerrado, el registro no acepta marcas nuevas. */
+export function logSiEnJuego(
+  previous: { startsAt: string; resultClosedAt?: string | null; liveLog?: MarcaVivo[]; liveUpdatedAt?: string },
+  incoming: { liveLog?: MarcaVivo[]; liveUpdatedAt?: string },
+  now = Date.now(),
+): MarcaVivo[] {
+  if (!partidoMarcable(previous.startsAt, previous.resultClosedAt, now)) return previous.liveLog ?? [];
+  return unirLogsVivo(previous.liveLog, incoming.liveLog, previous.liveUpdatedAt, incoming.liveUpdatedAt, now);
+}
+
 function ajustarPlanilla(sheet: MatchSheet, marca: MarcaVivo, signo: 1 | -1, ahora: string): MatchSheet {
   const players = sheet.players.map((row) => ({ ...row }));
   let goalsFor = sheet.goalsFor;
