@@ -3,16 +3,17 @@ import type { ClubEvent, FiguraVote, MatchSheet, Member } from "./types.ts";
 
 const TZ = "America/Argentina/Buenos_Aires";
 
-/** El día siguiente al partido, a las 17, hora de Buenos Aires. Ahí ya se puede compartir la historia. */
-export function cierreFigura(event: { startsAt: string }): number | null {
-  const inicio = Date.parse(event.startsAt);
-  if (!Number.isFinite(inicio)) return null;
+/** El día siguiente al cierre del partido, a las 17, hora de Buenos Aires. Sin cierre, no hay votación. */
+export function cierreFigura(event: { resultClosedAt?: string | null }): number | null {
+  if (!event.resultClosedAt) return null;
+  const cerrado = Date.parse(event.resultClosedAt);
+  if (!Number.isFinite(cerrado)) return null;
   const partes = new Intl.DateTimeFormat("en-US", {
     timeZone: TZ,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(new Date(inicio));
+  }).formatToParts(new Date(cerrado));
   const leer = (tipo: string) => Number(partes.find((parte) => parte.type === tipo)?.value);
   const y = leer("year");
   const m = leer("month");
@@ -22,9 +23,24 @@ export function cierreFigura(event: { startsAt: string }): number | null {
 }
 
 export function votacionAbierta(event: ClubEvent, now: number): boolean {
-  if (!event.resultClosedAt) return true;
+  if (!event.resultClosedAt) return false;
   const cierre = cierreFigura(event);
   return cierre != null && now < cierre;
+}
+
+/** "Cierra mañana a las 17" solo si el cierre cae mañana. */
+export function textoCierreFigura(event: { resultClosedAt?: string | null }, now = Date.now()): string {
+  const cierre = cierreFigura(event);
+  if (!cierre) return "";
+  const dia = (ms: number) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+  const hoy = dia(now);
+  const cuando = dia(cierre);
+  const manana = dia(now + 24 * 60 * 60 * 1000);
+  if (cuando === manana) return "Cierra mañana a las 17";
+  if (cuando === hoy) return "Cierra hoy a las 17";
+  const [anio, mes, numero] = cuando.split("-");
+  return `Cierra el ${numero}/${mes}/${anio} a las 17`;
 }
 
 export function mesDe(iso: string): string {

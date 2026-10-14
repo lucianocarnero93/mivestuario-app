@@ -1,5 +1,5 @@
 import type { ClubEvent, FiguraVote, MatchSheet } from "./types.ts";
-import { cierreFigura, figuraDe, votacionAbierta } from "./figura.ts";
+import { figuraDe, textoCierreFigura, votacionAbierta } from "./figura.ts";
 import { CAPITAN_ACTIVO, FIGURA_MIN_VOTOS, type TipoPremio } from "./premios.ts";
 import { formacionDelPlan, planVisible } from "./pizarra.ts";
 
@@ -224,11 +224,10 @@ export function avisosDe(input: {
     if (event.kind !== "partido" || !event.resultClosedAt) continue;
     const ya = input.votes.some((vote) => vote.eventId === event.id && vote.voterId === input.memberId);
     if (votacionAbierta(event, input.now) && !ya) {
-      const cierra = cierreFigura(event) ?? input.now;
-      const horas = Math.max(1, Math.ceil((cierra - input.now) / HORA));
+      const aviso = textoCierreFigura(event, input.now);
       avisos.push({
         id: `voto:${event.id}`,
-        title: `Votá la figura. Cierra en ${horas} h.`,
+        title: aviso ? `Votá la figura. ${aviso}.` : "Votá la figura.",
         href: `/fecha?partido=${event.id}#votar`,
       });
     }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { figuraDe, figuraPermitida, goleadorDelMes, liderDelMes, mergeFiguraVotes, votosAceptables } from "./figura.ts";
+import { cierreFigura, figuraDe, figuraPermitida, goleadorDelMes, liderDelMes, mergeFiguraVotes, textoCierreFigura, votacionAbierta, votosAceptables } from "./figura.ts";
 import type { ClubEvent, MatchSheet } from "./types.ts";
 
 test("la figura más nueva pisa el voto viejo del mismo jugador", () => {
@@ -106,5 +106,25 @@ test("votosAceptables rechaza los votos después del cierre", () => {
   const cambio = { ...voto, pickId: "c", at: "2026-10-05T19:00:00Z" };
   assert.equal(votosAceptables([voto], [cambio], [event], tarde).length, 0);
   const abierto = { ...event, resultClosedAt: undefined };
-  assert.equal(votosAceptables([], [voto], [abierto], tarde).length, 1);
+  assert.equal(votosAceptables([], [voto], [abierto], tarde).length, 0);
+});
+
+test("la figura cierra al día siguiente del cierre, a las 17", () => {
+  const event = {
+    id: "p1",
+    kind: "partido",
+    startsAt: "2026-10-13T20:00:00-03:00",
+    resultClosedAt: "2026-10-14T23:00:00-03:00",
+  } as ClubEvent;
+  const abierto = Date.parse("2026-10-15T16:59:00-03:00");
+  const cerrado = Date.parse("2026-10-15T17:00:00-03:00");
+  assert.equal(votacionAbierta(event, abierto), true);
+  assert.equal(votacionAbierta(event, cerrado), false);
+  assert.equal(cierreFigura(event), cerrado);
+  const sinTerminar = { ...event, resultClosedAt: undefined };
+  assert.equal(votacionAbierta(sinTerminar, abierto), false);
+  assert.equal(cierreFigura(sinTerminar), null);
+  assert.equal(textoCierreFigura(event, Date.parse("2026-10-14T23:30:00-03:00")), "Cierra mañana a las 17");
+  assert.equal(textoCierreFigura(event, Date.parse("2026-10-15T10:00:00-03:00")), "Cierra hoy a las 17");
+  assert.equal(textoCierreFigura(sinTerminar, abierto), "");
 });

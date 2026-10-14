@@ -7,7 +7,7 @@ import { PlayerAvatar } from "@/components/fija/stat-blocks";
 import { Button } from "@/components/ui/button";
 import { enJuego, estaJugado, fechaVisible, momentoFecha, rachaInvicto, rachaVoy } from "@/lib/fija/fecha";
 import { formatWhen, plural } from "@/lib/fija/format";
-import { cierreFigura, mesDe, votacionAbierta } from "@/lib/fija/figura";
+import { mesDe, textoCierreFigura, votacionAbierta } from "@/lib/fija/figura";
 import { etiquetaPremio, mesAnterior, nombreMes, premiosDelMes, premiosDelPartido } from "@/lib/fija/premios";
 import { resumenSemana, validarPlanilla } from "@/lib/fija/vista";
 import { dibujarResumen } from "@/lib/fija/resumen-dibujo";
@@ -102,8 +102,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
   const racha = rachaVoy(useFija.getState().events, rsvps, me.id, sheets);
   const votacion = cerrado && votacionAbierta(event, Date.now());
   const yaVote = (votes ?? []).some((row) => row.eventId === event.id && row.voterId === me.id);
-  const cierre = cierreFigura(event);
-  const cierraEn = cierre ? Math.max(0, Math.ceil((cierre - Date.now()) / 3_600_000)) : 0;
+  const avisoCierre = textoCierreFigura(event);
   const confirmados = rsvps.filter((row) => row.eventId === event.id && row.status === "voy").length;
   const duda = rsvps.filter((row) => row.eventId === event.id && row.status !== "voy" && row.status !== "no").length;
   const premiosMios = premiosDelPartido(event.id, ctx).filter((premio) => premio.memberId === me.id && premio.tipo === "figura");
@@ -188,7 +187,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
       </div>
       {votacion ? (
         <div className="mt-4 rounded-xl bg-surface p-4 shadow-card">
-          <p className="text-lg font-semibold">{yaVote ? `Ya votaste · Cierra en ${cierraEn} h` : "Votá la figura"}</p>
+          <p className="text-lg font-semibold">{yaVote ? `Ya votaste · ${avisoCierre}` : "Votá la figura"}</p>
           <p className="mt-1 text-sm text-muted">Si no lo votaron, no es figura.</p>
           <Button
             variant="outline"

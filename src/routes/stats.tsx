@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { formatDay, plural } from "@/lib/fija/format";
 import { enJuego, rachaVoy } from "@/lib/fija/fecha";
-import { cierreFigura, figuraDe, mesDe, votacionAbierta } from "@/lib/fija/figura";
+import { figuraDe, mesDe, textoCierreFigura, votacionAbierta } from "@/lib/fija/figura";
 import { FIGURA_MIN_VOTOS, mesAnterior, nombreMes, premiosDelMes, premiosDelPartido } from "@/lib/fija/premios";
 import { alumniMember, outcome, playerRows, rankedBy, resultLabel, teamRecord, type PlayerRow } from "@/lib/fija/stats";
 import { frasePuesto, posicionRanking, validarPlanilla, vitrina } from "@/lib/fija/vista";
@@ -354,12 +354,11 @@ function ParaHacer({
           );
         })}
         {abiertas.map((event) => {
-          const cierra = cierreFigura(event) ?? Date.now();
-          const horas = Math.max(1, Math.ceil((cierra - Date.now()) / 3_600_000));
+          const aviso = textoCierreFigura(event);
           return (
             <li key={`voto-${event.id}`} className="rounded-lg bg-bg p-3">
               <p className="text-sm font-semibold">Votá la figura · {event.title}</p>
-              <p className="text-xs text-muted">Cierra en {horas} h. Si no lo votaron, no es figura.</p>
+              <p className="text-xs text-muted">{aviso ? `${aviso}. ` : ""}Si no lo votaron, no es figura.</p>
               <Button
                 variant="outline"
                 className="mt-2 h-11 w-full"

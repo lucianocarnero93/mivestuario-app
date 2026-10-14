@@ -370,7 +370,7 @@ export function nombreMes(mes: string): string {
 
 export function textoVotacionAbierta(event: ClubEvent): string {
   const cierre = cierreFigura(event);
-  if (!cierre) return "Figura: votación abierta";
+  if (!cierre) return "La figura se vota cuando el DT termina el partido";
   return `Figura: votación abierta hasta ${diaHora(cierre)}`;
 }
 
