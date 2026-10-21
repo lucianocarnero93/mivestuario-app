@@ -11,29 +11,43 @@ export function DialogContent({
   className,
   children,
   title,
+  footer,
   ...props
-}: ComponentProps<typeof DialogPrimitive.Content> & { title: string; children?: ReactNode }) {
+}: ComponentProps<typeof DialogPrimitive.Content> & {
+  title: string;
+  children?: ReactNode;
+  footer?: ReactNode;
+}) {
   return (
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-bg/70" />
-      <DialogPrimitive.Content
-        className={cn(
-          "fixed top-1/2 left-1/2 z-50 w-[min(92vw,440px)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-surface p-5 shadow-lg",
-          className,
-        )}
-        {...props}
-      >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <DialogPrimitive.Title className="font-display text-lg font-semibold tracking-tight text-fg">
-            {title}
-          </DialogPrimitive.Title>
-          <DialogPrimitive.Close className="grid size-11 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg">
-            <X className="size-4" />
-          </DialogPrimitive.Close>
-        </div>
-        <DialogPrimitive.Description className="sr-only">{title}</DialogPrimitive.Description>
-        {children}
-      </DialogPrimitive.Content>
+      <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <DialogPrimitive.Content
+          className={cn(
+            "pointer-events-auto flex min-h-0 max-h-full w-[min(100%,440px)] flex-col rounded-xl shadow-lg",
+            className,
+          )}
+          {...props}
+        >
+          <div className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-surface">
+            <div className="relative flex shrink-0 items-start justify-between gap-3 px-5 pt-5 pb-4">
+              <DialogPrimitive.Title className="font-display text-lg font-semibold tracking-tight text-fg">
+                {title}
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Close className="grid size-11 shrink-0 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg">
+                <X className="size-4" />
+              </DialogPrimitive.Close>
+              <DialogPrimitive.Description className="sr-only">{title}</DialogPrimitive.Description>
+            </div>
+            <div className={cn("min-h-0 flex-auto overflow-y-auto overscroll-contain px-5", footer ? "pb-3" : "pb-5")}>
+              {children}
+            </div>
+            {footer ? (
+              <div className="shrink-0 border-t border-border bg-surface px-5 py-3">{footer}</div>
+            ) : null}
+          </div>
+        </DialogPrimitive.Content>
+      </div>
     </DialogPrimitive.Portal>
   );
 }

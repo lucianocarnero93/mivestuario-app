@@ -156,25 +156,74 @@ function EventDialog({
       }}
     >
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent title={title}>
-        <div className="space-y-3">
-          <Segmented
-            value={kind}
-            onChange={setKind}
-            options={(["partido", "entrenamiento", "reunion"] as const).map((id) => ({
-              id,
-              label: KIND_LABEL[id],
-            }))}
-          />
+      <DialogContent
+        title={title}
+        className="md:w-[min(100%,40rem)]"
+        footer={
+          <div className="space-y-2">
+            <Button
+              className="h-14 w-full text-base"
+              disabled={!canSaveMatch}
+              onClick={() => {
+                if (!canSaveMatch) return;
+                onSubmit({ kind, modality, title: eventTitle, place, mapsQuery, when, tournamentId });
+                setSaved(true);
+                window.setTimeout(() => setOpen(false), 700);
+              }}
+            >
+              {saved ? "Guardado" : submitLabel}
+            </Button>
+            {onDelete ? (
+              confirmDelete ? (
+                <div className="rounded-lg bg-bg p-3">
+                  <p className="text-sm">¿Sacar esta fecha? También se van la planilla, las respuestas y los avisos.</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <Button
+                      variant="danger"
+                      className="h-11"
+                      onClick={() => {
+                        onDelete();
+                        setOpen(false);
+                      }}
+                    >
+                      Sacar
+                    </Button>
+                    <Button variant="ghost" className="h-11" onClick={() => setConfirmDelete(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="ghost" className="h-11 w-full text-danger" onClick={() => setConfirmDelete(true)}>
+                  Quitar de la agenda
+                </Button>
+              )
+            ) : null}
+          </div>
+        }
+      >
+        <div className="space-y-3 md:grid md:grid-cols-2 md:gap-3 md:space-y-0">
+          <div className="md:col-span-2">
+            <Segmented
+              value={kind}
+              onChange={setKind}
+              options={(["partido", "entrenamiento", "reunion"] as const).map((id) => ({
+                id,
+                label: KIND_LABEL[id],
+              }))}
+            />
+          </div>
           {kind === "partido" ? (
-          <Segmented
-            value={modality}
-            onChange={setModality}
-            options={MODALITIES.map((id) => ({
-              id,
-              label: MODALITY_SHORT[id],
-            }))}
-          />
+            <div className="md:col-span-2">
+              <Segmented
+                value={modality}
+                onChange={setModality}
+                options={MODALITIES.map((id) => ({
+                  id,
+                  label: MODALITY_SHORT[id],
+                }))}
+              />
+            </div>
           ) : null}
           <div className="space-y-1.5">
             <Label>Título</Label>
@@ -196,7 +245,7 @@ function EventDialog({
               placeholder="Predio, cancha 2"
             />
           </div>
-            <div className="space-y-1.5">
+          <div className="space-y-1.5">
             <Label>Dirección para Mapas</Label>
             <Input
               value={mapsQuery}
@@ -210,7 +259,7 @@ function EventDialog({
             />
           </div>
           {matchNeedsTournament ? (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 md:col-span-2">
               <Label>Torneo</Label>
               {listed.length > 0 ? (
                 <select
@@ -230,65 +279,27 @@ function EventDialog({
                 <p className="text-sm text-muted">Sin torneo queda como amistoso. O creá uno ahora.</p>
               )}
               <div className="space-y-2 pt-1">
-                  <Input
-                    value={newTournamentName}
-                    onChange={(e) => setNewTournamentName(e.target.value)}
-                    placeholder="Apertura 2026"
-                  />
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="h-12 w-full"
-                    disabled={newTournamentName.trim().length < 2}
-                    onClick={() => {
-                      const createdId = createTournament(newTournamentName);
-                      if (!createdId) return;
-                      setTournamentId(createdId);
-                      setNewTournamentName("");
-                    }}
-                  >
-                    Crear torneo y usarlo en este partido
-                  </Button>
+                <Input
+                  value={newTournamentName}
+                  onChange={(e) => setNewTournamentName(e.target.value)}
+                  placeholder="Apertura 2026"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-12 w-full"
+                  disabled={newTournamentName.trim().length < 2}
+                  onClick={() => {
+                    const createdId = createTournament(newTournamentName);
+                    if (!createdId) return;
+                    setTournamentId(createdId);
+                    setNewTournamentName("");
+                  }}
+                >
+                  Crear torneo y usarlo en este partido
+                </Button>
               </div>
             </div>
-          ) : null}
-          <Button
-            className="h-14 w-full text-base"
-            disabled={!canSaveMatch}
-            onClick={() => {
-              if (!canSaveMatch) return;
-              onSubmit({ kind, modality, title: eventTitle, place, mapsQuery, when, tournamentId });
-              setSaved(true);
-              window.setTimeout(() => setOpen(false), 700);
-            }}
-          >
-            {saved ? "Guardado" : submitLabel}
-          </Button>
-          {onDelete ? (
-            confirmDelete ? (
-              <div className="rounded-lg bg-bg p-3">
-                <p className="text-sm">¿Sacar esta fecha? También se van la planilla, las respuestas y los avisos.</p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  <Button
-                    variant="danger"
-                    className="h-11"
-                    onClick={() => {
-                      onDelete();
-                      setOpen(false);
-                    }}
-                  >
-                    Sacar
-                  </Button>
-                  <Button variant="ghost" className="h-11" onClick={() => setConfirmDelete(false)}>
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button variant="ghost" className="h-11 w-full text-danger" onClick={() => setConfirmDelete(true)}>
-                Quitar de la agenda
-              </Button>
-            )
           ) : null}
         </div>
       </DialogContent>
