@@ -1,6 +1,7 @@
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useFija } from "@/lib/fija/store";
+import { DEMO } from "@/lib/fija/demo-flag";
 
 type LaunchFile = { getFile: () => Promise<File> };
 type LaunchParams = {
@@ -58,7 +59,7 @@ export function PwaRegister() {
   const importSnapshot = useFija((s) => s.importSnapshot);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (DEMO || typeof window === "undefined") return;
     try {
       sessionStorage.removeItem("vestuario-reload");
     } catch {
@@ -142,7 +143,7 @@ export function PwaRegister() {
   }, [importSnapshot, navigate]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (DEMO || typeof window === "undefined") return;
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type !== "vestuario-sync" && event.data?.type !== "cancha-fija-sync") return;
       void router.invalidate();
@@ -152,7 +153,7 @@ export function PwaRegister() {
   }, [router]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (DEMO || typeof window === "undefined") return;
     const onOnline = () => {
       void navigator.serviceWorker?.ready.then((reg) => reg.sync?.register("vestuario-sync"));
     };

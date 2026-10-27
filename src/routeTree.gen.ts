@@ -15,6 +15,7 @@ import { Route as CajaRouteImport } from './routes/caja'
 import { Route as CanchaRouteImport } from './routes/cancha'
 import { Route as ChatRouteImport } from './routes/chat'
 import { Route as ContactoRouteImport } from './routes/contacto'
+import { Route as DemoRouteImport } from './routes/demo'
 import { Route as EliminarCuentaRouteImport } from './routes/eliminar-cuenta'
 import { Route as EquipoRouteImport } from './routes/equipo'
 import { Route as FechaRouteImport } from './routes/fecha'
@@ -60,6 +61,11 @@ const ChatRoute = ChatRouteImport.update({
 const ContactoRoute = ContactoRouteImport.update({
   id: '/contacto',
   path: '/contacto',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DemoRoute = DemoRouteImport.update({
+  id: '/demo',
+  path: '/demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EliminarCuentaRoute = EliminarCuentaRouteImport.update({
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/cancha': typeof CanchaRoute
   '/chat': typeof ChatRoute
   '/contacto': typeof ContactoRoute
+  '/demo': typeof DemoRoute
   '/eliminar-cuenta': typeof EliminarCuentaRoute
   '/equipo': typeof EquipoRoute
   '/fecha': typeof FechaRoute
@@ -174,6 +181,7 @@ export interface FileRoutesByTo {
   '/cancha': typeof CanchaRoute
   '/chat': typeof ChatRoute
   '/contacto': typeof ContactoRoute
+  '/demo': typeof DemoRoute
   '/eliminar-cuenta': typeof EliminarCuentaRoute
   '/equipo': typeof EquipoRoute
   '/fecha': typeof FechaRoute
@@ -199,6 +207,7 @@ export interface FileRoutesById {
   '/cancha': typeof CanchaRoute
   '/chat': typeof ChatRoute
   '/contacto': typeof ContactoRoute
+  '/demo': typeof DemoRoute
   '/eliminar-cuenta': typeof EliminarCuentaRoute
   '/equipo': typeof EquipoRoute
   '/fecha': typeof FechaRoute
@@ -225,6 +234,7 @@ export interface FileRouteTypes {
     | '/cancha'
     | '/chat'
     | '/contacto'
+    | '/demo'
     | '/eliminar-cuenta'
     | '/equipo'
     | '/fecha'
@@ -249,6 +259,7 @@ export interface FileRouteTypes {
     | '/cancha'
     | '/chat'
     | '/contacto'
+    | '/demo'
     | '/eliminar-cuenta'
     | '/equipo'
     | '/fecha'
@@ -273,6 +284,7 @@ export interface FileRouteTypes {
     | '/cancha'
     | '/chat'
     | '/contacto'
+    | '/demo'
     | '/eliminar-cuenta'
     | '/equipo'
     | '/fecha'
@@ -298,6 +310,7 @@ export interface RootRouteChildren {
   CanchaRoute: typeof CanchaRoute
   ChatRoute: typeof ChatRoute
   ContactoRoute: typeof ContactoRoute
+  DemoRoute: typeof DemoRoute
   EliminarCuentaRoute: typeof EliminarCuentaRoute
   EquipoRoute: typeof EquipoRoute
   FechaRoute: typeof FechaRoute
@@ -358,6 +371,13 @@ declare module '@tanstack/react-router' {
       path: '/contacto'
       fullPath: '/contacto'
       preLoaderRoute: typeof ContactoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo': {
+      id: '/demo'
+      path: '/demo'
+      fullPath: '/demo'
+      preLoaderRoute: typeof DemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/eliminar-cuenta': {
@@ -482,6 +502,7 @@ const rootRouteChildren: RootRouteChildren = {
   CanchaRoute: CanchaRoute,
   ChatRoute: ChatRoute,
   ContactoRoute: ContactoRoute,
+  DemoRoute: DemoRoute,
   EliminarCuentaRoute: EliminarCuentaRoute,
   EquipoRoute: EquipoRoute,
   FechaRoute: FechaRoute,

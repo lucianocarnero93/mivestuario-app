@@ -16,7 +16,9 @@ import { PwaRegister } from "./pwa-register";
 import { SignInPanel } from "./sign-in-panel";
 import { EdadGate } from "./edad-gate";
 import { traerImagenesEquipo } from "@/lib/fija/fotos-card";
+import { DEMO } from "@/lib/fija/demo-flag";
 import { TeamCrest } from "./team-crest";
+import { DemoChrome } from "./demo-chrome";
 
 const NAV = [
   { to: "/", label: "Inicio", icon: House, exact: true },
@@ -44,6 +46,7 @@ const BARE_PATHS = [
   "/contacto",
   "/terminos",
   "/vivo",
+  "/demo",
 ] as const;
 
 export function PhoneShell() {
@@ -59,6 +62,23 @@ export function PhoneShell() {
   }, []);
 
   useEffect(() => {
+    if (!DEMO) return;
+    let cancel = false;
+    void Promise.resolve(useFija.persist.rehydrate()).then(() => {
+      if (cancel) return;
+      if (!useFija.getState().club) useFija.getState().resetDemo();
+      else useFija.getState().setHydrated();
+    });
+    tickAlerts();
+    const id = window.setInterval(() => tickAlerts(), 30_000);
+    return () => {
+      cancel = true;
+      window.clearInterval(id);
+    };
+  }, [tickAlerts]);
+
+  useEffect(() => {
+    if (DEMO) return;
     if (isPending || !user?.id) return;
     let cancel = false;
     void Promise.resolve(useFija.persist.rehydrate()).then(async () => {
@@ -115,10 +135,11 @@ export function PhoneShell() {
   const isBare = (BARE_PATHS as readonly string[]).includes(pathname);
 
   return (
-    <div className="min-h-dvh bg-void text-fg">
+    <div className={DEMO ? "flex h-dvh min-h-0 flex-col bg-void text-fg" : "min-h-dvh bg-void text-fg"}>
       <div className="app-titlebar" aria-hidden="true" />
+      {DEMO ? <DemoChrome /> : null}
       <PwaRegister />
-      <div className="pitch-shell mx-auto flex min-h-dvh w-full max-w-phone flex-col shadow-card desk:h-dvh desk:max-w-none desk:flex-row desk:shadow-none">
+      <div className={`pitch-shell mx-auto flex w-full max-w-phone flex-col shadow-card desk:h-dvh desk:max-w-none desk:flex-row desk:shadow-none ${DEMO ? "min-h-0 flex-1" : "min-h-dvh"}`}>
         <div className="grass-strip desk:hidden" aria-hidden="true" />
         {isBare ? (
           <div className="contents desk:mx-auto desk:flex desk:w-full desk:max-w-xl desk:flex-1 desk:flex-col">
@@ -177,6 +198,7 @@ function AuthFrame({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  if (DEMO) return children;
   if (esperando) {
     return <p className="grid min-h-dvh place-items-center px-6 text-center text-sm text-muted">Abriendo el vestuario…</p>;
   }

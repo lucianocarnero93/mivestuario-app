@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { CATEGORIA_LABEL, CATEGORIAS, armarCupones, cajaCsv, cuponesDe, deudaDe, liquidar, saldosDe, textoCupones, textoLiquidacion } from "@/lib/fija/caja";
 import { uid } from "@/lib/fija/format";
 import { estadoMp } from "@/lib/fija/mercadopago";
+import { DEMO } from "@/lib/fija/demo-flag";
+import { avisarDemo } from "@/lib/fija/demo-aviso";
 import { useFija, useMe } from "@/lib/fija/store";
 import type { Caja, CategoriaGasto, Cupon, Gasto } from "@/lib/fija/types";
 
@@ -39,7 +41,7 @@ function CajaPage() {
   const nombre = (id: string) => members.find((person) => person.id === id)?.nick ?? "Alguien que se fue";
 
   useEffect(() => {
-    if (!club) return;
+    if (DEMO || !club) return;
     void estadoMp({ data: club.inviteCode }).then((estado) => setConectado(estado.conectado)).catch(() => setConectado(false));
   }, [club?.inviteCode, mp]);
 
@@ -108,7 +110,12 @@ function CajaPage() {
         <Button
           className="mt-3 h-14 w-full"
           onClick={() => {
-            window.location.assign(`/api/mp/callback?ir=conectar&club=${encodeURIComponent(club.inviteCode)}`);
+            const url = `/api/mp/callback?ir=conectar&club=${encodeURIComponent(club.inviteCode)}`;
+            if (DEMO) {
+              avisarDemo(url);
+              return;
+            }
+            window.location.assign(url);
           }}
         >
           {conectado ? "Reconectar Mercado Pago" : "Conectar Mercado Pago"}
@@ -364,6 +371,14 @@ function GastoCard({
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank", "noopener,noreferrer");
   }
 
+  function irAPago(url: string) {
+    if (DEMO) {
+      avisarDemo(url);
+      return;
+    }
+    window.location.assign(url);
+  }
+
   return (
     <li className="rounded-xl bg-surface p-4 shadow-card">
       <p className="text-xs text-muted">{CATEGORIA_LABEL[gasto.categoria]} · pagó {nombre(gasto.pagadoPor)}</p>
@@ -391,7 +406,7 @@ function GastoCard({
         <Button
           type="button"
           className="mt-3 h-12 w-full"
-          onClick={() => window.location.assign(linkPago(meId))}
+          onClick={() => irAPago(linkPago(meId))}
         >
           Pagar ${deuda}
         </Button>
@@ -405,7 +420,7 @@ function GastoCard({
               type="button"
               variant="secondary"
               className="h-12"
-              onClick={() => window.location.assign(linkPago(cupon.id))}
+              onClick={() => irAPago(linkPago(cupon.id))}
             >
               Cobrar ${cupon.monto} a {etiqueta(cupon)}
             </Button>

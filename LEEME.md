@@ -45,3 +45,15 @@ No hace falta leer `src/lib/auth` ni `src/lib/db.ts`. Eso es el ingreso y la bas
 4. `setRsvp` guarda el "voy" o "no voy".
 5. `saveMatchSheet` anota el resultado y las tarjetas.
 6. `stats.tsx` suma todo. Si el torneo se cierra con `finishTournament`, queda el historial y también el total del equipo.
+
+## Ver la demo
+
+Datos de ejemplo, sin login y sin base real.
+
+1. `npm install`
+2. `npm run demo`
+3. En esta compu: http://localhost:8080/demo
+4. En el celular (misma red Wi-Fi): la URL que imprime el comando.
+
+`npm run capturas` guarda las pantallas en `artifacts/capturas/0/`.
+
