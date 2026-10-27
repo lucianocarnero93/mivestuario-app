@@ -69,7 +69,22 @@ try {
       try {
         const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
         status = resp?.status() ?? 0;
-        await page.waitForTimeout(1500);
+        await page.waitForFunction(
+          (destino) => {
+            const ruta = window.location.pathname;
+            if (destino === "inicio") return ruta === "/";
+            if (destino === "agenda") return ruta.startsWith("/agenda");
+            if (destino === "equipo") return ruta.startsWith("/equipo");
+            if (destino === "stats") return ruta.startsWith("/stats");
+            if (destino === "fecha") return ruta.startsWith("/fecha");
+            if (destino === "caja") return ruta.startsWith("/caja");
+            if (destino === "vivo") return ruta.startsWith("/vivo");
+            return ruta.startsWith("/cancha");
+          },
+          ir,
+          { timeout: 20000 },
+        );
+        await page.waitForTimeout(1200);
         await page.screenshot({ path: destino, fullPage: false });
         ultimo = "";
         break;

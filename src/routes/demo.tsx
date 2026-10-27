@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { TeamCrest } from "@/components/fija/team-crest";
 import { DEMO } from "@/lib/fija/demo-flag";
@@ -18,31 +19,55 @@ export const Route = createFileRoute("/demo")({
     como: comoDe(search.como),
     ir: irDe(search.ir),
   }),
-  beforeLoad: ({ search }) => {
+  beforeLoad: () => {
     if (!DEMO) throw redirect(INICIO);
-    if (search.como) ponerRolDemo(search.como);
-    const ir = search.ir;
-    if (!ir || ir === "inicio") {
-      if (search.como || ir === "inicio") throw redirect(INICIO);
-      return;
-    }
-    if (ir === "agenda") throw redirect({ to: "/agenda" });
-    if (ir === "equipo") throw redirect({ to: "/equipo" });
-    if (ir === "stats") throw redirect({ to: "/stats", search: { partido: undefined, torneo: "general" } });
-    if (ir === "fecha") throw redirect({ to: "/fecha", search: { partido: "ev-academia" } });
-    if (ir === "caja") throw redirect({ to: "/caja", search: { mp: undefined } });
-    if (ir === "vivo") throw redirect({ to: "/vivo", search: { t: "", e: "" } });
-    if (ir === "plan" || ir === "rol" || ir === "revelacion" || ir === "datos" || ir === "quiz" || ir === "despues") {
-      throw redirect({ to: "/cancha" });
-    }
   },
   component: DemoPage,
 });
 
 function DemoPage() {
   const navigate = useNavigate();
+  const { como, ir } = Route.useSearch();
   const club = useFija((s) => s.club);
+  const hydrated = useFija((s) => s.hydrated);
   const resetDemo = useFija((s) => s.resetDemo);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    if (como) ponerRolDemo(como);
+    if (!ir && !como) return;
+    if (!ir || ir === "inicio") {
+      void navigate(INICIO);
+      return;
+    }
+    if (ir === "agenda") {
+      void navigate({ to: "/agenda" });
+      return;
+    }
+    if (ir === "equipo") {
+      void navigate({ to: "/equipo" });
+      return;
+    }
+    if (ir === "stats") {
+      void navigate({ to: "/stats", search: { partido: undefined, torneo: "general" } });
+      return;
+    }
+    if (ir === "fecha") {
+      void navigate({ to: "/fecha", search: { partido: "ev-academia" } });
+      return;
+    }
+    if (ir === "caja") {
+      void navigate({ to: "/caja", search: { mp: undefined } });
+      return;
+    }
+    if (ir === "vivo") {
+      void navigate({ to: "/vivo", search: { t: "", e: "" } });
+      return;
+    }
+    if (ir === "plan" || ir === "rol" || ir === "revelacion" || ir === "datos" || ir === "quiz" || ir === "despues") {
+      void navigate({ to: "/cancha" });
+    }
+  }, [hydrated, como, ir, navigate]);
 
   function entrar(rol: "dt" | "jugador") {
     ponerRolDemo(rol);
