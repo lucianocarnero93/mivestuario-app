@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { VivoPantalla } from "@/components/fija/vivo-pagina";
 import { leerMarcador } from "@/lib/fija/cloud";
+import { DEMO } from "@/lib/fija/demo-flag";
 import { cspVivo, descripcionCompartida, tituloCompartido, type MarcadorPublico } from "@/lib/fija/vivo";
 
 const SITIO = "https://www.mivestuario.com.ar";
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/vivo")({
   }),
   loaderDeps: ({ search }) => ({ t: search.t, e: search.e }),
   loader: async ({ deps }): Promise<MarcadorPublico> => {
+    if (DEMO) return { ok: false, reason: "missing" };
     if (!deps.t && !deps.e) return { ok: false, reason: "missing" };
     try {
       return await leerMarcador({ data: deps });

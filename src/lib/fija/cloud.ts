@@ -38,6 +38,11 @@ import { preferirJugada } from "./jugada";
 import { aplicarReaccionesJugador, camposDePizarra, juntarVistos, recortarParaJugador } from "./pizarra";
 import { contarDetalle } from "./familia";
 import { sanitizeCode } from "./sanitize";
+import { DEMO } from "./demo-flag.ts";
+
+function cortarSiDemo() {
+  if (DEMO) throw new Error("Modo demo: no se guarda nada");
+}
 import { coloresDelEquipo } from "./alineacion";
 import {
   claimExistingName,
@@ -634,6 +639,7 @@ export const publicarMarcador = createServerFn({ method: "POST" })
     token: sanitizeLiveToken(input?.token),
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean; reason?: "esperando" }> => {
+    cortarSiDemo();
     const userId = userIdOf(context as { userId?: string });
     if (!userId || !data.code || !data.token) return { ok: false };
     const bundle = await readClub(data.code);
@@ -657,6 +663,7 @@ export const cerrarMarcador = createServerFn({ method: "POST" })
     token: sanitizeLiveToken(input?.token),
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    cortarSiDemo();
     const userId = userIdOf(context as { userId?: string });
     if (!userId || !data.code || !data.token) return { ok: false };
     const bundle = await readClub(data.code);
@@ -678,6 +685,7 @@ export const publicarEquipo = createServerFn({ method: "POST" })
     token: sanitizeLiveToken(input?.token),
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    cortarSiDemo();
     const userId = userIdOf(context as { userId?: string });
     if (!userId || !data.code || !data.token) return { ok: false };
     const bundle = await readClub(data.code);
@@ -699,6 +707,7 @@ export const cerrarEquipo = createServerFn({ method: "POST" })
     token: sanitizeLiveToken(input?.token),
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    cortarSiDemo();
     const userId = userIdOf(context as { userId?: string });
     if (!userId || !data.code || !data.token) return { ok: false };
     const bundle = await readClub(data.code);
@@ -808,6 +817,7 @@ export const savePortrait = createServerFn({ method: "POST" })
     return { invalido: true };
   })
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    cortarSiDemo();
     const userId = userIdOf(context as { userId?: string });
     if (!userId) return { ok: false };
     const { getSql } = await import("@/lib/db");
@@ -907,6 +917,7 @@ export const saveCrest = createServerFn({ method: "POST" })
     crest: input?.crest == null || input.crest === "" ? null : escudoData(input.crest),
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    cortarSiDemo();
     const userId = userIdOf(context as { userId?: string });
     if (!userId || !data.code) return { ok: false };
     const bundle = await readClub(data.code);
@@ -995,6 +1006,7 @@ export const saveAudioJugada = createServerFn({ method: "POST" })
     invalido: !(input?.audio == null || input.audio === "") && !audioValido(input?.audio),
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean }> => {
+    cortarSiDemo();
     const userId = userIdOf(context as { userId?: string });
     if (!userId || !data.code || !data.eventId || !data.notaId || data.invalido) return { ok: false };
     const bundle = await readClub(data.code);
@@ -1626,6 +1638,7 @@ export const saveClubDoc = createServerFn({ method: "POST" })
     bundle: input.bundle,
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; bundle?: ClubBundle; weight?: number }> => {
+    cortarSiDemo();
     if (!data.code || !data.bundle?.club) return { ok: false, error: "El equipo está incompleto." };
     const userId = userIdOf(context as { userId?: string });
     if (!userId) return { ok: false, error: "Entrá de nuevo para guardar." };
@@ -1745,6 +1758,7 @@ export const claimMember = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; members?: Member[]; removed?: boolean; notMember?: boolean }> => {
+    cortarSiDemo();
     if (!data.code || !data.name) return { ok: false, error: "Falta el jugador." };
     const accountId = String((context as { userId?: string }).userId ?? "");
     if (!accountId) return { ok: false, error: "No hay sesión." };
@@ -1820,6 +1834,7 @@ export const leaveClubDoc = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((input: { code: string }) => ({ code: sanitizeCode(input?.code) }))
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string }> => {
+    cortarSiDemo();
     const userId = userIdOf(context as { userId?: string });
     if (!userId || !data.code) return { ok: false, error: "No pudimos sacarte del equipo. Probá de nuevo." };
     try {
@@ -1873,6 +1888,7 @@ export const readmitAccountDoc = createServerFn({ method: "POST" })
     accountId: String(input?.accountId ?? "").slice(0, 80),
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; bundle?: ClubBundle }> => {
+    cortarSiDemo();
     const userId = userIdOf(context as { userId?: string });
     if (!userId || !data.code || !data.accountId) return { ok: false, error: "No se pudo dejar volver." };
     try {
@@ -1909,6 +1925,7 @@ export const useMyName = createServerFn({ method: "POST" })
     memberId: String(input.memberId ?? "").slice(0, 80),
   }))
   .handler(async ({ data, context }): Promise<{ ok: boolean; error?: string; members?: Member[] }> => {
+    cortarSiDemo();
     const accountId = String((context as { userId?: string }).userId ?? "");
     if (!accountId || !data.code || !data.memberId) return { ok: false, error: "Falta el nombre." };
     try {
