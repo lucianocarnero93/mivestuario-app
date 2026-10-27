@@ -1,5 +1,6 @@
 // Inicio: pendientes del equipo, próximo partido y acceso a la pizarra.
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { InicioV2 } from "@/components/fija/pantallas-v2";
 import { EventCard } from "@/components/fija/event-card";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { contarConfirmaciones } from "@/lib/fija/fecha";
@@ -95,7 +96,18 @@ function HomePage() {
         </div>
       ) : null}
 
-      <p className="text-sm text-muted">Hola, {me.nick}</p>
+      <InicioV2
+        event={event}
+        ultima={figuraReciente}
+        sheet={figuraReciente ? sheetFor(figuraReciente.id, sheets) : sheet}
+        rsvps={rsvps}
+        members={members}
+        staff={staff}
+        mine={mine?.status}
+        onRsvp={(status) => setRsvp(event.id, status)}
+      />
+      <details className="mt-6">
+        <summary className="h-10 text-sm text-muted">Más del vestuario</summary>
       <h1 className="text-3xl font-semibold tracking-tight">
         {staff ? "Panel del vestuario" : "Tu próximo llamado"}
       </h1>
@@ -159,7 +171,7 @@ function HomePage() {
             <p className="rounded-lg bg-surface py-3 text-center text-sm font-medium text-muted">Pendiente</p>
           )}
           <Button asChild variant="ghost" className="h-12">
-            <Link to="/cancha">Ver formación</Link>
+            <Link to="/cancha" search={{ partido: undefined, tab: undefined, carta: undefined }}>Ver formación</Link>
           </Button>
         </div>
         )
@@ -232,6 +244,7 @@ function HomePage() {
       <p className="mt-6 text-xs text-subtle">
         Rol actual: {ROLE_LABEL[me.role]}. El DT y el ayudante cargan la planilla, la pizarra y el partido en vivo.
       </p>
+      </details>
     </main>
   );
 }

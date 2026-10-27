@@ -15,7 +15,7 @@
     "demo": "node scripts/demo.mjs",
     "capturas": "node scripts/capturas-demo.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/auth/sign-in-gate.test.ts src/lib/auth/vincular-google.test.ts src/lib/vestuario-note.test.ts src/lib/fija/edad.test.ts src/lib/fija/club-rules.test.ts src/lib/fija/prune.test.ts src/lib/fija/figura.test.ts src/lib/fija/vivo.test.ts src/lib/fija/jugada.test.ts src/lib/fija/fecha.test.ts src/lib/fija/caja.test.ts src/lib/fija/tarjeta.test.ts src/lib/fija/premios.test.ts src/lib/fija/pizarra.test.ts src/lib/fija/alineacion.test.ts src/lib/fija/mp-firma.test.ts src/lib/fija/vista.test.ts src/lib/fija/demo-seed.test.ts src/lib/fija/demo-aislamiento.test.ts scripts/demo-flag.test.mjs",
+    "test": "node --experimental-strip-types --test src/lib/auth/sign-in-gate.test.ts src/lib/auth/vincular-google.test.ts src/lib/vestuario-note.test.ts src/lib/fija/edad.test.ts src/lib/fija/club-rules.test.ts src/lib/fija/prune.test.ts src/lib/fija/figura.test.ts src/lib/fija/vivo.test.ts src/lib/fija/jugada.test.ts src/lib/fija/fecha.test.ts src/lib/fija/caja.test.ts src/lib/fija/tarjeta.test.ts src/lib/fija/premios.test.ts src/lib/fija/pizarra.test.ts src/lib/fija/alineacion.test.ts src/lib/fija/mp-firma.test.ts src/lib/fija/vista.test.ts src/lib/fija/demo-seed.test.ts src/lib/fija/demo-aislamiento.test.ts src/lib/fija/pizarra-modelo.test.ts scripts/demo-flag.test.mjs",
     "revisar": "node scripts/revisar.mjs",
     "tienda": "node scripts/preparar-tienda.mjs",
     "lint": "eslint .",

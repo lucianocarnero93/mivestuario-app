@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { VivoPantalla } from "@/components/fija/vivo-pagina";
+import { VivoDemo } from "@/components/fija/pantallas-v2";
 import { leerMarcador } from "@/lib/fija/cloud";
 import { DEMO } from "@/lib/fija/demo-flag";
 import { cspVivo, descripcionCompartida, tituloCompartido, type MarcadorPublico } from "@/lib/fija/vivo";
@@ -51,5 +52,6 @@ export const Route = createFileRoute("/vivo")({
 function VivoRoute() {
   const { t, e } = Route.useSearch();
   const inicial = Route.useLoaderData();
+  if (DEMO) return <VivoDemo />;
   return <VivoPantalla t={t} e={e} inicial={inicial} />;
 }

@@ -7,6 +7,7 @@ import { PlayerAvatar } from "@/components/fija/stat-blocks";
 import { Button } from "@/components/ui/button";
 import { enJuego, estaJugado, fechaVisible, momentoFecha, rachaInvicto, rachaVoy } from "@/lib/fija/fecha";
 import { formatWhen, plural } from "@/lib/fija/format";
+import { FechaHero } from "@/components/fija/pantallas-v2";
 import { mesDe, textoCierreFigura, votacionAbierta } from "@/lib/fija/figura";
 import { etiquetaPremio, mesAnterior, nombreMes, premiosDelMes, premiosDelPartido } from "@/lib/fija/premios";
 import { resumenSemana, validarPlanilla } from "@/lib/fija/vista";
@@ -54,6 +55,14 @@ function FechaPage() {
   return (
     <main className="px-4 py-5">
       <h1 className="text-2xl font-semibold">Fecha</h1>
+      {actual ? (
+        <FechaHero
+          event={actual}
+          sheet={sheets.find((item) => item.eventId === actual.id)}
+          votaron={(useFija.getState().figuraVotes ?? []).filter((voto) => voto.eventId === actual.id).length}
+          de={members.filter((persona) => persona.juega ?? persona.role === "jugador").length}
+        />
+      ) : null}
       <p className="mt-1 text-sm text-muted">
         {actual?.resultClosedAt && momento === "en_juego"
           ? "Este partido ya terminó."
@@ -159,7 +168,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
       {staff ? <ParaLaFamilia event={event} /> : null}
       {!cerrado && event.lineupPublishedAt ? (
         <Button asChild variant="outline" className="mt-3 h-12 w-full">
-          <Link to="/cancha">Ver formación</Link>
+          <Link to="/cancha" search={{ partido: undefined, tab: undefined, carta: undefined }}>Ver formación</Link>
         </Button>
       ) : null}
       <div className="mt-3 grid gap-2">
@@ -181,12 +190,12 @@ function FechaViva({ event }: { event: ClubEvent }) {
         ) : null}
         {staff ? (
           <Button asChild variant="secondary" className="h-12">
-            <Link to="/cancha">Indicaciones en la pizarra</Link>
+            <Link to="/cancha" search={{ partido: undefined, tab: undefined, carta: undefined }}>Indicaciones en la pizarra</Link>
           </Button>
         ) : null}
       </div>
       {votacion ? (
-        <div className="mt-4 rounded-xl bg-surface p-4 shadow-card">
+        <div id="figura" className="mt-4 rounded-xl bg-surface p-4 shadow-card">
           <p className="text-lg font-semibold">{yaVote ? `Ya votaste · ${avisoCierre}` : "Votá la figura"}</p>
           <p className="mt-1 text-sm text-muted">Si no lo votaron, no es figura.</p>
           <Button

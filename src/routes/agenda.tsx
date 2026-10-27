@@ -1,5 +1,6 @@
 // Agenda: lista de partidos, entrenamientos y reuniones.
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { AgendaV2 } from "@/components/fija/pantallas-v2";
 import { CreateEventButton, EditEventButton } from "@/components/fija/event-editor";
 import { EventCard } from "@/components/fija/event-card";
 import { Button } from "@/components/ui/button";
@@ -20,15 +21,26 @@ function AgendaPage() {
   const events = useFija((s) => s.events);
   const sheets = useFija((s) => s.matchSheets);
   const staff = useIsStaff();
+  const me = useMe();
+  const setRsvp = useFija((s) => s.setRsvp);
+  const rsvps = useFija((s) => s.rsvps);
   const now = Date.now();
   const grupos = clasificarAgenda(events, sheets, now);
 
   return (
     <main className="px-4 py-5">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Agenda</h1>
-        {staff ? <CreateEventButton /> : null}
-      </div>
+      <AgendaV2
+        proximos={grupos.proximos}
+        entrenamientos={grupos.entrenamientos}
+        jugados={grupos.jugados}
+        sheets={sheets}
+        rsvps={rsvps}
+        meId={me.id}
+        onRsvp={(eventId, status) => setRsvp(eventId, status)}
+      />
+      <div className="mt-4 flex justify-end">{staff ? <CreateEventButton /> : null}</div>
+      <details className="mt-4">
+        <summary className="text-sm text-muted">Lista anterior</summary>
       <p className="mt-1 text-sm text-muted">Próximos, entrenamientos y jugados, cada uno por su lado.</p>
       {grupos.proximos.length === 0 && grupos.jugados.length === 0 && grupos.falta.length === 0 && grupos.entrenamientos.length === 0 ? (
         <p className="mt-6 text-sm text-muted">
@@ -82,6 +94,7 @@ function AgendaPage() {
           </ul>
         </section>
       ) : null}
+      </details>
     </main>
   );
 }

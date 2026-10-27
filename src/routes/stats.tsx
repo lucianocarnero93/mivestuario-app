@@ -1,6 +1,7 @@
 // Estadísticas: goleadores, asistencias, tarjetas y torneos.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { StatsV2 } from "@/components/fija/pantallas-v2";
 import { MatchSheetForm, MatchSheetRead } from "@/components/fija/match-sheet";
 import { PremioMini } from "@/components/fija/premio-card";
 import { CardRow, MyNumbers, RankBlock, RankRow, RecordStrip } from "@/components/fija/stat-blocks";
@@ -121,6 +122,9 @@ function StatsPage() {
 
   return (
     <main className="px-4 py-5">
+      <StatsV2 staff={staff} />
+      <details className="mt-6">
+        <summary className="text-sm text-muted">Números y torneos</summary>
       <p className="text-sm text-muted">{club?.name}</p>
       <h1 className="text-2xl font-semibold">Estadísticas</h1>
       <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
@@ -288,6 +292,7 @@ function StatsPage() {
           {ficha ? <Vitrina memberId={ficha} events={events} members={members} /> : null}
         </DialogContent>
       </Dialog>
+      </details>
     </main>
   );
 }

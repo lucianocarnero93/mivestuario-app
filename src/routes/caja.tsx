@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CATEGORIA_LABEL, CATEGORIAS, armarCupones, cajaCsv, cuponesDe, deudaDe, liquidar, saldosDe, textoCupones, textoLiquidacion } from "@/lib/fija/caja";
 import { uid } from "@/lib/fija/format";
 import { estadoMp } from "@/lib/fija/mercadopago";
+import { CajaHero } from "@/components/fija/pantallas-v2";
 import { DEMO } from "@/lib/fija/demo-flag";
 import { avisarDemo } from "@/lib/fija/demo-aviso";
 import { useFija, useMe } from "@/lib/fija/store";
@@ -63,7 +64,8 @@ function CajaPage() {
 
   return (
     <main className="px-4 py-5">
-      <h1 className="text-2xl font-semibold">Caja</h1>
+      <CajaHero staff={Boolean(tesorero)} />
+      <h1 id="nuevo-gasto" className="text-2xl font-semibold">Caja</h1>
       <p className="mt-1 text-sm text-muted">
         {mio < 0 ? `Debés $${Math.abs(mio)}` : mio > 0 ? `Te deben $${mio}` : "Estás al día"}
         {" · "}
@@ -154,7 +156,7 @@ function CajaPage() {
             </li>
           ))}
         </ul>
-        <Button className="mt-3 h-12 w-full" onClick={copiar}>Copiar pedido</Button>
+        <Button id="pedido" className="mt-3 h-12 w-full" onClick={copiar}>Copiar pedido</Button>
         {tesorero ? (
           <Button variant="outline" className="mt-2 h-12 w-full" onClick={exportar}>Exportar CSV</Button>
         ) : null}

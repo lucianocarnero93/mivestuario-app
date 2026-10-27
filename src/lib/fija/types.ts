@@ -27,6 +27,41 @@ export type GpsConsent = "unset" | "granted" | "denied";
 export type ItemEquipamiento = "remeras" | "pelotas";
 
 export type PlanId = "a" | "b" | "c";
+export type Momento = "con" | "perdida" | "sin" | "recupera" | "pelota" | "resultado";
+
+export type ConsignaEquipo = {
+  id: string;
+  momento: Momento;
+  texto: string;
+  principio?: string;
+  plan?: PlanId;
+};
+
+export type ConsignaJugador = {
+  id: string;
+  slot: string;
+  momento: Momento;
+  texto: string;
+  consignaId?: string;
+};
+
+export type OrigenGol = "jugada" | "contra" | "presion" | "pelota-parada" | "error-rival" | "otro";
+
+export type QuizPregunta = {
+  id: string;
+  momento: Momento;
+  situacion: string;
+  opciones: string[];
+  correcta: number;
+  consignaId?: string;
+};
+
+export type QuizRespuesta = {
+  memberId: string;
+  preguntaId: string;
+  opcion: number;
+  at: string;
+};
 export type Trazo = "flecha" | "pase" | "zona" | "circulo";
 
 export type Dibujo = {
@@ -237,9 +272,20 @@ export type ClubEvent = {
   /** Link de un video. No se sube el archivo. */
   videoUrl?: string;
   /** Quién abrió la pizarra. */
-  vistos?: { memberId: string; at: string }[];
+  vistos?: { memberId: string; at: string; entendido?: string }[];
   /** Jugadores que tienen un audio propio. */
   audioDe?: string[];
+  /** Reglas del equipo, por momento. */
+  consignas?: ConsignaEquipo[];
+  /** Reglas del puesto. Si cambia el jugador, las hereda el que entra. */
+  consignasJugador?: ConsignaJugador[];
+  plantillaId?: string;
+  quiz?: { preguntas: QuizPregunta[]; cierra: string; at: string };
+  quizRespuestas?: QuizRespuesta[];
+  /** consignaId → lo que marcó el DT después del partido. */
+  cumplidas?: Record<string, "si" | "no">;
+  despuesAt?: string;
+  origenGoles?: OrigenGol[];
 };
 
 

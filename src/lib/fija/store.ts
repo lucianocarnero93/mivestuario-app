@@ -2908,6 +2908,62 @@ export function ponerRolDemo(rol: "dt" | "jugador") {
   });
 }
 
+function tocarEvento(eventId: string, patch: (event: ClubEvent) => ClubEvent) {
+  const state = useFija.getState();
+  useFija.setState({
+    events: state.events.map((event) => (event.id === eventId ? patch(event) : event)),
+  });
+}
+
+export function entendiPlan(eventId: string) {
+  const state = useFija.getState();
+  const id = state.activeId;
+  const ahora = new Date().toISOString();
+  tocarEvento(eventId, (event) => {
+    const vistos = [...(event.vistos ?? [])];
+    const index = vistos.findIndex((item) => item.memberId === id);
+    if (index >= 0) {
+      const actual = vistos[index]!;
+      vistos[index] = { ...actual, entendido: actual.entendido ?? ahora };
+    } else {
+      vistos.push({ memberId: id, at: ahora, entendido: ahora });
+    }
+    return { ...event, vistos };
+  });
+}
+
+export function guardarRespuestaQuiz(eventId: string, preguntaId: string, opcion: number) {
+  const state = useFija.getState();
+  const ahora = new Date().toISOString();
+  tocarEvento(eventId, (event) => {
+    const previas = event.quizRespuestas ?? [];
+    if (previas.some((item) => item.memberId === state.activeId && item.preguntaId === preguntaId)) return event;
+    return {
+      ...event,
+      quizRespuestas: [...previas, { memberId: state.activeId, preguntaId, opcion, at: ahora }],
+    };
+  });
+}
+
+export function marcarCumplida(eventId: string, consignaId: string, valor: "si" | "no") {
+  const state = useFija.getState();
+  const yo = state.members.find((persona) => persona.id === state.activeId);
+  if (!yo || yo.role === "jugador") return;
+  tocarEvento(eventId, (event) => ({
+    ...event,
+    cumplidas: { ...(event.cumplidas ?? {}), [consignaId]: valor },
+    despuesAt: new Date().toISOString(),
+  }));
+}
+
+export function usarOnce(eventId: string, lineup: Record<string, string>) {
+  tocarEvento(eventId, (event) => ({
+    ...event,
+    lineup: { ...lineup },
+    lineupUpdatedAt: new Date().toISOString(),
+  }));
+}
+
 function cloudFailureMessage(error: unknown): string {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   if (message.includes("unauthorized") || message.includes("forbidden")) {

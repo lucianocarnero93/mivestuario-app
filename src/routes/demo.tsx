@@ -64,8 +64,28 @@ function DemoPage() {
       void navigate({ to: "/vivo", search: { t: "", e: "" } });
       return;
     }
-    if (ir === "plan" || ir === "rol" || ir === "revelacion" || ir === "datos" || ir === "quiz" || ir === "despues") {
-      void navigate({ to: "/cancha" });
+    if (ir === "plan") {
+      void navigate({ to: "/cancha", search: { partido: "ev-racing", tab: "plan", carta: undefined } });
+      return;
+    }
+    if (ir === "rol") {
+      void navigate({ to: "/cancha", search: { partido: "ev-racing", tab: "rol", carta: undefined } });
+      return;
+    }
+    if (ir === "revelacion") {
+      void navigate({ to: "/cancha", search: { partido: "ev-racing", tab: "plan", carta: "revelacion" } });
+      return;
+    }
+    if (ir === "datos") {
+      void navigate({ to: "/cancha", search: { partido: "ev-racing", tab: "plan", carta: "datos" } });
+      return;
+    }
+    if (ir === "quiz") {
+      void navigate({ to: "/cancha", search: { partido: "ev-racing", tab: "rol", carta: "quiz" } });
+      return;
+    }
+    if (ir === "despues") {
+      void navigate({ to: "/cancha", search: { partido: "ev-academia", tab: "despues", carta: undefined } });
     }
   }, [hydrated, como, ir, navigate]);
 

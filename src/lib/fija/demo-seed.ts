@@ -10,11 +10,12 @@ import type {
   Rsvp,
 } from "./types.ts";
 
+import { plantillaPresion } from "./pizarra-modelo.ts";
+import { armarQuiz } from "./quiz.ts";
+
 /**
  * Equipo de ejemplo. Las fechas salen de `now`, así el próximo partido
  * siempre está a 4 días y el último fue ayer.
- *
- * falta prompt-pizarra: consignas por momento, entendido, quiz, cumplidas, origenGoles, cerebro
  */
 
 const LUGAR = {
@@ -102,10 +103,18 @@ function planilla(
 
 export function crearDemo(now: Date): ClubBundle {
   const cuando = (dias: number, hora: number, minuto = 0) => fechaDemo(now, dias, hora, minuto);
-  const vistos = CONVOCADOS.filter((id) => id !== "lucas").map((memberId) => ({
+  const plantilla = plantillaPresion();
+  const vistos = CONVOCADOS.filter((id) => id !== "lucas").map((memberId, index) => ({
     memberId,
     at: cuando(-1, 12),
+    ...(index < 9 ? { entendido: cuando(-1, 18) } : {}),
   }));
+  const quizBase = {
+    id: "ev-racing",
+    consignas: plantilla.consignas,
+  } as ClubEvent;
+  const preguntas = armarQuiz(quizBase);
+  const respondieron = ["fede", "tincho", "nacho", "colo", "rama", "bruno", "luqui"];
 
   const proximo: ClubEvent = {
     id: "ev-racing",
@@ -133,11 +142,20 @@ export function crearDemo(now: Date): ClubBundle {
       },
     ],
     notas: {
-      juancito:
-        "Abrís por izquierda y llegás al 2º palo. Si la perdés cerca, vas vos. Vos cerrás el carril izquierdo. Vos picás por afuera.",
+      juancito: "Abrís por izquierda. Llegás al segundo palo.",
     },
     vistos,
     rival: "Racing del Bajo",
+    plantillaId: plantilla.plantillaId,
+    consignas: plantilla.consignas,
+    consignasJugador: plantilla.consignasJugador,
+    quiz: { preguntas, cierra: cuando(4, 16), at: cuando(-1, 19) },
+    quizRespuestas: respondieron.map((memberId) => ({
+      memberId,
+      preguntaId: preguntas[0]?.id ?? "q-perdida",
+      opcion: 0,
+      at: cuando(-1, 20),
+    })),
   };
 
   const academia: ClubEvent = {
@@ -156,6 +174,20 @@ export function crearDemo(now: Date): ClubBundle {
     resultUpdatedAt: cuando(0, 0, 30),
     liveLog: marcasAcademia(cuando),
     reacciones: reacciones(cuando),
+    plantillaId: plantilla.plantillaId,
+    consignas: plantilla.consignas,
+    consignasJugador: plantilla.consignasJugador,
+    cumplidas: {
+      c1: "si",
+      c2: "si",
+      c3: "no",
+      c4: "si",
+      c5: "si",
+      c7: "no",
+    },
+    origenGoles: ["presion", "jugada", "presion"],
+    suplentes: [...BANCO],
+    convocados: [...CONVOCADOS],
   };
 
   const viejos: ClubEvent[] = [

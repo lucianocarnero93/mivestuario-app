@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { InviteShareButton } from "@/components/fija/invite-share";
 import { CrestPicker, TeamCrest } from "@/components/fija/team-crest";
+import { EquipoLista } from "@/components/fija/pantallas-v2";
 import {
   CardRow,
   MyNumbers,
@@ -63,6 +64,9 @@ function EquipoPage() {
 
   return (
     <main className="px-4 py-5">
+      <EquipoLista />
+      <details>
+        <summary className="text-sm text-muted">Editar el plantel</summary>
       <div className="flex items-center gap-3">
         <TeamCrest src={club?.crest} name={club?.name} className="size-14 text-xl" />
         <div>
@@ -259,6 +263,7 @@ function EquipoPage() {
       <MisEquipos />
       <Sacados />
       <LeaveTeam />
+      </details>
     </main>
   );
 }

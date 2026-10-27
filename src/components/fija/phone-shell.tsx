@@ -140,7 +140,7 @@ export function PhoneShell() {
       {DEMO ? <DemoChrome /> : null}
       <PwaRegister />
       <div className={`pitch-shell mx-auto flex w-full max-w-phone flex-col shadow-card desk:h-dvh desk:max-w-none desk:flex-row desk:shadow-none ${DEMO ? "min-h-0 flex-1" : "min-h-dvh"}`}>
-        <div className="grass-strip desk:hidden" aria-hidden="true" />
+        <div className="grass-strip hidden" aria-hidden="true" />
         {isBare ? (
           <div className="contents desk:mx-auto desk:flex desk:w-full desk:max-w-xl desk:flex-1 desk:flex-col">
             <Outlet />
@@ -291,26 +291,16 @@ function AppBar() {
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg/95 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] desk:static desk:border-0 desk:bg-transparent desk:px-8 desk:pb-0 desk:pt-5">
       <div className="flex items-center justify-between gap-2 desk:justify-end">
-        <div className="desk:hidden">
-          <BrandLockup />
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <TeamCrest src={club?.crest} name={club?.name} className="size-9 text-xs" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{club?.name ?? "Sin equipo"}</p>
+            <p className="truncate text-xs text-muted">{lineaRol(me.nick, me.role)}</p>
+          </div>
         </div>
-        <div className="flex items-center">
-          <InboxBell />
-          <Link to="/seguridad" className="grid size-11 place-items-center text-muted desk:hidden">
-            <Lock className="size-4" />
-            <span className="sr-only">Seguridad</span>
-          </Link>
-        </div>
-      </div>
-      <div className="mt-2 flex items-center gap-2 desk:hidden">
-        <TeamCrest src={club?.crest} name={club?.name} className="size-8 text-xs" />
-        <p className="min-w-0 flex-1 truncate text-xs text-muted">
-          {club?.name ?? "Sin equipo"} · {lineaRol(me.nick, me.role)}
-        </p>
+        <InboxBell />
         {otherClubs.length > 0 ? (
-          <Link to="/equipo" className="shrink-0 text-xs font-semibold text-accent">
-            Cambiar
-          </Link>
+          <Link to="/equipo" className="text-xs font-semibold text-accent">Cambiar</Link>
         ) : null}
       </div>
     </header>
@@ -376,7 +366,9 @@ function BottomNav() {
                       ? { partido: undefined }
                       : item.to === "/caja"
                         ? { mp: undefined }
-                        : undefined
+                        : item.to === "/cancha"
+                          ? { partido: undefined, tab: undefined, carta: undefined }
+                          : undefined
                 }
                 className={cn(
                   "flex h-16 flex-col items-center justify-center gap-0.5 text-[10px] font-medium",
