@@ -1,6 +1,7 @@
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useFija } from "@/lib/fija/store";
+import { DEMO } from "@/lib/fija/demo-flag";
 
 type LaunchFile = { getFile: () => Promise<File> };
 type LaunchParams = {
@@ -58,7 +59,7 @@ export function PwaRegister() {
   const importSnapshot = useFija((s) => s.importSnapshot);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || DEMO) return;
     try {
       sessionStorage.removeItem("vestuario-reload");
     } catch {

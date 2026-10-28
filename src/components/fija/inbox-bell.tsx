@@ -173,7 +173,9 @@ function InboxRow({
       ? { title: undefined, text: undefined, url: undefined }
       : href === "/caja"
         ? { mp: undefined }
-        : undefined;
+        : href === "/cancha"
+          ? { ver: undefined, partido: undefined }
+          : undefined;
   return (
     <Link
       to={href}

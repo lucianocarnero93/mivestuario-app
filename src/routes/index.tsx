@@ -1,5 +1,7 @@
 // Inicio: pendientes del equipo, próximo partido y acceso a la pizarra.
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { TarjetaStaffInicio } from "@/components/fija/modelos-tacticos";
+import { TarjetaTuPartido } from "@/components/fija/tactica-simple";
 import { EventCard } from "@/components/fija/event-card";
 import { resultIsOpen } from "@/lib/fija/club-rules";
 import { contarConfirmaciones } from "@/lib/fija/fecha";
@@ -122,6 +124,8 @@ function HomePage() {
           </Link>
         </Button>
       ) : null}
+      {event.kind === "partido" && !staff && event.lineupPublishedAt ? <TarjetaTuPartido event={event} /> : null}
+      {event.kind === "partido" && staff ? <TarjetaStaffInicio event={event} /> : null}
       {figuraReciente ? <FiguraPartido event={figuraReciente} /> : null}
       {staff && figuraReciente ? <CopiarResultado event={figuraReciente} /> : null}
 
@@ -159,7 +163,7 @@ function HomePage() {
             <p className="rounded-lg bg-surface py-3 text-center text-sm font-medium text-muted">Pendiente</p>
           )}
           <Button asChild variant="ghost" className="h-12">
-            <Link to="/cancha">Ver formación</Link>
+            <Link to="/cancha" search={{ ver: undefined, partido: event.kind === "partido" ? event.id : undefined }}>Ver formación</Link>
           </Button>
         </div>
         )

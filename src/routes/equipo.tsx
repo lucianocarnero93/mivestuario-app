@@ -193,7 +193,7 @@ function EquipoPage() {
           {players.map((p) => (
             <li key={p.id} className="px-4 py-3">
               <div className="flex items-center gap-3">
-                <PlayerAvatar name={p.name} photo={p.menor ? null : p.photo} accent={p.id === me.id} />
+                <PlayerAvatar name={p.menor ? p.nick : p.name} photo={p.menor ? null : p.photo} accent={p.id === me.id} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">
                     {p.number != null ? (
@@ -202,7 +202,7 @@ function EquipoPage() {
                     {p.nick}
                     {staff && p.menor ? <span className="ml-2 text-xs font-semibold text-muted">Menor</span> : null}
                   </p>
-                  <p className="text-xs text-muted">{p.name}</p>
+                  <p className="text-xs text-muted">{p.menor ? "Solo el apodo" : p.name}</p>
                   {me.role === "dt" ? <MemberEdit memberId={p.id} nick={p.nick} number={p.number} /> : null}
                   {staff ? (
                     <label className="mt-2 flex items-center gap-2 text-sm">

@@ -3,6 +3,8 @@ import { Link2, Mic, Pause, Play } from "lucide-react";
 import { Pitch } from "@/components/fija/pitch";
 import { SquadPanel } from "@/components/fija/squad-panel";
 import { Segmented } from "@/components/fija/segmented";
+import { BotonesJugador, EntradaModelos, ModelosTacticos } from "@/components/fija/modelos-tacticos";
+import { CambiosPlaneados, ClavesEquipo, FraseRapida, QuienPelota } from "@/components/fija/tactica-simple";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -41,10 +43,12 @@ import {
 } from "@/lib/fija/pizarra";
 import { vivoUrl } from "@/lib/fija/share";
 import { useFija, useIsStaff } from "@/lib/fija/store";
+import { tareasDe } from "@/lib/fija/tactica";
 import type { ClubEvent, Dibujo, JugadaGuardada, PlanId, PlanPizarra, Trazo } from "@/lib/fija/types";
 
 type Vista =
   | "puesto"
+  | "modelos"
   | "planes"
   | "jugada"
   | "pelota"
@@ -55,6 +59,7 @@ type Vista =
 
 const VISTAS: { id: Vista; label: string; staff?: boolean }[] = [
   { id: "puesto", label: "Tu puesto" },
+  { id: "modelos", label: "Modelos" },
   { id: "planes", label: "Planes" },
   { id: "jugada", label: "Jugada" },
   { id: "pelota", label: "Pelota parada" },
@@ -64,7 +69,7 @@ const VISTAS: { id: Vista; label: string; staff?: boolean }[] = [
   { id: "compartir", label: "Compartir" },
 ];
 
-export function PizarraViva({ event }: { event: ClubEvent }) {
+export function PizarraViva({ event, vistaInicial }: { event: ClubEvent; vistaInicial?: Vista }) {
   const staff = useIsStaff();
   const members = useFija((s) => s.members);
   const me = useFija((s) => s.members.find((m) => m.id === s.activeId));
@@ -82,7 +87,10 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
   const setJuega = useFija((s) => s.setJuega);
   const publishLineup = useFija((s) => s.publishLineup);
   const rsvps = useFija((s) => s.rsvps);
-  const [vista, setVista] = useState<Vista>("puesto");
+  const [vista, setVista] = useState<Vista>(vistaInicial === "modelos" ? "modelos" : "puesto");
+  const [modeloAbierto, setModeloAbierto] = useState<string | null>(
+    !staff && vistaInicial === "modelos" ? (event.tactica?.modelos?.[0]?.id ?? null) : null,
+  );
   const [planId, setPlanId] = useState<PlanId>(event.planActivo ?? "a");
   const [slot, setSlot] = useState<string | null>(null);
   const [nota, setNota] = useState("");
@@ -137,6 +145,22 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
         ))}
       </div>
 
+      {vista === "puesto" ? (
+        <div className="mt-3 grid gap-3">
+          <EntradaModelos event={event} staff={staff} onAbrir={() => { setModeloAbierto(null); setVista("modelos"); }} />
+          {!staff ? (
+            <BotonesJugador
+              event={event}
+              onAbrir={(id) => {
+                setModeloAbierto(id);
+                setVista("modelos");
+              }}
+            />
+          ) : null}
+          <ClavesEquipo event={event} staff={staff} />
+        </div>
+      ) : null}
+
       {vista === "puesto" || vista === "planes" || vista === "partido" ? (
         <div className="mt-3">
           {vista === "planes" || vista === "partido" ? <Planes planId={planId} onPlan={setPlanId} /> : null}
@@ -150,8 +174,13 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
                     {me.number != null ? ` · ${me.number}` : ""} · {miPuesto.label}
                   </p>
                   <p className="mt-2 whitespace-pre-wrap text-xl font-medium leading-snug text-line">
-                    {event.notas?.[me.id] || "El DT todavía no te dejó una indicación."}
+                    {event.tactica?.frases?.[me.id] || event.notas?.[me.id] || "El DT todavía no te dejó una indicación."}
                   </p>
+                  <ul className="mt-2 grid gap-1 text-sm text-line">
+                    {tareasDe(event.tactica, me.id, members).map((item) => (
+                      <li key={item}>› {item}</li>
+                    ))}
+                  </ul>
                 </>
               ) : (
                 <p className="mt-2 text-base text-line">En este plan no salís.</p>
@@ -255,11 +284,16 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
                     onBlur={(e) => setNotaJugador(event.id, id, e.target.value.trim())}
                   />
                 </label>
+                <div className="mt-1 pl-[7.5rem]">
+                  <FraseRapida event={event} memberId={id} />
+                </div>
               </li>
             );
           })}
         </ul>
       ) : null}
+
+      {vista === "puesto" && staff ? <CambiosPlaneados event={event} /> : null}
 
       {vista === "puesto" || vista === "charla" ? (
         <div className="mt-3 rounded-2xl border border-line/25 bg-black/30 p-4">
@@ -282,7 +316,9 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
       {vista === "charla" ? <AudioEquipo event={event} code={code} staff={staff} onAviso={setAviso} /> : null}
       {vista === "charla" ? <VideoLink event={event} staff={staff} onChange={(url) => aplicar(event.id, { videoUrl: url })} /> : null}
       {vista === "jugada" || vista === "pelota" ? (
-        <Pasos
+        <>
+          {vista === "pelota" && staff ? <QuienPelota event={event} /> : null}
+          <Pasos
           key={vista}
           event={event}
           seccion={vista === "pelota" ? "pelota" : "jugada"}
@@ -312,7 +348,9 @@ export function PizarraViva({ event }: { event: ClubEvent }) {
             setAviso("Predeterminada guardada.");
           }}
         />
+        </>
       ) : null}
+      {vista === "modelos" ? <ModelosTacticos key={modeloAbierto ?? "lista"} event={event} staff={staff} abrirId={modeloAbierto} /> : null}
       {vista === "biblioteca" ? (
         <Biblioteca
           items={biblioteca}

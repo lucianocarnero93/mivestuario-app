@@ -1,6 +1,7 @@
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { AuthProvider } from "@/lib/auth/provider";
 import { PhoneShell } from "@/components/fija/phone-shell";
+import { DEMO } from "@/lib/fija/demo-flag";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -18,6 +19,7 @@ export const Route = createRootRoute({
         name: "description",
         content: "El vestuario de tu equipo amateur. Convocatorias, pizarra, fecha y stats.",
       },
+      ...(DEMO ? [{ name: "robots", content: "noindex" }] : []),
     ],
     links: [
       { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },

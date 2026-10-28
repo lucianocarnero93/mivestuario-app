@@ -432,12 +432,13 @@ function mezclarCampo<T>(
 }
 
 /** La jugada y la pelota se mezclan aparte. null borra y una copia vieja no lo revive. */
-export function camposDePizarra(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, "pasos" | "pelotaParada" | "jugadaVisible" | "pelotaVisible" | "videoUrl" | "notas" | "tactics" | "audioDe" | "jugadaAt" | "pelotaAt" | "videoAt" | "notasAt" | "tacticaAt" | "audioAt" | "pizarraUpdatedAt"> {
+export function camposDePizarra(previous: ClubEvent, incoming: ClubEvent): Pick<ClubEvent, "pasos" | "pelotaParada" | "jugadaVisible" | "pelotaVisible" | "videoUrl" | "notas" | "tactics" | "tactica" | "audioDe" | "jugadaAt" | "pelotaAt" | "videoAt" | "notasAt" | "tacticaAt" | "tacticaPartidoAt" | "audioAt" | "pizarraUpdatedAt"> {
   const jugada = horasDe(previous.jugadaAt, incoming.jugadaAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
   const pelota = horasDe(previous.pelotaAt, incoming.pelotaAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
   const video = horasDe(previous.videoAt, incoming.videoAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
   const notas = horasDe(previous.notasAt, incoming.notasAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
   const tactica = horasDe(previous.tacticaAt, incoming.tacticaAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
+  const partido = horasDe(previous.tacticaPartidoAt, incoming.tacticaPartidoAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
   const audio = horasDe(previous.audioAt, incoming.audioAt, previous.pizarraUpdatedAt, incoming.pizarraUpdatedAt);
   const videoElegido = mezclarCampo(previous.videoUrl ?? undefined, incoming.videoUrl ?? undefined, video.prev, video.next);
   return {
@@ -448,18 +449,26 @@ export function camposDePizarra(previous: ClubEvent, incoming: ClubEvent): Pick<
     videoUrl: videoElegido === null ? "" : videoElegido,
     notas: mezclarCampo(previous.notas, incoming.notas, notas.prev, notas.next) ?? undefined,
     tactics: mezclarCampo(previous.tactics, incoming.tactics, tactica.prev, tactica.next) ?? previous.tactics,
+    tactica: mezclarCampo(previous.tactica, incoming.tactica, partido.prev, partido.next) ?? undefined,
     audioDe: mezclarCampo(previous.audioDe, incoming.audioDe, audio.prev, audio.next) ?? undefined,
     jugadaAt: jugada.next > jugada.prev ? incoming.jugadaAt : previous.jugadaAt,
     pelotaAt: pelota.next > pelota.prev ? incoming.pelotaAt : previous.pelotaAt,
     videoAt: video.next > video.prev ? incoming.videoAt : previous.videoAt,
     notasAt: notas.next > notas.prev ? incoming.notasAt : previous.notasAt,
     tacticaAt: tactica.next > tactica.prev ? incoming.tacticaAt : previous.tacticaAt,
+    tacticaPartidoAt: partido.next > partido.prev ? incoming.tacticaPartidoAt : previous.tacticaPartidoAt,
     audioAt: audio.next > audio.prev ? incoming.audioAt : previous.audioAt,
     pizarraUpdatedAt:
       marca(incoming.pizarraUpdatedAt) >= marca(previous.pizarraUpdatedAt)
         ? incoming.pizarraUpdatedAt ?? previous.pizarraUpdatedAt
         : previous.pizarraUpdatedAt ?? incoming.pizarraUpdatedAt,
   };
+}
+
+function tacticaDelJugador(event: ClubEvent, memberId: string) {
+  if (!event.tactica) return undefined;
+  const frase = event.tactica.frases?.[memberId];
+  return { ...event.tactica, frases: frase ? { [memberId]: frase } : undefined };
 }
 
 /** Lo que puede llegar al teléfono de un jugador. Sin archivo del DT ni indicaciones ajenas.
@@ -470,6 +479,7 @@ function pizarraParaJugador(event: ClubEvent, memberId: string): ClubEvent {
       ...event,
       lineup: {},
       tactics: "",
+      tactica: undefined,
       planes: [],
       formacion: undefined,
       jugada: undefined,
@@ -488,6 +498,7 @@ function pizarraParaJugador(event: ClubEvent, memberId: string): ClubEvent {
   return {
     ...event,
     notas: event.notas?.[memberId] ? { [memberId]: event.notas[memberId] } : undefined,
+    tactica: tacticaDelJugador(event, memberId),
     pasos: event.jugadaVisible === false ? null : event.pasos,
     pelotaParada: event.pelotaVisible === false ? null : event.pelotaParada,
     vistos: undefined,

@@ -7,6 +7,7 @@ import viteReact from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { nitro } from "nitro/vite";
 import { isMigrationFile } from "./scripts/migration-plan.mjs";
+import { esBuildDemo } from "./scripts/demo-flag.mjs";
 
 /** The files `src/lib/db.ts` globs — same directory, same non-recursive scope. */
 function hasGlobbedMigrations(root: string): boolean {
@@ -60,6 +61,15 @@ export default defineConfig(({ command, isPreview }) => ({
     strictPort: true,
   },
   resolve: { tsconfigPaths: true },
+  define: {
+    "import.meta.env.VITE_DEMO": JSON.stringify(esBuildDemo(process.env) ? "1" : "0"),
+  },
+  optimizeDeps: {
+    exclude: ["@resvg/resvg-js"],
+  },
+  ssr: {
+    external: ["@resvg/resvg-js"],
+  },
   plugins: [
     pgliteBootstrapPlugin(),
     tailwindcss(),

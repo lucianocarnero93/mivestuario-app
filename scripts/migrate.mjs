@@ -17,6 +17,12 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import pg from "pg";
 import { pendingMigrations } from "./migration-plan.mjs";
+import { esBuildDemo } from "./demo-flag.mjs";
+
+if (esBuildDemo(process.env)) {
+  console.log("[migrate] modo demo — no se toca la base.");
+  process.exit(0);
+}
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {

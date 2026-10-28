@@ -159,7 +159,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
       {staff ? <ParaLaFamilia event={event} /> : null}
       {!cerrado && event.lineupPublishedAt ? (
         <Button asChild variant="outline" className="mt-3 h-12 w-full">
-          <Link to="/cancha">Ver formación</Link>
+          <Link to="/cancha" search={{ ver: undefined, partido: event.id }}>Ver formación</Link>
         </Button>
       ) : null}
       <div className="mt-3 grid gap-2">
@@ -181,7 +181,7 @@ function FechaViva({ event }: { event: ClubEvent }) {
         ) : null}
         {staff ? (
           <Button asChild variant="secondary" className="h-12">
-            <Link to="/cancha">Indicaciones en la pizarra</Link>
+            <Link to="/cancha" search={{ ver: undefined, partido: event.id }}>Indicaciones en la pizarra</Link>
           </Button>
         ) : null}
       </div>

@@ -11,12 +11,15 @@ import { alertsDue, pickMemberIdentity, perfilMasNuevo, preferRsvp, resultIsOpen
 import { marcarVisto as vistoDe, duplicarJugada } from "./pizarra";
 import { clubSinImagenes, pruneBundle } from "./prune";
 import { clampHours } from "./share";
-import { claimMember, closedMatchStillHeavy, leaveClubDoc, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc, saveClubDoc, saveCrest, savePortrait, traeEquipo, useMyName as reclamarMiNombre, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
+import { claimMember as claimMemberReal, closedMatchStillHeavy, leaveClubDoc as leaveClubDocReal, lightenClosedMatches, listMyClubs, loadClubDoc, loadPortrait, mergeTournaments, pickEvent, pickSheet, readmitAccountDoc as readmitAccountDocReal, saveClubDoc as saveClubDocReal, saveCrest as saveCrestReal, savePortrait as savePortraitReal, traeEquipo, useMyName as reclamarMiNombreReal, withoutDroppedCharla, withoutDroppedEvents } from "./cloud";
+import { cortarNube, esDemo, storageDemo } from "./demo-puente";
+import { crearDemo } from "./demo-seed";
+import { normalizarTactica, type TacticaPartido } from "./tactica";
 import { clearPedirEdad, readMenor } from "./edad";
 import { aplicarMarcasDeJugador, menorAlGuardar, partidoMarcable, elegirTokenEquipo } from "./vivo";
 import { noteQuiet } from "@/lib/note";
 import { authClient } from "@/lib/auth/client";
-import { notifyClub } from "./push";
+import { notifyClub as notifyClubReal } from "./push";
 import { clampStat, emptyStat } from "./stats";
 import { mergeFiguraVotes } from "./figura";
 import { SPONSORS_ACTIVO, logoPropio } from "./sponsors";
@@ -53,6 +56,15 @@ import type {
   RsvpStatus,
   Tournament,
 } from "./types";
+
+const claimMember = cortarNube("claimMember", claimMemberReal);
+const leaveClubDoc = cortarNube("leaveClubDoc", leaveClubDocReal);
+const readmitAccountDoc = cortarNube("readmitAccountDoc", readmitAccountDocReal);
+const saveClubDoc = cortarNube("saveClubDoc", saveClubDocReal);
+const saveCrest = cortarNube("saveCrest", saveCrestReal);
+const savePortrait = cortarNube("savePortrait", savePortraitReal);
+const reclamarMiNombre = cortarNube("useMyName", reclamarMiNombreReal);
+const notifyClub = cortarNube("notifyClub", notifyClubReal);
 
 type ShelfTeam = {
   bundle: ClubBundle;
@@ -103,6 +115,7 @@ type State = ReturnType<typeof createSeed> & {
   convocarLosQueVan: (eventId: string) => string | null;
   setBoardShape: (eventId: string, modality: Modality, formacionId: string) => string | null;
   setTactics: (eventId: string, tactics: string) => void;
+  setTactica: (eventId: string, tactica: TacticaPartido) => void;
   setJugada: (eventId: string, notas: NotaJugada[]) => void;
   setRival: (eventId: string, rival: string) => void;
   setNota: (eventId: string, memberId: string, nota: string) => void;
@@ -207,6 +220,32 @@ const blank = {
   fotosCard: {} as Record<string, string>,
 };
 
+function rsvpsPropios(rsvps: { eventId: string; memberId: string; status: RsvpStatus }[], activeId: string) {
+  const saved: Record<string, RsvpStatus> = {};
+  for (const row of rsvps) {
+    if (row.memberId === activeId) saved[row.eventId] = row.status;
+  }
+  return saved;
+}
+
+function semillaDemo(rol: "profe" | "sofi" | "juancito") {
+  const bundle = crearDemo(new Date());
+  const persona = bundle.members.find((person) => person.id === rol);
+  return {
+    ...blank,
+    ...bundle,
+    archivedClubs: [] as ReturnType<typeof createSeed>["archivedClubs"],
+    otherClubs: [] as ShelfTeam[],
+    activeClubId: bundle.club.id,
+    activeId: rol,
+    profile: { name: persona?.name ?? "", nick: persona?.nick ?? "" },
+    dirty: false,
+    savedMine: rsvpsPropios(bundle.rsvps, rol),
+  };
+}
+
+const arranque = esDemo() ? semillaDemo("juancito") : blank;
+
 /*
   Memoria de la app. Todo lo que ves en pantalla sale de acá
   y se guarda en el celular. Si hay código de equipo, también se copia a la nube.
@@ -263,7 +302,7 @@ const revisionNube = new Map<string, string>();
 export const useFija = create<State>()(
   persist(
     (set, get) => ({
-      ...blank,
+      ...arranque,
       hydrated: false,
       cloudStatus: "idle" as CloudStatus,
       cloudError: null as string | null,
@@ -637,6 +676,18 @@ export const useFija = create<State>()(
             event.id === eventId
               ? { ...event, tactics: tactics.slice(0, TACTICA_EQUIPO_MAX), lineupUpdatedAt: new Date().toISOString() }
               : event,
+          ),
+        });
+      },
+
+      setTactica: (eventId, tactica) => {
+        if (!isStaffId(get())) return;
+        if (tournamentClosedFor(get(), eventId)) return;
+        const now = new Date().toISOString();
+        const limpia = normalizarTactica(tactica);
+        set({
+          events: get().events.map((event) =>
+            event.id === eventId ? { ...event, tactica: limpia, tacticaPartidoAt: now, pizarraUpdatedAt: now } : event,
           ),
         });
       },
@@ -2168,6 +2219,7 @@ export const useFija = create<State>()(
 
       // Si la cuenta ya está en alguien, no se crea otra persona ni se mueve sola.
       ensureMySpot: async () => {
+        if (esDemo()) return;
         const account = await currentAccount();
         if (!account) return;
         const state = get();
@@ -2258,6 +2310,7 @@ export const useFija = create<State>()(
 
       // En un celular nuevo, trae los equipos donde esta cuenta ya está.
       restoreMyClubs: async () => {
+        if (esDemo()) return;
         if (!get().hydrated) return;
         let listed: { code: string; name: string }[] = [];
         try {
@@ -2347,6 +2400,7 @@ export const useFija = create<State>()(
       },
 
       applySharedPhoto: async () => {
+        if (esDemo()) return;
         const state = get();
         const me = state.members.find((person) => person.id === state.activeId);
         if (!me || me.menor) return;
@@ -2394,6 +2448,7 @@ export const useFija = create<State>()(
 
       // Baja de la nube la última copia del equipo en el que ya estoy.
       syncFromCloud: async () => {
+        if (esDemo()) return;
         if (!get().hydrated) return;
         if (syncingNow) return;
         const epoch = cloudEpoch;
@@ -2515,6 +2570,7 @@ export const useFija = create<State>()(
 
       // Sube el equipo a la nube usando el código como llave. Reintenta solo.
       flushCloud: async () => {
+        if (esDemo()) return true;
         const epoch = cloudEpoch;
         const state = get();
         if (!state.club) return false;
@@ -2638,6 +2694,7 @@ export const useFija = create<State>()(
 
       // Guarda y después comprueba que el código se puede leer. Recién ahí se puede invitar.
       publishClub: async () => {
+        if (esDemo()) return false;
         const uploaded = await get().flushCloud();
         const code = get().club?.inviteCode;
         if (!uploaded || !code) return false;
@@ -2665,13 +2722,19 @@ export const useFija = create<State>()(
 
       // Vuelve al celular vacío, sin equipo cargado.
       resetDemo: () => {
-        set({ ...blank, hydrated: true, cloudStatus: "idle", cloudError: null });
+        if (!esDemo()) {
+          set({ ...blank, hydrated: true, cloudStatus: "idle", cloudError: null });
+          return;
+        }
+        const id = get().activeId;
+        const rol = id === "profe" || id === "sofi" || id === "juancito" ? id : "juancito";
+        set({ ...semillaDemo(rol), hydrated: true, cloudStatus: "idle", cloudError: null, dirty: false });
       },
     }),
     {
       name: "mi-vestuario-v6",
       skipHydration: true,
-      storage: createJSONStorage(() => safeStorage),
+      storage: createJSONStorage(() => (esDemo() ? storageDemo() : safeStorage)),
       partialize: (s) => ({
         club: s.club,
         members: s.members,
@@ -2816,6 +2879,7 @@ function mineUnsaved(state: { activeId: string; rsvps: Rsvp[]; savedMine: Record
 }
 if (typeof window !== "undefined") {
   useFija.subscribe((state, prev) => {
+    if (esDemo()) return;
     if (applyingCloud) return;
     if (!state.hydrated || !state.club) return;
     if (
@@ -3566,6 +3630,19 @@ export function useIsStaff(): boolean {
   const club = useFija((s) => s.club);
   if (!club) return false;
   return me.role === "dt" || me.role === "ayudante";
+}
+
+export function ponerRolDemo(rol: "dt" | "ayudante" | "jugador") {
+  if (!esDemo()) return;
+  const id = rol === "dt" ? "profe" : rol === "ayudante" ? "sofi" : "juancito";
+  const state = useFija.getState();
+  const persona = state.members.find((person) => person.id === id);
+  if (!persona) return;
+  useFija.setState({
+    activeId: id,
+    profile: { name: persona.name, nick: persona.nick },
+    savedMine: rsvpsPropios(state.rsvps, id),
+  });
 }
 
 export function useIsCreator(): boolean {

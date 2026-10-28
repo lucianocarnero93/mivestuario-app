@@ -5,7 +5,13 @@ import { PizarraViva } from "@/components/fija/pizarra-viva";
 import { formatWhen } from "@/lib/fija/format";
 import { matchSettled, nextEvent, sheetFor, useFija, useIsStaff } from "@/lib/fija/store";
 
-export const Route = createFileRoute("/cancha")({ component: CanchaPage });
+export const Route = createFileRoute("/cancha")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    ver: search.ver === "modelos" ? ("modelos" as const) : undefined,
+    partido: typeof search.partido === "string" ? search.partido.slice(0, 40) : undefined,
+  }),
+  component: CanchaPage,
+});
 
 function CanchaPage() {
   const staff = useIsStaff();
@@ -23,7 +29,8 @@ function CanchaPage() {
     })
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
   const fallback = nextEvent(matchEvents, { tournaments, sheets }) ?? matchEvents[matchEvents.length - 1];
-  const [eventId, setEventId] = useState(fallback?.id ?? "");
+  const search = Route.useSearch();
+  const [eventId, setEventId] = useState(search.partido || fallback?.id || "");
   const event = matchEvents.find((e) => e.id === eventId) ?? fallback;
 
   if (!event) {
@@ -54,7 +61,7 @@ function CanchaPage() {
         </div>
       ) : null}
       {staff || event.lineupPublishedAt ? (
-        <PizarraViva key={event.id} event={event} />
+        <PizarraViva key={event.id} event={event} vistaInicial={search.ver === "modelos" ? "modelos" : undefined} />
       ) : (
         <p className="mt-4 rounded-xl bg-surface px-4 py-6 text-center text-sm text-muted">
           El DT todavía no publicó la formación.
