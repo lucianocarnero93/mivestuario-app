@@ -6,6 +6,7 @@ import { readPedirEdad } from "@/lib/fija/edad";
 import { rememberInvite } from "@/lib/fija/share";
 import { registerTeamPush } from "@/lib/fija/push-client";
 import { useFija, useIsStaff, useMe, currentAccount, wipeLocalTeamData } from "@/lib/fija/store";
+import { DEMO } from "@/lib/fija/demo-flag";
 import { cn } from "@/lib/utils";
 import { useCurrentUserState, useSessionLista } from "@/lib/auth/use-current-user";
 import { ClubGate } from "./club-gate";
@@ -15,6 +16,7 @@ import { PushBanner, AvisosPrompt } from "./push-banner";
 import { PwaRegister } from "./pwa-register";
 import { SignInPanel } from "./sign-in-panel";
 import { EdadGate } from "./edad-gate";
+import { DemoChrome } from "./demo-chrome";
 import { traerImagenesEquipo } from "@/lib/fija/fotos-card";
 import { TeamCrest } from "./team-crest";
 
@@ -44,6 +46,7 @@ const BARE_PATHS = [
   "/contacto",
   "/terminos",
   "/vivo",
+  "/demo",
 ] as const;
 
 export function PhoneShell() {
@@ -59,6 +62,23 @@ export function PhoneShell() {
   }, []);
 
   useEffect(() => {
+    if (!DEMO) return;
+    let cancel = false;
+    void Promise.resolve(useFija.persist.rehydrate()).then(() => {
+      if (cancel) return;
+      if (!useFija.getState().club) useFija.getState().resetDemo();
+      else useFija.getState().setHydrated();
+    });
+    tickAlerts();
+    const id = window.setInterval(() => tickAlerts(), 30_000);
+    return () => {
+      cancel = true;
+      window.clearInterval(id);
+    };
+  }, [tickAlerts]);
+
+  useEffect(() => {
+    if (DEMO) return;
     if (isPending || !user?.id) return;
     let cancel = false;
     void Promise.resolve(useFija.persist.rehydrate()).then(async () => {
@@ -118,6 +138,7 @@ export function PhoneShell() {
     <div className="min-h-dvh bg-void text-fg">
       <div className="app-titlebar" aria-hidden="true" />
       <PwaRegister />
+      {DEMO ? <DemoChrome /> : null}
       <div className="pitch-shell mx-auto flex min-h-dvh w-full max-w-phone flex-col shadow-card desk:h-dvh desk:max-w-none desk:flex-row desk:shadow-none">
         <div className="grass-strip desk:hidden" aria-hidden="true" />
         {isBare ? (
@@ -177,6 +198,12 @@ function AuthFrame({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  if (DEMO) {
+    if (!hydrated) {
+      return <p className="grid min-h-dvh place-items-center px-6 text-center text-sm text-muted">Abriendo Los Pibes FC…</p>;
+    }
+    return children;
+  }
   if (esperando) {
     return <p className="grid min-h-dvh place-items-center px-6 text-center text-sm text-muted">Abriendo el vestuario…</p>;
   }
@@ -221,7 +248,9 @@ function SideNav() {
                         ? { partido: undefined }
                         : item.to === "/caja"
                           ? { mp: undefined }
-                          : undefined
+                          : item.to === "/cancha"
+                            ? { ver: undefined, partido: undefined }
+                            : undefined
                   }
                   className={cn(
                     "flex h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold",
@@ -300,8 +329,9 @@ function CloudBanner() {
   const error = useFija((s) => s.cloudError);
   const flushCloud = useFija((s) => s.flushCloud);
   const staff = useIsStaff();
-  const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+  const [online, setOnline] = useState(true);
   useEffect(() => {
+    setOnline(navigator.onLine);
     const up = () => setOnline(true);
     const down = () => setOnline(false);
     window.addEventListener("online", up);
@@ -354,7 +384,9 @@ function BottomNav() {
                       ? { partido: undefined }
                       : item.to === "/caja"
                         ? { mp: undefined }
-                        : undefined
+                        : item.to === "/cancha"
+                          ? { ver: undefined, partido: undefined }
+                          : undefined
                 }
                 className={cn(
                   "flex h-16 flex-col items-center justify-center gap-0.5 text-[10px] font-medium",

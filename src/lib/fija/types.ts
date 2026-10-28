@@ -14,6 +14,7 @@
 */
 
 import type { Jugada } from "./jugada";
+import type { TacticaPartido } from "./tactica.ts";
 
 export type Role = "dt" | "ayudante" | "jugador";
 export type Modality = "f5" | "f7" | "f8" | "f9" | "f11";
@@ -173,6 +174,10 @@ export type ClubEvent = {
   modality: Modality;
   lineup: Record<string, string>;
   tactics: string;
+  /** Claves, frases, pelota parada y modelos de este partido. */
+  tactica?: TacticaPartido;
+  /** Cuándo se cambió esa táctica. No se mezcla con el texto de equipo. */
+  tacticaPartidoAt?: string;
   /** Cómo juega el rival, en la historia del partido. */
   rival?: string;
   /** Una frase por jugador. La ve todo el equipo. */

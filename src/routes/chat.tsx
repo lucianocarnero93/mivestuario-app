@@ -29,7 +29,7 @@ function ChatPage() {
       <p className="mt-2 text-sm text-muted">Las indicaciones están en la pizarra. El partido se sigue en Fecha.</p>
       <div className="mt-4 grid gap-2">
         <Button asChild className="h-14">
-          <Link to="/cancha">Ir a la pizarra</Link>
+          <Link to="/cancha" search={{ ver: undefined, partido: undefined }}>Ir a la pizarra</Link>
         </Button>
         <Button asChild variant="secondary" className="h-12">
           <Link to="/fecha" search={{ partido: undefined }}>Ir a Fecha</Link>

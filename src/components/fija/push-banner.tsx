@@ -92,7 +92,11 @@ export function PushBanner() {
               <Link
                 to={href}
                 search={
-                  href === "/chat" ? { title: undefined, text: undefined, url: undefined } : undefined
+                  href === "/chat"
+                    ? { title: undefined, text: undefined, url: undefined }
+                    : href === "/cancha"
+                      ? { ver: undefined, partido: undefined }
+                      : undefined
                 }
               >
                 Abrir
